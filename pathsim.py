@@ -2,7 +2,7 @@ import stem.descriptor.reader
 import datetime
 
 descriptor_dir = ["server-descriptors-2012-08"]
-consensus_dir = "consensuses-2012-08"
+consensus_dir = "consensuses-2012-08-stripped"
 
 if __name__ == "__main__":
     # read all descriptors into memory
@@ -25,6 +25,6 @@ if __name__ == "__main__":
     print("# descriptors: {0};  num_relays: {1}".format(num_descriptors,num_relays))            
     
     # read in consensuses
-    # START
+    
 # create client
 # every x minutes, choose another path according to current client state
