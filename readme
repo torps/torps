@@ -1,0 +1,3 @@
+Rough version of a path simulator for Tor.
+- pathsim.py: Path simulator code. Needs Tor's stem library, consensuses, and descriptors.
+- stem comments.txt: Running observations on stem for Damian.
