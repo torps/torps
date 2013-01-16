@@ -9,6 +9,7 @@ if __name__ == '__main__':
 		
     input_dir = sys.argv[1]
     output_dir = sys.argv[2]
+    num_to_print = 0
 
     for dirpath, dirnames, filenames in os.walk(input_dir):
         for filename in filenames:
@@ -27,8 +28,14 @@ if __name__ == '__main__':
                         # check that first line doesn't start '@type' before writing
                         if (line[0:5] != '@type'):
                             f_out.write(line)
+                        elif  (num_to_print > 0):
+                            f_out.write(line)
+                            num_to_print -= 1
+                            type_count += 1
                         else:
                             type_count += 1
+                            f_out.write('@downloaded-at 2012-09-17 17:44:50\n')
+                            f_out.write('@source "193.28.228.70"\n')
                     print('{0} type count: {1}\n'.format(filename,type_count))
                     f_in.close()
                     f_out.close()
