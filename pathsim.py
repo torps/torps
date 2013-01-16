@@ -1,6 +1,7 @@
 import stem.descriptor.reader as sdr
 import datetime
 import os.path
+import stem.descriptor as sd
 import stem.descriptor.networkstatus as sdn
 
 # returns UNIX timestamp
@@ -10,10 +11,9 @@ def timestamp(dt):
     return ts
 
 descriptor_dir = ['server-descriptors-2012-08']
-consensus_dir = 'consensuses-2012-08-stripped'
+consensus_dir = 'consensuses-2012-08'
 
 if __name__ == '__main__':
-    """
     # read all descriptors into memory
     descriptors = {}
     num_descriptors = 0    
@@ -27,17 +27,16 @@ if __name__ == '__main__':
                 descriptors[desc.fingerprint] = {}
                 num_relays += 1
             descriptors[desc.fingerprint][timestamp(desc.published)] = desc
-    print('#descriptors: {0}; #relays:{1}'.format(num_descriptors,num_relays))
-    """    
-    # read in all consensuses into memory
-    consensuses = {}
+    print('#descriptors: {0}; #relays:{1}'.format(num_descriptors,num_relays))  
+
+    # go through consensuses, output most recent descriptors for relays
     num_consensuses = 0
     for dirpath, dirnames, filenames in os.walk(consensus_dir):
         for filename in filenames:
             with open(os.path.join(dirpath,filename), 'r') as cf:
-                consensus = sdn.NetworkStatusDocumentV3(cf.read())
-                print(consensus.valid_after.strftime('%Y-%m-%d %H-%M-%S'))
-                consensuses[timestamp(consensus.valid_after)] = consensus
+                for r in sd.parse_file(os.path.abspath(filename), cf):
+                    print('{0}:{1}'.format(r.document.valid_after,r.nickname))
+                # START: find most recent descriptor matching fingerprint
                 num_consensuses += 1
     print('# consensuses: {0}'.format(num_consensuses))
             

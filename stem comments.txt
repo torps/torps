@@ -5,3 +5,4 @@ Stem comments
 4. Stem has syntax errors under python 3.
 5. Consensuses from <https://metrics.torproject.org/data.html> include a "@type network-status-consensus-3 1.0" or similar annotation at the beginning of each file. The NetworkStatusDocumentV3
 constructor dies on this line (removing it fixes the problem).
+6. Documentation: What does print do on each object?
