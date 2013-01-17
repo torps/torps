@@ -27,7 +27,7 @@ if __name__ == '__main__':
                 descriptors[desc.fingerprint] = {}
                 num_relays += 1
             descriptors[desc.fingerprint][timestamp(desc.published)] = desc
-            print('Adding {0}:{1}:{2}'.format(desc.nickname,desc.fingerprint,\
+#            print('Adding {0}:{1}:{2}'.format(desc.nickname,desc.fingerprint,\
                 timestamp(desc.published)))
     print('#descriptors: {0}; #relays:{1}'.format(num_descriptors,num_relays)) 
 
@@ -39,8 +39,6 @@ if __name__ == '__main__':
                 relays = []
                 cons_t = None
                 for r_stat in sd.parse_file(os.path.abspath(filename), cf):
-#                    print('{0}:{1}'.format(r_stat.document.valid_after,\
-#                                            r_stat.nickname))
                     cons_t = r_stat.document.valid_after
                     # find descriptor published just before time in consensus
                     pub_t = timestamp(r_stat.published)
