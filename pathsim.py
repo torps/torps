@@ -10,8 +10,8 @@ def timestamp(t):
     ts = td.days*24*60*60 + td.seconds
     return ts
 
-descriptor_dir = ['server-descriptors-2011-08']
-consensus_dir = 'consensuses-2011-04'
+descriptor_dir = ['server-descriptors-2012-08']
+consensus_dir = 'consensuses-2012-08'
 out_dir = 'out'
 if __name__ == '__main__':
     # read all descriptors into memory
