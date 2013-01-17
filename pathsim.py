@@ -28,7 +28,7 @@ if __name__ == '__main__':
                 num_relays += 1
             descriptors[desc.fingerprint][timestamp(desc.published)] = desc
 #            print('Adding {0}:{1}:{2}'.format(desc.nickname,desc.fingerprint,\
-                timestamp(desc.published)))
+#                timestamp(desc.published)))
     print('#descriptors: {0}; #relays:{1}'.format(num_descriptors,num_relays)) 
 
     # go through consensuses, output most recent descriptors for relays
