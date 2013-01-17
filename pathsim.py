@@ -35,6 +35,7 @@ if __name__ == '__main__':
     num_consensuses = 0
     for dirpath, dirnames, filenames in os.walk(consensus_dir):
         for filename in filenames:
+            print(filename)
             with open(os.path.join(dirpath,filename), 'r') as cf:
                 relays = []
                 cons_t = None
