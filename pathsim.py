@@ -1,5 +1,6 @@
 import stem.descriptor.reader as sdr
 import datetime
+import os
 import os.path
 import stem.descriptor as sd
 import stem.descriptor.networkstatus as sdn
@@ -71,32 +72,78 @@ def process_consensuses(descriptor_dir, consensus_dir, out_dir):
                 num_consensuses += 1
     print('# consensuses: {0}'.format(num_consensuses))
 
-# build a client with empty initial state  
-# go through consensuses, finding the processed descriptors for each
-# choose guards and do other pre-circuit setup
-# take in circuits to create:
-#   - dst ip
-#   - dst port
-#   - properties: fast, stable, exit/internal...
+def choose_paths(consensus_files, processed_descriptor_files, circuits):
+    """Creates paths for requested circuits based on the inputs consensus
+    and descriptor files.
+    Inputs:
+        consensus_files: list of consensus filenames *in correct order*
+        processed_descriptor_files: descriptors corresponding to relays in
+            consensus_files as produced by process_consensuses
+        circuits: list of circuits to create, where a circuit is a tuple
+            (time,fast,stable,internal,ip,port), where
+                time(int): seconds from time zero
+                fast(bool): indicates all relay must have Fast flag
+                stable(bool): indicates all relay must have Stable flag
+                internal(bool): indicates is for DNS or hidden service
+                ip(str): ip address of destination
+                port(int): port to connect to
+    """
+    i = 0
+    for c_file, d_file in zip(consensus_files, processed_descriptor_files):
+    # build a client with empty initial state  
+    # go through consensuses, finding the processed descriptors for each
+    # choose guards and do other pre-circuit setup
+    # take in circuits to create:
+    #   - dst ip
+    #   - dst port
+    #   - properties: fast, stable, exit/internal...
 
-# Specifically, on startup Tor tries to maintain one clean
-# fast exit circuit that allows connections to port 80, and at least
-# two fast clean stable internal circuits in case we get a resolve
-# request...
-# After that, Tor will adapt the circuits that it preemptively builds
-# based on the requests it sees from the user: it tries to have two fast
-# clean exit circuits available for every port seen within the past hour
-# (each circuit can be adequate for many predicted ports -- it doesn't
-# need two separate circuits for each port), and it tries to have the
-# above internal circuits available if we've seen resolves or hidden
-# service activity within the past hour...
-# Additionally, when a client request exists that no circuit (built or
-# pending) might support, we create a new circuit to support the request.
-# For exit connections, we pick an exit node that will handle the
-# most pending requests (choosing arbitrarily among ties)
+        with open(c_file) as cf, open(d_file) as df:
+            # go through descriptors manually, adding them to dict 'desc'
+            # go through consensus, adding more info to desc (e.g. flags)
+            print(i)
+        i += 1
+
     
 if __name__ == '__main__':
-    descriptor_dir = ['in/server-descriptors-2012-08']
-    consensus_dir = 'in/consensuses-2012-08'
-    out_dir = 'out/processed-descriptors-2012-08'
-    process_consensuses(descriptor_dir, consensus_dir, out_dir)    
+#    descriptor_dir = ['in/server-descriptors-2012-08']
+#    consensus_dir = 'in/consensuses-2012-08'
+#    out_dir = 'out/processed-descriptors-2012-08'
+#    process_consensuses(descriptor_dir, consensus_dir, out_dir)    
+
+    consensus_dir = 'in/consensuses'
+    descriptor_dir = 'out/descriptors'
+    consensus_files = []
+    for dirpath, dirnames, filenames in os.walk(consensus_dir):
+        for filename in filenames:
+            if (filename[0] != '.'):
+                consensus_files.append(os.path.join(dirpath,filename))
+    consensus_files.sort()
+    
+    descriptor_files = []
+    for dirpath, dirnames, filenames in os.walk(descriptor_dir):
+        for filename in filenames:
+            if (filename[0] != '.'):
+                descriptor_files.append(os.path.join(dirpath,filename))
+    descriptor_files.sort()
+
+    # Specifically, on startup Tor tries to maintain one clean
+    # fast exit circuit that allows connections to port 80, and at least
+    # two fast clean stable internal circuits in case we get a resolve
+    # request...
+    # After that, Tor will adapt the circuits that it preemptively builds
+    # based on the requests it sees from the user: it tries to have two fast
+    # clean exit circuits available for every port seen within the past hour
+    # (each circuit can be adequate for many predicted ports -- it doesn't
+    # need two separate circuits for each port), and it tries to have the
+    # above internal circuits available if we've seen resolves or hidden
+    # service activity within the past hour...
+    # Additionally, when a client request exists that no circuit (built or
+    # pending) might support, we create a new circuit to support the request.
+    # For exit connections, we pick an exit node that will handle the
+    # most pending requests (choosing arbitrarily among ties) 
+    # (time,fast,stable,internal,ip,port)   
+    circuits = [(0,True,False,False,False,None,80),
+        (0,True,True,True,True,None,None),
+        (0,True,True,True,True,None,None)]
+    choose_paths(consensus_files, descriptor_files, circuits)
