@@ -78,19 +78,27 @@ def process_consensuses(descriptor_dir, consensus_dir, out_dir):
 def get_weighted_exits(bw_weights, consensus, descriptors, fast, stable, internal, ip, port):
     """Returns list of exits with selection weights for a circuit with
     the indicated properties."""
+    weighted_exits = []
     
     for fprint in consensus:
         rel_stat = consensus[fprint]
         desc = descriptors[fprint]
-        if (not stem.Flag.BADEXIT in rel_stat.flags) and
-            ((not fast) or (stem.Flag.FAST in rel_stat.flags)) and
-            (stem.Flag.RUNNING in rel_stat.flags)
-            ((not stable) or (stem.Flag.STABLE in rel_stat.flags)) and
-            (stem.Flag.VALID in rel_stat.flags) and
+        if (stem.Flag.BADEXIT not in rel_stat.flags) and\
+            ((not fast) or (stem.Flag.FAST in rel_stat.flags)) and\
+            (stem.Flag.RUNNING in rel_stat.flags)\
+            ((not stable) or (stem.Flag.STABLE in rel_stat.flags)) and\
+            (stem.Flag.VALID in rel_stat.flags) and\
             (not desc.hibernating):
-            # START
-            # check exit policy for desired ip and port
+            if (internal):
+                # check exit policy for desired ip and port
+                if (ip != None):
+                    # check that ip/port conform to policy
+                    desc.exit_policy #START: more to add here
+                else:
+                    # check that a cxn to port on some ip is allowed
+                    pass
             # add in bw weights
+    return weighted_exits
 
 #   From dir-spec.txt
 #     1. Clients SHOULD NOT use non-'Valid' or non-'Running' routers
@@ -156,7 +164,7 @@ def get_weighted_exits(bw_weights, consensus, descriptors, fast, stable, interna
          Wbd - Weight for Guard+Exit-flagged nodes for BEGIN_DIR requests
     """
     
-def guard_filter(rel_stat)):
+def guard_filter(rel_stat):
     """Applies basic (i.e. not circuit-specific) tests to relay status
     to determine eligibility for selection as guard."""
     # [from path-spec.txt] 5. Guard nodes
@@ -165,9 +173,9 @@ def guard_filter(rel_stat)):
     #    - it is not marked Valid (and the user hasn't set AllowInvalid
     #    - it is not marked Running
     #    - Tor couldn't reach it the last time it tried to connect
-    return (stem.Flag.GUARD in rel_stat.flags) and
-                (stem.Flag.VALID in rel_stat.flags) and                
-                (stem.Flag.RUNNING in rel_stat.flags):    
+    return (stem.Flag.GUARD in rel_stat.flags) and\
+                (stem.Flag.VALID in rel_stat.flags) and\
+                (stem.Flag.RUNNING in rel_stat.flags) # START: more needed here  
 
 def choose_paths(consensus_files, processed_descriptor_files, circuit_reqs):
     """Creates paths for requested circuits based on the inputs consensus
@@ -186,6 +194,7 @@ def choose_paths(consensus_files, processed_descriptor_files, circuit_reqs):
                 port(int): port to connect to
     """
     
+    paths = []
     num_guards = 3
     min_num_guards = 2
 
@@ -220,7 +229,7 @@ def choose_paths(consensus_files, processed_descriptor_files, circuit_reqs):
             circ_internal = circ_req[3]
             circ_ip = circ_req[4]
             circ_port = circ_req[5]
-            if (circ_time >= timestamp(cons_valid_after)) and
+            if (circ_time >= timestamp(cons_valid_after)) and\
                 (circ_time <= timestamp(cons_fresh_until)):
 #     - Clients SHOULD NOT use non-'Valid' or non-'Running' routers
 #     - Clients SHOULD NOT use non-'Fast' routers for any purpose other than
@@ -231,22 +240,21 @@ def choose_paths(consensus_files, processed_descriptor_files, circuit_reqs):
 
                 # select exit node
                 weighted_exits = get_weighted_exits(cons_bw_weights,
-                    consensus, descriptors, circ_fast, circ_stable, circ_internal,
-                    circ_ip, circ_port)
+                    consensus, descriptors, circ_fast, circ_stable,
+                    circ_internal, circ_ip, circ_port)
             
                 # select middle node
                 
                 # select guard node
-                    
                 # update guard list
                 num_usable_guards = 0
                 for guard in guards:
-                    if (guard in consensus) and
-                        (guard_filter(consensus[guard])) and
-                        ((not circ_fast) or
-                            (stem.Flag.FAST in consensus[guard].flags)) and
-                        ((not circ_stable) or
-                            (stem.Flag.STABLE in consensus[guard].flags)) and                    
+                    if (guard in consensus) and\
+                        (guard_filter(consensus[guard])) and\
+                        ((not circ_fast) or\
+                            (stem.Flag.FAST in consensus[guard].flags)) and\
+                        ((not circ_stable) or\
+                            (stem.Flag.STABLE in consensus[guard].flags)):
                             # START add other circuit-specific restrictions:
                         num_usable_guards += 1
                     if (num_usable_guards < min_num_guards):
@@ -257,31 +265,35 @@ def choose_paths(consensus_files, processed_descriptor_files, circuit_reqs):
                             if (guard_filter(rel_stat)):
                                 potential_guards.append(rel_stat)
                         # weight discovered guards
+                        # START: add more here                
+    return paths
+                    
+
     
 if __name__ == '__main__':
-#    descriptor_dir = ['in/server-descriptors-2012-08']
-#    consensus_dir = 'in/consensuses-2012-08'
-#    out_dir = 'out/processed-descriptors-2012-08'
-#    process_consensuses(descriptor_dir, consensus_dir, out_dir)    
+    descriptor_dir = ['in/server-descriptors-2012-08']
+    consensus_dir = 'in/consensuses-2012-08'
+    out_dir = 'out/processed-descriptors-2012-08'
+    process_consensuses(descriptor_dir, consensus_dir, out_dir)    
 
-#    consensus_dir = 'in/consensuses'
-#    descriptor_dir = 'out/descriptors'
+    consensus_dir = 'in/consensuses'
+    descriptor_dir = 'out/descriptors'
 
-    consensus_dir = 'tmp-cons'
-    descriptor_dir = 'tmp-desc'
-    consensus_files = []
-    for dirpath, dirnames, filenames in os.walk(consensus_dir):
-        for filename in filenames:
-            if (filename[0] != '.'):
-                consensus_files.append(os.path.join(dirpath,filename))
-    consensus_files.sort()
+#    consensus_dir = 'tmp-cons'
+#    descriptor_dir = 'tmp-desc'
+#    consensus_files = []
+#    for dirpath, dirnames, filenames in os.walk(consensus_dir):
+#        for filename in filenames:
+#            if (filename[0] != '.'):
+#                consensus_files.append(os.path.join(dirpath,filename))
+#    consensus_files.sort()
     
-    descriptor_files = []
-    for dirpath, dirnames, filenames in os.walk(descriptor_dir):
-        for filename in filenames:
-            if (filename[0] != '.'):
-                descriptor_files.append(os.path.join(dirpath,filename))
-    descriptor_files.sort()
+#    descriptor_files = []
+#    for dirpath, dirnames, filenames in os.walk(descriptor_dir):
+#        for filename in filenames:
+#            if (filename[0] != '.'):
+#                descriptor_files.append(os.path.join(dirpath,filename))
+#    descriptor_files.sort()
 
     # Specifically, on startup Tor tries to maintain one clean
     # fast exit circuit that allows connections to port 80, and at least
@@ -302,4 +314,8 @@ if __name__ == '__main__':
     circuits = [(0,True,False,False,False,None,80),
         (0,True,True,True,True,None,None),
         (0,True,True,True,True,None,None)]
-    choose_paths(consensus_files, descriptor_files, circuits)
+#    choose_paths(consensus_files, descriptor_files, circuits)
+    
+# TODO
+# - support IPv6 addresses
+# - add DNS requests
