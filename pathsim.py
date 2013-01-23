@@ -156,12 +156,18 @@ def get_weighted_exits(bw_weights, bwweightscale, cons_rel_stats,\
                         exits.append(fprint)
     # add in bw weights
     weighted_exits = []
-    #START
-    for exit in exits:
-        bw = float(cons_rel_stats[exit].bandwidth)
-        weight = float(get_bw_weight(rel_stat.flags,'e',bw_weights))\
-                    / float(bwweightscale)
-        weighted_exits.append((exit, bw * weight))
+    if (internal):
+        for exit in exits:
+            bw = float(cons_rel_stats[exit].bandwidth)
+            weight = float(get_bw_weight(cons_rel_stats[exit].flags,\
+                'm',bw_weights)) / float(bwweightscale)
+            weighted_exits.append((exit, bw * weight))
+    else:
+        for exit in exits:
+            bw = float(cons_rel_stats[exit].bandwidth)
+            weight = float(get_bw_weight(cons_rel_stats[exit].flags,\
+                'e',bw_weights)) / float(bwweightscale)
+            weighted_exits.append((exit, bw * weight))
         
     return weighted_exits
 
