@@ -91,6 +91,9 @@ def get_weighted_exits(bw_weights, consensus, descriptors, fast, stable, interna
             (not desc.hibernating):
             if (internal):
                 # check exit policy for desired ip and port
+                # An "internal" circuit, on the other hand, is one where
+                # the final node is chosen just like a middle node
+                # (ignoring its exit policy).                
                 if (ip != None):
                     # check that ip/port conform to policy
                     desc.exit_policy #START: more to add here
