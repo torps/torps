@@ -121,6 +121,10 @@ def get_weighted_exits(bw_weights, bwweightscale, cons_rel_stats,\
     selection weights for use in a circuit with the indicated properties."""
     
     exits = []
+    
+    if (port == None):
+        raise ValueError
+    
     for fprint in cons_rel_stats:
         rel_stat = cons_rel_stats[fprint]
         desc = descriptors[fprint]
@@ -154,20 +158,22 @@ def get_weighted_exits(bw_weights, bwweightscale, cons_rel_stats,\
                         can_exit = True                    
                     if can_exit:
                         exits.append(fprint)
-    # add in bw weights
-    weighted_exits = []
+    # create weights
+    weights = []
     if (internal):
         for exit in exits:
             bw = float(cons_rel_stats[exit].bandwidth)
             weight = float(get_bw_weight(cons_rel_stats[exit].flags,\
                 'm',bw_weights)) / float(bwweightscale)
-            weighted_exits.append((exit, bw * weight))
+            weights.append(bw * weight)
     else:
         for exit in exits:
             bw = float(cons_rel_stats[exit].bandwidth)
             weight = float(get_bw_weight(cons_rel_stats[exit].flags,\
                 'e',bw_weights)) / float(bwweightscale)
-            weighted_exits.append((exit, bw * weight))
+            weights.append(bw * weight)
+    tot_weight = sum(weights)
+    print('total weight: {0}'.format(tot_weight))
         
     return weighted_exits
 
@@ -245,7 +251,7 @@ def choose_paths(consensus_files, processed_descriptor_files, circuit_reqs):
     for c_file, d_file in zip(consensus_files, processed_descriptor_files):
         # read in descriptors and consensus statuses
         descriptors = {}
-        consensus = {}
+        cons_rel_stats = {}
         cons_valid_after = None
         cons_fresh_until = None
         cons_bw_weights = None
@@ -265,7 +271,7 @@ def choose_paths(consensus_files, processed_descriptor_files, circuit_reqs):
                         cons_bwweightscale = rel_stat.document.params[\
                             'bwweightscale']
                 if (rel_stat.fingerprint in descriptors):
-                    consensus[rel_stat.fingerprint] = rel_stat
+                    cons_rel_stats[rel_stat.fingerprint] = rel_stat
             if (cons_bwweightscale == None):
                 # set default value
                 # Yes, I could have set it initially to this value,
@@ -291,7 +297,7 @@ def choose_paths(consensus_files, processed_descriptor_files, circuit_reqs):
 
                 # select exit node
                 weighted_exits = get_weighted_exits(cons_bw_weights, 
-                    cons_bwweightscale, consensus, descriptors, circ_fast,
+                    cons_bwweightscale, cons_rel_stats, descriptors, circ_fast,
                     circ_stable, circ_internal, circ_ip, circ_port)
             
                 # select middle node
@@ -300,19 +306,19 @@ def choose_paths(consensus_files, processed_descriptor_files, circuit_reqs):
                 # update guard list
                 num_usable_guards = 0
                 for guard in guards:
-                    if (guard in consensus) and\
-                        (guard_filter(consensus[guard])) and\
+                    if (guard in cons_rel_stats) and\
+                        (guard_filter(cons_rel_stats[guard])) and\
                         ((not circ_fast) or\
-                            (stem.Flag.FAST in consensus[guard].flags)) and\
+                            (stem.Flag.FAST in cons_rel_stats[guard].flags)) and\
                         ((not circ_stable) or\
-                            (stem.Flag.STABLE in consensus[guard].flags)):
+                            (stem.Flag.STABLE in cons_rel_stats[guard].flags)):
                             # START add other circuit-specific restrictions:
                         num_usable_guards += 1
                     if (num_usable_guards < min_num_guards):
                         # add guards to end of list
                         # find unweighted potential guards
                         potential_guards = []
-                        for rel_stat in consensus.values():
+                        for rel_stat in cons_rel_stats.values():
                             if (guard_filter(rel_stat)):
                                 potential_guards.append(rel_stat)
                         # weight discovered guards
