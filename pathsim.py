@@ -4,6 +4,7 @@ import os
 import os.path
 import stem.descriptor as sd
 import stem.descriptor.networkstatus as sdn
+import stem
 
 def timestamp(t):
     """Returns UNIX timestamp"""
@@ -74,33 +75,94 @@ def process_consensuses(descriptor_dir, consensus_dir, out_dir):
                         f.close()                
                     num_consensuses += 1
     print('# consensuses: {0}'.format(num_consensuses))
+
+def get_bw_weight(flags, position, bw_weights):
+    """Returns weight to apply to relay's bandwidth for given position.
+        flags: list of stem.Flag values for relay from a consensus
+        position: position for which to find selection weight,
+             one of 'g' for guard, 'm' for middle, and 'e' for exit
+        bw_weights: bandwidth_weights from NetworkStatusDocumentV3 consensus
+    """
     
-def get_weighted_exits(bw_weights, consensus, descriptors, fast, stable, internal, ip, port):
-    """Returns list of exits with selection weights for a circuit with
-    the indicated properties."""
-    weighted_exits = []
+    if (position == 'g'):
+        if (stem.Flag.GUARD in flags) and (stem.Flag.EXIT in flags):
+            return bw_weights['Wgd']
+        elif (stem.Flag.GUARD in flags):
+            return bw_weights['Wgg']
+        elif (stem.Flag.EXIT not in flags):
+            return bw_weights['Wgm']
+        else:
+            raise ValueError('Wge weight does not exist.')
+    elif (position == 'm'):
+        if (stem.Flag.GUARD in flags) and (stem.Flag.EXIT in flags):
+            return bw_weights['Wmd']
+        elif (stem.Flag.GUARD in flags):
+            return bw_weights['Wmg']
+        elif (stem.Flag.EXIT in flags):
+            return bw_weights['Wme']
+        else:
+            return bw_weights['Wmm']
+    elif (position == 'e'):
+        if (stem.Flag.GUARD in flags) and (stem.Flag.EXIT in flags):
+            return bw_weights['Wed']
+        elif (stem.Flag.GUARD in flags):
+            return bw_weights['Weg']
+        elif (stem.Flag.EXIT in flags):
+            return bw_weights['Wee']
+        else:
+            return bw_weights['Wem']    
+    else:
+        raise ValueError('get_weight does not support position {0}.'.format(
+            position))
+
+def get_weighted_exits(bw_weights, bwweightscale, cons_rel_stats,\
+    descriptors, fast, stable, internal, ip, port):
+    """Returns list of fingerprints for potential exists along with
+    selection weights for use in a circuit with the indicated properties."""
     
-    for fprint in consensus:
-        rel_stat = consensus[fprint]
+    exits = []
+    for fprint in cons_rel_stats:
+        rel_stat = cons_rel_stats[fprint]
         desc = descriptors[fprint]
         if (stem.Flag.BADEXIT not in rel_stat.flags) and\
             ((not fast) or (stem.Flag.FAST in rel_stat.flags)) and\
-            (stem.Flag.RUNNING in rel_stat.flags)\
+            (stem.Flag.RUNNING in rel_stat.flags) and\
             ((not stable) or (stem.Flag.STABLE in rel_stat.flags)) and\
             (stem.Flag.VALID in rel_stat.flags) and\
             (not desc.hibernating):
             if (internal):
-                # check exit policy for desired ip and port
                 # An "internal" circuit, on the other hand, is one where
-                # the final node is chosen just like a middle node
-                # (ignoring its exit policy).                
-                if (ip != None):
-                    # check that ip/port conform to policy
-                    desc.exit_policy #START: more to add here
+                # the final node is chosen just like a middle node (ignoring          
+                # its exit policy).
+                exits.append(fprint)
+            else:
+                if (ip != None) and (desc.exit_policy.can_exit_to(ip, port)):
+                    exits.append(fprint)
                 else:
-                    # check that a cxn to port on some ip is allowed
-                    pass
-            # add in bw weights
+                    can_exit = None
+                    for rule in desc.exit_policy:
+                        if (port >= rule.min_port) and\
+                            (port <= rule.max_port) and\
+                            rule.is_accept and (can_exit==None):
+                            can_exit = True
+                        elif (port >= rule.min_port) and\
+                            (port <= rule.max_port) and\
+                            (not rule.is_accept) and\
+                            rule.is_address_wildcard() and (can_exit==None):
+                            can_exit = False
+                    if (can_exit == None): # default accept if no rule matches
+                        can_exit = True                    
+                    if can_exit:
+                        exits.append(fprint)
+    # add in bw weights
+    weighted_exits = []
+    #START
+    for exit in exits:
+        bw = float(cons_rel_stats[exit].bandwidth)
+        weight = float(get_bw_weight(rel_stat.flags,'e',bw_weights))\
+                    / float(bwweightscale)
+        weighted_exits.append((exit, bw * weight))
+        
     return weighted_exits
 
 #   From dir-spec.txt
@@ -136,36 +198,6 @@ def get_weighted_exits(bw_weights, consensus, descriptors, fast, stable, interna
     # address, flags
     # stem.descriptor.router_status_entry.RouterStatusEntryV3
     # bandwidth, measured, exit_policy
-    """    
-    "bandwidth-weights"...
-       These values represent the weights to apply to router bandwidths
-       during path selection. Values are divided by the consensus'
-       "bwweightscale" param.
-
-         Wgg - Weight for Guard-flagged nodes in the guard position
-         Wgm - Weight for non-flagged nodes in the guard Position
-         Wgd - Weight for Guard+Exit-flagged nodes in the guard Position
-
-         Wmg - Weight for Guard-flagged nodes in the middle Position
-         Wmm - Weight for non-flagged nodes in the middle Position
-         Wme - Weight for Exit-flagged nodes in the middle Position
-         Wmd - Weight for Guard+Exit flagged nodes in the middle Position
-
-         Weg - Weight for Guard flagged nodes in the exit Position
-         Wem - Weight for non-flagged nodes in the exit Position
-         Wee - Weight for Exit-flagged nodes in the exit Position
-         Wed - Weight for Guard+Exit-flagged nodes in the exit Position
-
-         Wgb - Weight for BEGIN_DIR-supporting Guard-flagged nodes
-         Wmb - Weight for BEGIN_DIR-supporting non-flagged nodes
-         Web - Weight for BEGIN_DIR-supporting Exit-flagged nodes
-         Wdb - Weight for BEGIN_DIR-supporting Guard+Exit-flagged nodes
-
-         Wbg - Weight for Guard flagged nodes for BEGIN_DIR requests
-         Wbm - Weight for non-flagged nodes for BEGIN_DIR requests
-         Wbe - Weight for Exit-flagged nodes for BEGIN_DIR requests
-         Wbd - Weight for Guard+Exit-flagged nodes for BEGIN_DIR requests
-    """
     
 def guard_filter(rel_stat):
     """Applies basic (i.e. not circuit-specific) tests to relay status
@@ -211,6 +243,7 @@ def choose_paths(consensus_files, processed_descriptor_files, circuit_reqs):
         cons_valid_after = None
         cons_fresh_until = None
         cons_bw_weights = None
+        cons_bwweightscale = None
         with open(d_file) as df, open(c_file) as cf:
             for desc in sd.parse_file(df, validate=True):
                 descriptors[desc.fingerprint] = desc
@@ -221,8 +254,17 @@ def choose_paths(consensus_files, processed_descriptor_files, circuit_reqs):
                     cons_fresh_until = rel_stat.document.fresh_until
                 if (cons_bw_weights == None):
                     cons_bw_weights = rel_stat.document.bandwidth_weights
+                if (cons_bwweightscale == None):
+                    if ('bwweightscale' in rel_stat.document.params):
+                        cons_bwweightscale = rel_stat.document.params[\
+                            'bwweightscale']
                 if (rel_stat.fingerprint in descriptors):
                     consensus[rel_stat.fingerprint] = rel_stat
+            if (cons_bwweightscale == None):
+                # set default value
+                # Yes, I could have set it initially to this value,
+                # but this way, it doesn't get repeatedly set.
+                cons_bwweightscale = 10000
                     
         # go through circuit requests: (time,fast,stable,internal,ip,port)
         for circ_req in circuit_reqs:
@@ -242,9 +284,9 @@ def choose_paths(consensus_files, processed_descriptor_files, circuit_reqs):
 #     - Clients SHOULD NOT choose non-'Guard' nodes when picking entry guard
 
                 # select exit node
-                weighted_exits = get_weighted_exits(cons_bw_weights,
-                    consensus, descriptors, circ_fast, circ_stable,
-                    circ_internal, circ_ip, circ_port)
+                weighted_exits = get_weighted_exits(cons_bw_weights, 
+                    cons_bwweightscale, consensus, descriptors, circ_fast,
+                    circ_stable, circ_internal, circ_ip, circ_port)
             
                 # select middle node
                 

@@ -6,3 +6,4 @@ Stem comments
 5. Consensuses from <https://metrics.torproject.org/data.html> include a "@type network-status-consensus-3 1.0" or similar annotation at the beginning of each file. The NetworkStatusDocumentV3
 constructor dies on this line (removing it fixes the problem).
 6. Documentation: What does print do on each object?
+7. Need to test if exit allows access to a port on *some* IP address for choosing exits when the IP of the destination is unknown.
