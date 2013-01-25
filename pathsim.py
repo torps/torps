@@ -5,6 +5,8 @@ import os.path
 import stem.descriptor as sd
 import stem.descriptor.networkstatus as sdn
 import stem
+import random
+import sys
 
 def timestamp(t):
     """Returns UNIX timestamp"""
@@ -117,13 +119,13 @@ def get_bw_weight(flags, position, bw_weights):
 
 def get_weighted_exits(bw_weights, bwweightscale, cons_rel_stats,\
     descriptors, fast, stable, internal, ip, port):
-    """Returns list of fingerprints for potential exists along with
+    """Returns list of fingerprints for potential exits along with
     selection weights for use in a circuit with the indicated properties."""
     
     exits = []
     
     if (port == None):
-        raise ValueError
+        raise ValueError('get_weighted_exits() needs a port.')
     
     for fprint in cons_rel_stats:
         rel_stat = cons_rel_stats[fprint]
@@ -172,10 +174,95 @@ def get_weighted_exits(bw_weights, bwweightscale, cons_rel_stats,\
             weight = float(get_bw_weight(cons_rel_stats[exit].flags,\
                 'e',bw_weights)) / float(bwweightscale)
             weights.append(bw * weight)
-    tot_weight = sum(weights)
-    print('total weight: {0}'.format(tot_weight))
+    total_weight = sum(weights)
+    weighted_exits = []
+    for exit, weight in zip(exits,weights):
+        weighted_exits.append((exit,weight/total_weight))
         
     return weighted_exits
+    
+def in_same_family(descriptors, node1, node2):
+    """Takes list of descriptors and two node fingerprints,
+    checks if nodes list each other as in the same family."""
+    
+    desc1 = descriptors[node1]
+    desc2 = descriptors[node2]
+    family1 = desc1.family
+    family2 = desc2.family
+    node1_lists_node2 = False
+    for member in family1:
+        if (member == ('$'+desc2.fingerprint)) or\
+            (member == desc2.nickname):
+            node1_lists_node2 = True
+    node2_lists_node1 = False
+    for member in family2:
+        if (member == ('$'+desc1.fingerprint)) or\
+            (member == desc1.nickname):
+            node2_lists_node1 = True
+    return (node1_lists_node2 and node2_lists_node1)
+    
+def in_same_16_subnet(address1, address2):
+    """Takes IPv4 addresses as strings and checks if the first two bytes
+    are equal."""
+    address1_list = address1.split('.')
+    address2_list = address2.split('.')
+    
+    # do some address format checking
+    if (len(address1_list) == 4) and\
+        (len(address2_list) == 4):
+        for substr in address1_list:
+            if (not substr.isdigit()):
+                raise ValueError(\
+                    'in_same_16_subset() needs IPv4 address strings')
+        for substr in address2_list:
+            if (not substr.isdigit()):
+                raise ValueError(\
+                    'in_same_16_subset() needs IPv4 address strings')
+
+    return (address1_list[0] == address2_list[0]) and\
+        (address1_list[1] == address2_list[1])
+    
+def get_weighted_middle(cons_bw_weights, cons_bwweightscale, cons_rel_stats,\
+    descriptors, circ_fast, circ_stable, exit_node):
+    """Returns list of fingerprints for potential middle nodes along with
+    selection weights for use in a circuit with the indicated properties."""
+    
+    middles = []
+
+    for fprint in cons_rel_stats:
+        rel_stat = cons_rel_stats[fprint]
+        desc = descriptors[fprint]
+        if ((not fast) or (stem.Flag.FAST in rel_stat.flags)) and\
+            (stem.Flag.RUNNING in rel_stat.flags) and\
+            ((not stable) or (stem.Flag.STABLE in rel_stat.flags)) and\
+            (not desc.hibernating) and\
+            (exit_node != fprint) and\
+            (not in_same_family(descriptors, exit_node, fprint)) and\
+            (not in_same_16_subnet(descriptors[exit_node].address,\
+                descriptors[fprint].address)):
+            middles.append(fprint)
+    # START
+    # create weights
+#    weights = []
+#    if (internal):
+#        for exit in exits:
+#            bw = float(cons_rel_stats[exit].bandwidth)
+#            weight = float(get_bw_weight(cons_rel_stats[exit].flags,\
+#                'm',bw_weights)) / float(bwweightscale)
+#            weights.append(bw * weight)
+#    else:
+#        for exit in exits:
+#            bw = float(cons_rel_stats[exit].bandwidth)
+#            weight = float(get_bw_weight(cons_rel_stats[exit].flags,\
+#                'e',bw_weights)) / float(bwweightscale)
+#            weights.append(bw * weight)
+#    total_weight = sum(weights)
+#    weighted_exits = []
+#    for exit, weight in zip(exits,weights):
+#        weighted_exits.append((exit,weight/total_weight))
+#        
+#    return weighted_exits
+    
 
 #   From dir-spec.txt
 #     1. Clients SHOULD NOT use non-'Valid' or non-'Running' routers
@@ -203,13 +290,17 @@ def get_weighted_exits(bw_weights, bwweightscale, cons_rel_stats,\
     # connections to that port precedes all clauses that reject all       
     # connections to that port.
     # 5. We never choose an exit node flagged as "BadExit"
-    # server.descriptor.server_descriptor.ServerDescriptor:
-    # address, exit_policy, family,
-    # average/burst/observed_bandwidth, hibernating, 
-    # stem.descriptor.router_status_entry.RouterStatusEntry:
-    # address, flags
-    # stem.descriptor.router_status_entry.RouterStatusEntryV3
-    # bandwidth, measured, exit_policy
+    # ...
+    # 6. We do not choose the same router twice for the same path.
+    # 7. We do not choose any router in the same family as another in the same
+    #    path.
+    # 8. We do not choose more than one router in a given /16 subnet
+    #    (unless EnforceDistinctSubnets is 0).
+    # 9. We don't choose any non-running or non-valid router unless we have
+    #    been configured to do so. By default, we are configured to allow
+    #    non-valid routers in "middle" and "rendezvous" positions.
+    # 10. If we're using Guard nodes, the first node must be a Guard (see 5
+    #     below)
     
 def guard_filter(rel_stat):
     """Applies basic (i.e. not circuit-specific) tests to relay status
@@ -222,7 +313,19 @@ def guard_filter(rel_stat):
     #    - Tor couldn't reach it the last time it tried to connect
     return (stem.Flag.GUARD in rel_stat.flags) and\
                 (stem.Flag.VALID in rel_stat.flags) and\
-                (stem.Flag.RUNNING in rel_stat.flags) # START: more needed here  
+                (stem.Flag.RUNNING in rel_stat.flags) # START: more needed here 
+                
+def select_weighted_node(weighted_nodes):
+    """Takes (node,weight) pairs, where the weights sum to 1.
+    Select node with probability weight."""
+    r = random.random()
+    cum_prob = 0
+    for node, weight in weighted_nodes:
+        if (r <= cum_prob + weight):
+            return node
+        else:
+            cum_prob += weight
+    raise ValueError('Weights must sum to 1.')
 
 def choose_paths(consensus_files, processed_descriptor_files, circuit_reqs):
     """Creates paths for requested circuits based on the inputs consensus
@@ -288,19 +391,19 @@ def choose_paths(consensus_files, processed_descriptor_files, circuit_reqs):
             circ_port = circ_req[5]
             if (circ_time >= timestamp(cons_valid_after)) and\
                 (circ_time <= timestamp(cons_fresh_until)):
-#     - Clients SHOULD NOT use non-'Valid' or non-'Running' routers
-#     - Clients SHOULD NOT use non-'Fast' routers for any purpose other than
-#       very-low-bandwidth circuits (such as introduction circuits).
-#     - Clients SHOULD NOT use non-'Stable' routers for circuits that are
-#       likely to need to be open for a very long time
-#     - Clients SHOULD NOT choose non-'Guard' nodes when picking entry guard
-
                 # select exit node
                 weighted_exits = get_weighted_exits(cons_bw_weights, 
                     cons_bwweightscale, cons_rel_stats, descriptors, circ_fast,
                     circ_stable, circ_internal, circ_ip, circ_port)
+                exit_node = select_weighted_node(weighted_exits)
+                print('Exit node: {0} [{1}]'.format(
+                    cons_rel_stats[exit_node].nickname,
+                    cons_rel_stats[exit_node].fingerprint))
             
                 # select middle node
+                weighted_middle = get_weighted_middle(cons_bw_weights,
+                    cons_bwweightscale, cons_rel_stats, descriptors, circ_fast,
+                    circ_stable, exit_node)
                 
                 # select guard node
                 # update guard list
@@ -328,50 +431,64 @@ def choose_paths(consensus_files, processed_descriptor_files, circuit_reqs):
 
     
 if __name__ == '__main__':
-    descriptor_dir = ['in/server-descriptors-2012-08']
-    consensus_dir = 'in/consensuses-2012-08'
-    out_dir = 'out/processed-descriptors-2012-08'
-    process_consensuses(descriptor_dir, consensus_dir, out_dir)    
+    command = None
+    usage = 'Usage: pathsim.py [command]\nCommands:\n\tprocess: Pair consensuses with recent descriptors.\n\tsimulate: Do a bunch of simulated path selections.'
+    if (len(sys.argv) <= 1):
+        print(usage)
+        sys.exit(1)
+    else:
+        command = sys.argv[1]
+        if (command != 'process') and (command != 'simulate'):
+            print(usage)
 
-    consensus_dir = 'in/consensuses'
-    descriptor_dir = 'out/descriptors'
-
-#    consensus_dir = 'tmp-cons'
-#    descriptor_dir = 'tmp-desc'
-#    consensus_files = []
-#    for dirpath, dirnames, filenames in os.walk(consensus_dir):
-#        for filename in filenames:
-#            if (filename[0] != '.'):
-#                consensus_files.append(os.path.join(dirpath,filename))
-#    consensus_files.sort()
+    if (command == 'process'):
+        descriptor_dir = ['in/server-descriptors-2012-08']
+        consensus_dir = 'in/consensuses-2012-08'
+        out_dir = 'out/processed-descriptors-2012-08'
+        process_consensuses(descriptor_dir, consensus_dir, out_dir)    
+    elif (command == 'simulate'):
+#        consensus_dir = 'in/consensuses'
+#        descriptor_dir = 'out/descriptors'
+        consensus_dir = 'tmp-cons'
+        descriptor_dir = 'tmp-desc'
+        
+        consensus_files = []
+        for dirpath, dirnames, filenames in os.walk(consensus_dir):
+            for filename in filenames:
+                if (filename[0] != '.'):
+                    consensus_files.append(os.path.join(dirpath,filename))
+        consensus_files.sort()
+        
+        descriptor_files = []
+        for dirpath, dirnames, filenames in os.walk(descriptor_dir):
+            for filename in filenames:
+                if (filename[0] != '.'):
+                    descriptor_files.append(os.path.join(dirpath,filename))
+        descriptor_files.sort()
     
-#    descriptor_files = []
-#    for dirpath, dirnames, filenames in os.walk(descriptor_dir):
-#        for filename in filenames:
-#            if (filename[0] != '.'):
-#                descriptor_files.append(os.path.join(dirpath,filename))
-#    descriptor_files.sort()
-
-    # Specifically, on startup Tor tries to maintain one clean
-    # fast exit circuit that allows connections to port 80, and at least
-    # two fast clean stable internal circuits in case we get a resolve
-    # request...
-    # After that, Tor will adapt the circuits that it preemptively builds
-    # based on the requests it sees from the user: it tries to have two fast
-    # clean exit circuits available for every port seen within the past hour
-    # (each circuit can be adequate for many predicted ports -- it doesn't
-    # need two separate circuits for each port), and it tries to have the
-    # above internal circuits available if we've seen resolves or hidden
-    # service activity within the past hour...
-    # Additionally, when a client request exists that no circuit (built or
-    # pending) might support, we create a new circuit to support the request.
-    # For exit connections, we pick an exit node that will handle the
-    # most pending requests (choosing arbitrarily among ties) 
-    # (time,fast,stable,internal,ip,port)   
-    circuits = [(0,True,False,False,False,None,80),
-        (0,True,True,True,True,None,None),
-        (0,True,True,True,True,None,None)]
-#    choose_paths(consensus_files, descriptor_files, circuits)
+        # Specifically, on startup Tor tries to maintain one clean
+        # fast exit circuit that allows connections to port 80, and at least
+        # two fast clean stable internal circuits in case we get a resolve
+        # request...
+        # After that, Tor will adapt the circuits that it preemptively builds
+        # based on the requests it sees from the user: it tries to have two
+        # fast
+        # clean exit circuits available for every port seen within the past
+        # hour
+        # (each circuit can be adequate for many predicted ports -- it doesn't
+        # need two separate circuits for each port), and it tries to have the
+        # above internal circuits available if we've seen resolves or hidden
+        # service activity within the past hour...
+        # Additionally, when a client request exists that no circuit (built or
+        # pending) might support, we create a new circuit to support the
+        # request.
+        # For exit connections, we pick an exit node that will handle the
+        # most pending requests (choosing arbitrarily among ties) 
+        # (time,fast,stable,internal,ip,port)   
+        circuits = [(0,True,False,False,False,None,80),
+            (0,True,True,True,True,None,None),
+            (0,True,True,True,True,None,None)]
+        choose_paths(consensus_files, descriptor_files, circuits)
     
 # TODO
 # - support IPv6 addresses
