@@ -116,6 +116,18 @@ def get_bw_weight(flags, position, bw_weights):
     else:
         raise ValueError('get_weight does not support position {0}.'.format(
             position))
+            
+def select_weighted_node(weighted_nodes):
+    """Takes (node,weight) pairs, where the weights sum to 1.
+    Select node with probability weight."""
+    r = random.random()
+    cum_prob = 0
+    for node, weight in weighted_nodes:
+        if (r <= cum_prob + weight):
+            return node
+        else:
+            cum_prob += weight
+    raise ValueError('Weights must sum to 1.')            
 
 def get_weighted_exits(bw_weights, bwweightscale, cons_rel_stats,\
     descriptors, fast, stable, internal, ip, port):
@@ -123,9 +135,10 @@ def get_weighted_exits(bw_weights, bwweightscale, cons_rel_stats,\
     selection weights for use in a circuit with the indicated properties."""
     
     exits = []
-    
-    if (port == None):
-        raise ValueError('get_weighted_exits() needs a port.')
+
+    if (port == None) and (not internal):
+        raise ValueError('get_weighted_exits() needs a port.')            
+
     
     for fprint in cons_rel_stats:
         rel_stat = cons_rel_stats[fprint]
@@ -221,14 +234,16 @@ def in_same_16_subnet(address1, address2):
 
     return (address1_list[0] == address2_list[0]) and\
         (address1_list[1] == address2_list[1])
-    
-def get_weighted_middle(cons_bw_weights, cons_bwweightscale, cons_rel_stats,\
-    descriptors, circ_fast, circ_stable, exit_node):
+
+def get_weighted_middles(bw_weights, bwweightscale, cons_rel_stats,\
+    descriptors, fast, stable, exit_node, guard_node):
     """Returns list of fingerprints for potential middle nodes along with
     selection weights for use in a circuit with the indicated properties."""
     
+    # filter out some nodes with zero selection probability
+    # Note that we intentionally allow non-Valid routers for middle
+    # as per path-spec.txt default config
     middles = []
-
     for fprint in cons_rel_stats:
         rel_stat = cons_rel_stats[fprint]
         desc = descriptors[fprint]
@@ -239,93 +254,137 @@ def get_weighted_middle(cons_bw_weights, cons_bwweightscale, cons_rel_stats,\
             (exit_node != fprint) and\
             (not in_same_family(descriptors, exit_node, fprint)) and\
             (not in_same_16_subnet(descriptors[exit_node].address,\
+                descriptors[fprint].address)) and\
+            (guard_node != fprint) and\
+            (not in_same_family(descriptors, guard_node, fprint)) and\
+            (not in_same_16_subnet(descriptors[guard_node].address,\
                 descriptors[fprint].address)):
             middles.append(fprint)
-    # START
+
     # create weights
-#    weights = []
-#    if (internal):
-#        for exit in exits:
-#            bw = float(cons_rel_stats[exit].bandwidth)
-#            weight = float(get_bw_weight(cons_rel_stats[exit].flags,\
-#                'm',bw_weights)) / float(bwweightscale)
-#            weights.append(bw * weight)
-#    else:
-#        for exit in exits:
-#            bw = float(cons_rel_stats[exit].bandwidth)
-#            weight = float(get_bw_weight(cons_rel_stats[exit].flags,\
-#                'e',bw_weights)) / float(bwweightscale)
-#            weights.append(bw * weight)
-#    total_weight = sum(weights)
-#    weighted_exits = []
-#    for exit, weight in zip(exits,weights):
-#        weighted_exits.append((exit,weight/total_weight))
-#        
-#    return weighted_exits
-    
+    weights = []
+    for middle in middles:
+        bw = float(cons_rel_stats[middle].bandwidth)
+        weight = float(get_bw_weight(cons_rel_stats[middle].flags,\
+            'm',bw_weights)) / float(bwweightscale)
+        weights.append(bw * weight)
 
-#   From dir-spec.txt
-#     1. Clients SHOULD NOT use non-'Valid' or non-'Running' routers
-#     2. Clients SHOULD NOT use non-'Fast' routers for any purpose other than
-#       very-low-bandwidth circuits (such as introduction circuits).
-#     3. Clients SHOULD NOT use non-'Stable' routers for circuits that are
-#       likely to need to be open for a very long time
-#     4. Clients SHOULD NOT choose non-'Guard' nodes when picking entry guard
-#     5. if the [Hibernate] value is 1, then the Tor relay was hibernating when
-#        the descriptor was published, and shouldn't be used to build circuits."    
+    total_weight = sum(weights)
+    print('Total middle weight: {0}'.format(total_weight))
+    weighted_middles = []
+    for middle, weight in zip(middles,weights):
+        weighted_middles.append((middle,weight/total_weight))
 
-    # From path-spec.txt
-    # 1. We weight node selection according to router bandwidth
-    # 2. We also weight the bandwidth of Exit and Guard flagged
-    # nodes       
-    # depending on the fraction of total bandwidth that they make
-    #up 
-    # and depending upon the position they are being selected for.
-    # 4. IP address and port. If dest. IP is unknown, we need to
-    # pick    
-    # an exit node that "might support" connections to a
-    # given address port with an unknown address.  An exit node
-    # "might 
-    # support" such a connection if any clause that accepts any 
-    # connections to that port precedes all clauses that reject all       
-    # connections to that port.
-    # 5. We never choose an exit node flagged as "BadExit"
-    # ...
-    # 6. We do not choose the same router twice for the same path.
-    # 7. We do not choose any router in the same family as another in the same
-    #    path.
-    # 8. We do not choose more than one router in a given /16 subnet
-    #    (unless EnforceDistinctSubnets is 0).
-    # 9. We don't choose any non-running or non-valid router unless we have
-    #    been configured to do so. By default, we are configured to allow
-    #    non-valid routers in "middle" and "rendezvous" positions.
-    # 10. If we're using Guard nodes, the first node must be a Guard (see 5
-    #     below)
+    return weighted_middles
+
+def guard_filter(guard, cons_rel_stats, descriptors):
+    """Determines eligibility of relay for general use as guard."""
+    # including both consensus and descriptor checks is redundant
+    # bc process_consensuses() adds relay to consensus only if that relay's
+    # descriptor will be in output file and vice versa
+    if (guard in cons_rel_stats) and (guard in descriptors): 
+        rel_stat = cons_rel_stats[guard]
+        return (stem.Flag.GUARD in rel_stat.flags) and\
+                    (stem.Flag.VALID in rel_stat.flags) and\
+                    (stem.Flag.RUNNING in rel_stat.flags) and\
+                    (not descriptors[guard].hibernating)
+    else:
+        return False
+        
+def guard_filter_for_circ(guard, cons_rel_stats, descriptors, fast,\
+    stable, exit):
+    """Adding circuit checks to standard guard filter, returns
+    if guard is usable for circuit."""
+    #  - liveness (although will have been checked by guard_filter)
+    #  - fast/stable
+    #  - not same as exit
+    #  - not in exit family
+    #  - not in exit /16
     
-def guard_filter(rel_stat):
-    """Applies basic (i.e. not circuit-specific) tests to relay status
-    to determine eligibility for selection as guard."""
-    # [from path-spec.txt] 5. Guard nodes
-    #  A guard is unusable if any of the following hold:
-    #    - it is not marked as a Guard by the networkstatuses,
-    #    - it is not marked Valid (and the user hasn't set AllowInvalid
-    #    - it is not marked Running
-    #    - Tor couldn't reach it the last time it tried to connect
-    return (stem.Flag.GUARD in rel_stat.flags) and\
-                (stem.Flag.VALID in rel_stat.flags) and\
-                (stem.Flag.RUNNING in rel_stat.flags) # START: more needed here 
-                
-def select_weighted_node(weighted_nodes):
-    """Takes (node,weight) pairs, where the weights sum to 1.
-    Select node with probability weight."""
-    r = random.random()
-    cum_prob = 0
-    for node, weight in weighted_nodes:
-        if (r <= cum_prob + weight):
-            return node
-        else:
-            cum_prob += weight
-    raise ValueError('Weights must sum to 1.')
+    rel_stat = cons_rel_stats[guard]
+    return (guard_filter(guard, cons_rel_stats, descriptors)) and\
+        ((not fast) or (stem.Flag.FAST in rel_stat.flags)) and\
+        ((not stable) or (stem.Flag.FAST in rel_stat.flags)) and\
+        (exit != guard) and\
+        (not in_same_family(descriptors, exit, guard)) and\
+        (not in_same_16_subnet(descriptors[exit].address,\
+                   descriptors[guard].address))
+
+def get_new_guard(bw_weights, bwweightscale, cons_rel_stats, descriptors,\
+    guards):
+    """Selects a new guard that doesn't conflict with the existing list.
+    Note: will raise ValueError if no suitable guard is found."""
+    potential_guards = []
+    for fprint in cons_rel_stats:
+        if (guard_filter(fprint, cons_rel_stats, descriptors)):
+            guard_conflict = False
+            for guard in guards:
+                if (guard == fprint) or\
+                    (in_same_family(descriptors, guard, fprint)) or\
+                    (in_same_16_subnet(descriptors[guard].address,\
+                       descriptors[fprint].address)):
+                    guard_conflict = True
+                    break
+            if (not guard_conflict):
+                potential_guards.append(fprint)
+
+    # create weights
+    weights = []
+    for potential_guard in potential_guards:
+        bw = float(cons_rel_stats[potential_guard].bandwidth)
+        weight = float(get_bw_weight(cons_rel_stats[potential_guard].flags,\
+                    'g',bw_weights)) / float(bwweightscale)
+        weights.append(bw * weight)
+
+    total_weight = sum(weights)
+    print('Total guard weight: {0}'.format(total_weight))
+    weighted_guards = []
+    for potential_guard, weight in zip(potential_guards,weights):
+        weighted_guards.append((potential_guard,weight/total_weight))
+        
+    # select new guard according to weight
+    return select_weighted_node(weighted_guards)
+
+def get_guards_for_circ(bw_weights, bwweightscale, cons_rel_stats,\
+    descriptors,fast, stable, guards, num_guards, min_num_guards, exit):
+    """Obtains needed number of live guards that will work for circuit.
+    Chooses new guards if needed, and *modifies* guard list by adding them."""
+    # Get live guards then add new ones until num_guards reached.
+    # Slightly depart from Tor code by not considering the circuit's
+    # fast or stable flags when finding live guards.
+    # Tor uses fixed Stable=False and Fast=True flags when calculating # live
+    # but fixed Stable=Fast=False when actually adding guards here (weirdly).
+    live_guards = []
+    for guard in guards:
+        if (guard_filter(guard, cons_rel_stats, descriptors)):
+            live_guards.append(guard)
+    if (len(live_guards) < num_guards):
+        for i in range(num_guards - len(live_guards)):
+            new_guard = get_new_guard(bw_weights, bwweightscale,\
+                cons_rel_stats, descriptors, guards)
+            live_guards.append(new_guard)
+            guards.append(new_guard)
+    
+    # check for live guards that will work for this circuit
+    live_guards_for_circ = filter(lambda x: guard_filter_for_circ(x,\
+        cons_rel_stats, descriptors, fast, stable, exit), live_guards)
+    # add new guards while there aren't enough for this circuit
+    # adding is done without reference to the circuit - how Tor does it
+    while (len(live_guards_for_circ) < min_num_guards):
+            new_guard = get_new_guard(bw_weights, bwweightscale,\
+                cons_rel_stats, descriptors, guards)
+            guards.append(new_guard)
+            if (guard_filter_for_circ(new_guard, cons_rel_stats, descriptors,\
+                fast, stable, exit)):
+                live_guards_for_circ.append(new_guard)
+
+    # choose first num_guards usable guards
+    top_live_guards_for_circ = live_guards_for_circ[0:num_guards]
+    if (len(top_live_guards_for_circ) < min_num_guards):
+        print('Warning: Only {0} live guards for circuit.'.format(\
+            len(tor_live_guards_for_circ)))
+            
+    return top_live_guards_for_circ
 
 def choose_paths(consensus_files, processed_descriptor_files, circuit_reqs):
     """Creates paths for requested circuits based on the inputs consensus
@@ -348,7 +407,8 @@ def choose_paths(consensus_files, processed_descriptor_files, circuit_reqs):
     num_guards = 3
     min_num_guards = 2
 
-    # build a client with empty initial state  
+    # build a client with empty initial state
+    # guard entry is (fingerprint, descriptor, time_selected, time_expires)
     guards = []
     
     for c_file, d_file in zip(consensus_files, processed_descriptor_files):
@@ -380,9 +440,10 @@ def choose_paths(consensus_files, processed_descriptor_files, circuit_reqs):
                 # Yes, I could have set it initially to this value,
                 # but this way, it doesn't get repeatedly set.
                 cons_bwweightscale = 10000
+
                     
         # go through circuit requests: (time,fast,stable,internal,ip,port)
-        for circ_req in circuit_reqs:
+        for circ_id, circ_req in enumerate(circuit_reqs):
             circ_time = circ_req[0]
             circ_fast = circ_req[1]
             circ_stable = circ_req[2]
@@ -390,7 +451,7 @@ def choose_paths(consensus_files, processed_descriptor_files, circuit_reqs):
             circ_ip = circ_req[4]
             circ_port = circ_req[5]
             if (circ_time >= timestamp(cons_valid_after)) and\
-                (circ_time <= timestamp(cons_fresh_until)):
+                (circ_time < timestamp(cons_fresh_until)):
                 # select exit node
                 weighted_exits = get_weighted_exits(cons_bw_weights, 
                     cons_bwweightscale, cons_rel_stats, descriptors, circ_fast,
@@ -399,36 +460,33 @@ def choose_paths(consensus_files, processed_descriptor_files, circuit_reqs):
                 print('Exit node: {0} [{1}]'.format(
                     cons_rel_stats[exit_node].nickname,
                     cons_rel_stats[exit_node].fingerprint))
-            
-                # select middle node
-                weighted_middle = get_weighted_middle(cons_bw_weights,
-                    cons_bwweightscale, cons_rel_stats, descriptors, circ_fast,
-                    circ_stable, exit_node)
                 
                 # select guard node
-                # update guard list
-                num_usable_guards = 0
-                for guard in guards:
-                    if (guard in cons_rel_stats) and\
-                        (guard_filter(cons_rel_stats[guard])) and\
-                        ((not circ_fast) or\
-                            (stem.Flag.FAST in cons_rel_stats[guard].flags)) and\
-                        ((not circ_stable) or\
-                            (stem.Flag.STABLE in cons_rel_stats[guard].flags)):
-                            # START add other circuit-specific restrictions:
-                        num_usable_guards += 1
-                    if (num_usable_guards < min_num_guards):
-                        # add guards to end of list
-                        # find unweighted potential guards
-                        potential_guards = []
-                        for rel_stat in cons_rel_stats.values():
-                            if (guard_filter(rel_stat)):
-                                potential_guards.append(rel_stat)
-                        # weight discovered guards
-                        # START: add more here                
-    return paths
+                # get first <= num_guards guards suitable for circuit
+                circ_guards = get_guards_for_circ(cons_bw_weights,\
+                    cons_bwweightscale, cons_rel_stats, descriptors,\
+                    circ_fast, circ_stable, guards, num_guards,\
+                    min_num_guards, exit_node)
+                # randomly choose from among those suitable guards
+                guard_node = random.choice(circ_guards)
+                print('Guard node: {0} [{1}]'.format(
+                    cons_rel_stats[guard_node].nickname,
+                    cons_rel_stats[guard_node].fingerprint))
+                
+                
+                # select middle node
+                weighted_middles = get_weighted_middles(cons_bw_weights,
+                    cons_bwweightscale, cons_rel_stats, descriptors, circ_fast,
+                    circ_stable, exit_node, guard_node)
+                middle_node = select_weighted_node(weighted_middles)                
+                print('Middle node: {0} [{1}]'.format(
+                    cons_rel_stats[middle_node].nickname,
+                    cons_rel_stats[middle_node].fingerprint))
+                
+                paths.append((circ_id, guard_node, middle_node, exit_node,\
+                    cons_rel_stats, descriptors))
                     
-
+    return paths
     
 if __name__ == '__main__':
     command = None
@@ -485,11 +543,65 @@ if __name__ == '__main__':
         # For exit connections, we pick an exit node that will handle the
         # most pending requests (choosing arbitrarily among ties) 
         # (time,fast,stable,internal,ip,port)   
-        circuits = [(0,True,False,False,False,None,80),
-            (0,True,True,True,True,None,None),
-            (0,True,True,True,True,None,None)]
+        
+        circ_time = timestamp(datetime.datetime(2012, 8, 2, 0, 0, 0))
+        circuits = [(circ_time,True,False,False,None,80),
+            (circ_time,True,True,True,None,None),
+            (circ_time,True,True,True,None,None)]
         choose_paths(consensus_files, descriptor_files, circuits)
     
 # TODO
 # - support IPv6 addresses
 # - add DNS requests
+# drop guards that are unusable for long enough, as in entrynodes.c:
+# /** How long (in seconds) do we allow an entry guard to be nonfunctional,
+# * unlisted, excluded, or otherwise nonusable before we give up on it? */
+# #define ENTRY_GUARD_REMOVE_AFTER (30*24*60*60)
+# - We do not consider removing stable/fast requirements if a suitable relay can't be found at some point. Tor does this. Rather, we just error.
+
+##### Relevant lines for path selection extracted from Tor specs.
+
+# From dir-spec.txt
+# 1. Clients SHOULD NOT use non-'Valid' or non-'Running' routers
+# 2. Clients SHOULD NOT use non-'Fast' routers for any purpose other than
+#    very-low-bandwidth circuits (such as introduction circuits).
+# 3. Clients SHOULD NOT use non-'Stable' routers for circuits that are
+#    likely to need to be open for a very long time
+# 4. Clients SHOULD NOT choose non-'Guard' nodes when picking entry guard
+# 5. if the [Hibernate] value is 1, then the Tor relay was hibernating when
+#    the descriptor was published, and shouldn't be used to build circuits."    
+
+# From path-spec.txt
+# 1. We weight node selection according to router bandwidth
+# 2. We also weight the bandwidth of Exit and Guard flagged
+# nodes       
+# depending on the fraction of total bandwidth that they make
+#up 
+# and depending upon the position they are being selected for.
+# 4. IP address and port. If dest. IP is unknown, we need to
+# pick    
+# an exit node that "might support" connections to a
+# given address port with an unknown address.  An exit node
+# "might 
+# support" such a connection if any clause that accepts any 
+# connections to that port precedes all clauses that reject all       
+# connections to that port.
+# 5. We never choose an exit node flagged as "BadExit"
+# ...
+# 6. We do not choose the same router twice for the same path.
+# 7. We do not choose any router in the same family as another in the same
+#    path.
+# 8. We do not choose more than one router in a given /16 subnet
+#    (unless EnforceDistinctSubnets is 0).
+# 9. We don't choose any non-running or non-valid router unless we have
+#    been configured to do so. By default, we are configured to allow
+#    non-valid routers in "middle" and "rendezvous" positions.
+# 10. If we're using Guard nodes, the first node must be a Guard (see 5
+#     below)
+# ...
+# [Sec. 5]
+#  A guard is unusable if any of the following hold:
+#    - it is not marked as a Guard by the networkstatuses,
+#    - it is not marked Valid (and the user hasn't set AllowInvalid
+#    - it is not marked Running
+#    - Tor couldn't reach it the last time it tried to connect
