@@ -270,7 +270,6 @@ def get_weighted_middles(bw_weights, bwweightscale, cons_rel_stats,\
         weights.append(bw * weight)
 
     total_weight = sum(weights)
-    print('Total middle weight: {0}'.format(total_weight))
     weighted_middles = []
     for middle, weight in zip(middles,weights):
         weighted_middles.append((middle,weight/total_weight))
@@ -286,8 +285,7 @@ def guard_filter(guard, cons_rel_stats, descriptors):
         rel_stat = cons_rel_stats[guard]
         return (stem.Flag.GUARD in rel_stat.flags) and\
                     (stem.Flag.VALID in rel_stat.flags) and\
-                    (stem.Flag.RUNNING in rel_stat.flags) and\
-                    (not descriptors[guard].hibernating)
+                    (stem.Flag.RUNNING in rel_stat.flags)
     else:
         return False
         
@@ -303,6 +301,7 @@ def guard_filter_for_circ(guard, cons_rel_stats, descriptors, fast,\
     
     rel_stat = cons_rel_stats[guard]
     return (guard_filter(guard, cons_rel_stats, descriptors)) and\
+        (not descriptors[guard].hibernating) and\
         ((not fast) or (stem.Flag.FAST in rel_stat.flags)) and\
         ((not stable) or (stem.Flag.FAST in rel_stat.flags)) and\
         (exit != guard) and\
@@ -316,7 +315,8 @@ def get_new_guard(bw_weights, bwweightscale, cons_rel_stats, descriptors,\
     Note: will raise ValueError if no suitable guard is found."""
     potential_guards = []
     for fprint in cons_rel_stats:
-        if (guard_filter(fprint, cons_rel_stats, descriptors)):
+        if (guard_filter(fprint, cons_rel_stats, descriptors)) and\
+            (not descriptors[fprint].hibernating):
             guard_conflict = False
             for guard in guards:
                 if (guard == fprint) or\
@@ -337,7 +337,6 @@ def get_new_guard(bw_weights, bwweightscale, cons_rel_stats, descriptors,\
         weights.append(bw * weight)
 
     total_weight = sum(weights)
-    print('Total guard weight: {0}'.format(total_weight))
     weighted_guards = []
     for potential_guard, weight in zip(potential_guards,weights):
         weighted_guards.append((potential_guard,weight/total_weight))
@@ -346,7 +345,8 @@ def get_new_guard(bw_weights, bwweightscale, cons_rel_stats, descriptors,\
     return select_weighted_node(weighted_guards)
 
 def get_guards_for_circ(bw_weights, bwweightscale, cons_rel_stats,\
-    descriptors,fast, stable, guards, num_guards, min_num_guards, exit):
+    descriptors,fast, stable, guards, num_guards, min_num_guards, exit,\
+    guard_expiration_min, guard_expiration_max, circ_time):
     """Obtains needed number of live guards that will work for circuit.
     Chooses new guards if needed, and *modifies* guard list by adding them."""
     # Get live guards then add new ones until num_guards reached.
@@ -355,15 +355,25 @@ def get_guards_for_circ(bw_weights, bwweightscale, cons_rel_stats,\
     # Tor uses fixed Stable=False and Fast=True flags when calculating # live
     # but fixed Stable=Fast=False when actually adding guards here (weirdly).
     live_guards = []
-    for guard in guards:
-        if (guard_filter(guard, cons_rel_stats, descriptors)):
+    for guard, guard_props in guards.items():
+        # expire old guards here because may occur in middle of consensus hour
+        if (guard_props['expires'] <= circ_time):
+            print('Expiring guard: {0}'.format(guard))
+            del guards[guard]
+        elif (guard_props['down_since'] == None) and\
+            (not descriptors[guard].hibernating):
             live_guards.append(guard)
     if (len(live_guards) < num_guards):
         for i in range(num_guards - len(live_guards)):
             new_guard = get_new_guard(bw_weights, bwweightscale,\
                 cons_rel_stats, descriptors, guards)
             live_guards.append(new_guard)
-            guards.append(new_guard)
+            print('Need guard. Adding {0} [{1}]'.format(\
+                cons_rel_stats[new_guard].nickname, new_guard))
+            expiration = random.randint(guard_expiration_min,\
+                guard_expiration_max)
+            guards[new_guard] = {'expires':(expiration+\
+                circ_time), 'down_since':None}
     
     # check for live guards that will work for this circuit
     live_guards_for_circ = filter(lambda x: guard_filter_for_circ(x,\
@@ -373,7 +383,12 @@ def get_guards_for_circ(bw_weights, bwweightscale, cons_rel_stats,\
     while (len(live_guards_for_circ) < min_num_guards):
             new_guard = get_new_guard(bw_weights, bwweightscale,\
                 cons_rel_stats, descriptors, guards)
-            guards.append(new_guard)
+            print('Need guard for circuit. Adding {0} [{1}]'.format(\
+                cons_rel_stats[new_guard].nickname, new_guard))
+            expiration = random.randint(guard_expiration_min,\
+                guard_expiration_max)
+            guards[new_guard] = {'expires':(expiration+\
+                circ_time), 'down_since':None}
             if (guard_filter_for_circ(new_guard, cons_rel_stats, descriptors,\
                 fast, stable, exit)):
                 live_guards_for_circ.append(new_guard)
@@ -406,12 +421,19 @@ def choose_paths(consensus_files, processed_descriptor_files, circuit_reqs):
     paths = []
     num_guards = 3
     min_num_guards = 2
+    guard_expiration_min = 30*24*3600 # min time until guard removed from list
+    guard_expiration_max = 60*24*3600 # max time until guard removed from list
+    guard_down_time = 30*24*3600 # time guard can be down until is removed
 
     # build a client with empty initial state
-    # guard entry is (fingerprint, descriptor, time_selected, time_expires)
-    guards = []
+    # guard is fingerprint -> {'expires':exp_time, 'down_since':down_since}
+    guards = {}
+
+    circuit_reqs.sort(key = lambda x: x[0])
+    circuit_idx = 0
     
     for c_file, d_file in zip(consensus_files, processed_descriptor_files):
+        print('Using consensus file {0}'.format(c_file))
         # read in descriptors and consensus statuses
         descriptors = {}
         cons_rel_stats = {}
@@ -420,9 +442,9 @@ def choose_paths(consensus_files, processed_descriptor_files, circuit_reqs):
         cons_bw_weights = None
         cons_bwweightscale = None
         with open(d_file) as df, open(c_file) as cf:
-            for desc in sd.parse_file(df, validate=True):
+            for desc in sd.parse_file(df, validate=False):
                 descriptors[desc.fingerprint] = desc
-            for rel_stat in sd.parse_file(cf, validate=True):
+            for rel_stat in sd.parse_file(cf, validate=False):
                 if (cons_valid_after == None):
                     cons_valid_after = rel_stat.document.valid_after
                 if (cons_fresh_until == None):
@@ -440,51 +462,77 @@ def choose_paths(consensus_files, processed_descriptor_files, circuit_reqs):
                 # Yes, I could have set it initially to this value,
                 # but this way, it doesn't get repeatedly set.
                 cons_bwweightscale = 10000
-
+                
+        # update client state
+        # set guard as down only if not present/running/valid.
+        # Note: hibernating *not* considered here
+        for guard, guard_props in guards.items():
+            if (guard_props['down_since'] == None):
+                if (guard not in cons_rel_stats):
+                    print('Putting down guard {0}'.format(guard))
+                    guard_props['down_since'] = timestamp(cons_valid_after)
+                elif (not guard_filter(guard, cons_rel_stats, descriptors)):
+                    print('Putting down guard {0}'.format(guard))
+                    guard_props['down_since'] = timestamp(cons_valid_after)
+            else:
+                if (guard in cons_rel_stats):
+                    if (guard_filter(guard, cons_rel_stats, descriptors)):
+                        print('Bringing up guard {0}'.format(guard))
+                        guard_props['down_since'] = None
+            # remove from list if down time including this period exceeds limit
+            if (guard_props['down_since'] != None):
+                if (timestamp(cons_fresh_until)-guard_props['down_since'] >=\
+                    guard_down_time):
+                    print('Guard down too long, removing: {0}'.format(guard))
+                    del guards[guard]
                     
         # go through circuit requests: (time,fast,stable,internal,ip,port)
-        for circ_id, circ_req in enumerate(circuit_reqs):
-            circ_time = circ_req[0]
-            circ_fast = circ_req[1]
-            circ_stable = circ_req[2]
-            circ_internal = circ_req[3]
-            circ_ip = circ_req[4]
-            circ_port = circ_req[5]
-            if (circ_time >= timestamp(cons_valid_after)) and\
-                (circ_time < timestamp(cons_fresh_until)):
-                # select exit node
-                weighted_exits = get_weighted_exits(cons_bw_weights, 
-                    cons_bwweightscale, cons_rel_stats, descriptors, circ_fast,
-                    circ_stable, circ_internal, circ_ip, circ_port)
-                exit_node = select_weighted_node(weighted_exits)
-                print('Exit node: {0} [{1}]'.format(
-                    cons_rel_stats[exit_node].nickname,
-                    cons_rel_stats[exit_node].fingerprint))
+        while (circuit_idx < len(circuit_reqs)) and\
+            (circuit_reqs[circuit_idx][0] >= timestamp(cons_valid_after)) and\
+                (circuit_reqs[circuit_idx][0] < timestamp(cons_fresh_until)):
+            circ_time = circuit_reqs[circuit_idx][0]
+            circ_fast = circuit_reqs[circuit_idx][1]
+            circ_stable = circuit_reqs[circuit_idx][2]
+            circ_internal = circuit_reqs[circuit_idx][3]
+            circ_ip = circuit_reqs[circuit_idx][4]
+            circ_port = circuit_reqs[circuit_idx][5]
+
+            # select exit node
+            weighted_exits = get_weighted_exits(cons_bw_weights, 
+                cons_bwweightscale, cons_rel_stats, descriptors, circ_fast,
+                circ_stable, circ_internal, circ_ip, circ_port)
+            exit_node = select_weighted_node(weighted_exits)
+            print('Exit node: {0} [{1}]'.format(
+                cons_rel_stats[exit_node].nickname,
+                cons_rel_stats[exit_node].fingerprint))
+            
+            # select guard node
+            # get first <= num_guards guards suitable for circuit
+            circ_guards = get_guards_for_circ(cons_bw_weights,\
+                cons_bwweightscale, cons_rel_stats, descriptors,\
+                circ_fast, circ_stable, guards, num_guards,\
+                min_num_guards, exit_node, guard_expiration_min,\
+                guard_expiration_max, circ_time)
+            # randomly choose from among those suitable guards
+            guard_node = random.choice(circ_guards)
+            print('Guard node: {0} [{1}]'.format(
+                cons_rel_stats[guard_node].nickname,
+                cons_rel_stats[guard_node].fingerprint))
+            
+            
+            # select middle node
+            weighted_middles = get_weighted_middles(cons_bw_weights,
+                cons_bwweightscale, cons_rel_stats, descriptors, circ_fast,
+                circ_stable, exit_node, guard_node)
+            middle_node = select_weighted_node(weighted_middles)                
+            print('Middle node: {0} [{1}]'.format(
+                cons_rel_stats[middle_node].nickname,
+                cons_rel_stats[middle_node].fingerprint))
+            
+            paths.append((guard_node, middle_node, exit_node,\
+                cons_rel_stats, descriptors))
                 
-                # select guard node
-                # get first <= num_guards guards suitable for circuit
-                circ_guards = get_guards_for_circ(cons_bw_weights,\
-                    cons_bwweightscale, cons_rel_stats, descriptors,\
-                    circ_fast, circ_stable, guards, num_guards,\
-                    min_num_guards, exit_node)
-                # randomly choose from among those suitable guards
-                guard_node = random.choice(circ_guards)
-                print('Guard node: {0} [{1}]'.format(
-                    cons_rel_stats[guard_node].nickname,
-                    cons_rel_stats[guard_node].fingerprint))
-                
-                
-                # select middle node
-                weighted_middles = get_weighted_middles(cons_bw_weights,
-                    cons_bwweightscale, cons_rel_stats, descriptors, circ_fast,
-                    circ_stable, exit_node, guard_node)
-                middle_node = select_weighted_node(weighted_middles)                
-                print('Middle node: {0} [{1}]'.format(
-                    cons_rel_stats[middle_node].nickname,
-                    cons_rel_stats[middle_node].fingerprint))
-                
-                paths.append((circ_id, guard_node, middle_node, exit_node,\
-                    cons_rel_stats, descriptors))
+            circuit_idx += 1
                     
     return paths
     
@@ -542,7 +590,7 @@ if __name__ == '__main__':
         # request.
         # For exit connections, we pick an exit node that will handle the
         # most pending requests (choosing arbitrarily among ties) 
-        # (time,fast,stable,internal,ip,port)   
+        # (timestamp,fast,stable,internal,ip,port)   
         
         circ_time = timestamp(datetime.datetime(2012, 8, 2, 0, 0, 0))
         circuits = [(circ_time,True,False,False,None,80),
@@ -553,10 +601,8 @@ if __name__ == '__main__':
 # TODO
 # - support IPv6 addresses
 # - add DNS requests
-# drop guards that are unusable for long enough, as in entrynodes.c:
-# /** How long (in seconds) do we allow an entry guard to be nonfunctional,
-# * unlisted, excluded, or otherwise nonusable before we give up on it? */
-# #define ENTRY_GUARD_REMOVE_AFTER (30*24*60*60)
+# - examine when guard expiration is done in tor
+# - verify guard up/down calculated as in tor
 # - We do not consider removing stable/fast requirements if a suitable relay can't be found at some point. Tor does this. Rather, we just error.
 
 ##### Relevant lines for path selection extracted from Tor specs.
