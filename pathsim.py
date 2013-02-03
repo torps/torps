@@ -276,32 +276,22 @@ def get_weighted_middles(bw_weights, bwweightscale, cons_rel_stats,\
 
     return weighted_middles
 
-def guard_filter(guard, cons_rel_stats, descriptors):
-    """Determines eligibility of relay for general use as guard."""
-    # including both consensus and descriptor checks is redundant
-    # bc process_consensuses() adds relay to consensus only if that relay's
-    # descriptor will be in output file and vice versa
-    if (guard in cons_rel_stats) and (guard in descriptors): 
-        rel_stat = cons_rel_stats[guard]
-        return (stem.Flag.GUARD in rel_stat.flags) and\
-                    (stem.Flag.VALID in rel_stat.flags) and\
-                    (stem.Flag.RUNNING in rel_stat.flags)
-    else:
-        return False
-        
 def guard_filter_for_circ(guard, cons_rel_stats, descriptors, fast,\
-    stable, exit):
-    """Adding circuit checks to standard guard filter, returns
-    if guard is usable for circuit."""
-    #  - liveness (although will have been checked by guard_filter)
+    stable, exit, guards):
+    """Returns if guard is usable for circuit."""
+    #  - liveness (given by entry_is_live() call in choose_random_entry_impl())
+    #       - not bad_since
+    #       - has descriptor (although should be ensured by choose_paths()
     #  - fast/stable
     #  - not same as exit
     #  - not in exit family
     #  - not in exit /16
+    # note that Valid flag not checked
+    # also note that hibernate status not checked
     
     rel_stat = cons_rel_stats[guard]
-    return (guard_filter(guard, cons_rel_stats, descriptors)) and\
-        (not descriptors[guard].hibernating) and\
+    return (guards[guard]['bad_since'] == None) and\
+        (guard in descriptors) and\
         ((not fast) or (stem.Flag.FAST in rel_stat.flags)) and\
         ((not stable) or (stem.Flag.FAST in rel_stat.flags)) and\
         (exit != guard) and\
@@ -313,10 +303,22 @@ def get_new_guard(bw_weights, bwweightscale, cons_rel_stats, descriptors,\
     guards):
     """Selects a new guard that doesn't conflict with the existing list.
     Note: will raise ValueError if no suitable guard is found."""
+    # - doesn't conflict with current guards
+    # - running
+    # - valid
+    # - need guard    
+    # - need descriptor, though should be ensured already by choose_paths()
+    # - not single hop relay
+    # Note that hibernation is not considered.
+    # follows add_an_entry_guard(NULL,0,0,for_directory) call which appears
+    # in pick_entry_guards() and more directly in choose_random_entry_impl()
     potential_guards = []
     for fprint in cons_rel_stats:
-        if (guard_filter(fprint, cons_rel_stats, descriptors)) and\
-            (not descriptors[fprint].hibernating):
+        rel_stat = cons_rel_stats[fprint]
+        if (stem.Flag.RUNNING in rel_stat.flags) and\
+            (stem.Flag.VALID in rel_stat.flags) and\
+            (stem.Flag.GUARD in rel_stat.flags) and\
+            (fprint in descriptors):            
             guard_conflict = False
             for guard in guards:
                 if (guard == fprint) or\
@@ -349,38 +351,42 @@ def get_guards_for_circ(bw_weights, bwweightscale, cons_rel_stats,\
     guard_expiration_min, guard_expiration_max, circ_time):
     """Obtains needed number of live guards that will work for circuit.
     Chooses new guards if needed, and *modifies* guard list by adding them."""
-    # Get live guards then add new ones until num_guards reached.
-    # Slightly depart from Tor code by not considering the circuit's
-    # fast or stable flags when finding live guards.
-    # Tor uses fixed Stable=False and Fast=True flags when calculating # live
-    # but fixed Stable=Fast=False when actually adding guards here (weirdly).
-    live_guards = []
-    for guard, guard_props in guards.items():
-        # expire old guards here because may occur in middle of consensus hour
-        if (guard_props['expires'] <= circ_time):
-            print('Expiring guard: {0}'.format(guard))
-            del guards[guard]
-        elif (guard_props['down_since'] == None) and\
-            (not descriptors[guard].hibernating):
-            live_guards.append(guard)
-    if (len(live_guards) < num_guards):
-        for i in range(num_guards - len(live_guards)):
-            new_guard = get_new_guard(bw_weights, bwweightscale,\
-                cons_rel_stats, descriptors, guards)
-            live_guards.append(new_guard)
-            print('Need guard. Adding {0} [{1}]'.format(\
-                cons_rel_stats[new_guard].nickname, new_guard))
-            expiration = random.randint(guard_expiration_min,\
-                guard_expiration_max)
-            guards[new_guard] = {'expires':(expiration+\
-                circ_time), 'down_since':None}
+    # Get live guards then add new ones until num_guards reached, where live is
+    #  - bad_since isn't set
+    #  - has descriptor, though choose_paths should ensure descriptor exists
+    # Note that node need not have Valid flag to be live. As far as I can tell,
+    # a Valid flag is needed to be added to the guard list, but isn't needed 
+    # after that point.
+    # Note hibernation doesn't affect liveness (dirauths use for Running flag)
+    # Rules derived from Tor source: choose_random_entry_impl() in entrynodes.c
     
-    # check for live guards that will work for this circuit
-    live_guards_for_circ = filter(lambda x: guard_filter_for_circ(x,\
-        cons_rel_stats, descriptors, fast, stable, exit), live_guards)
+    # add guards if not enough in list
+    if (len(guards) < num_guards):
+        # Oddly then only count the number of live ones
+        # Slightly depart from Tor code by not considering the circuit's
+        # fast or stable flags when finding live guards.
+        # Tor uses fixed Stable=False and Fast=True flags when calculating # 
+        # live but fixed Stable=Fast=False when adding guards here (weirdly).
+        # (as in choose_random_entry_impl() and its pick_entry_guards() call)
+        live_guards = filter(lambda x: (guards[x]['bad_since']==None) and\
+                                x in descriptors, guards)
+        if (len(live_guards) < num_guards):
+            for i in range(num_guards - len(live_guards)):
+                new_guard = get_new_guard(bw_weights, bwweightscale,\
+                    cons_rel_stats, descriptors, guards)
+                print('Need guard. Adding {0} [{1}]'.format(\
+                    cons_rel_stats[new_guard].nickname, new_guard))
+                expiration = random.randint(guard_expiration_min,\
+                    guard_expiration_max)
+                guards[new_guard] = {'expires':(expiration+\
+                    circ_time), 'bad_since':None}
+
+    # check for guards that will work for this circuit
+    guards_for_circ = filter(lambda x: guard_filter_for_circ(x,\
+        cons_rel_stats, descriptors, fast, stable, exit, guards), guards)
     # add new guards while there aren't enough for this circuit
     # adding is done without reference to the circuit - how Tor does it
-    while (len(live_guards_for_circ) < min_num_guards):
+    while (len(guards_for_circ) < min_num_guards):
             new_guard = get_new_guard(bw_weights, bwweightscale,\
                 cons_rel_stats, descriptors, guards)
             print('Need guard for circuit. Adding {0} [{1}]'.format(\
@@ -388,18 +394,18 @@ def get_guards_for_circ(bw_weights, bwweightscale, cons_rel_stats,\
             expiration = random.randint(guard_expiration_min,\
                 guard_expiration_max)
             guards[new_guard] = {'expires':(expiration+\
-                circ_time), 'down_since':None}
+                circ_time), 'bad_since':None}
             if (guard_filter_for_circ(new_guard, cons_rel_stats, descriptors,\
-                fast, stable, exit)):
-                live_guards_for_circ.append(new_guard)
+                fast, stable, exit, guards)):
+                guards_for_circ.append(new_guard)
 
     # choose first num_guards usable guards
-    top_live_guards_for_circ = live_guards_for_circ[0:num_guards]
-    if (len(top_live_guards_for_circ) < min_num_guards):
-        print('Warning: Only {0} live guards for circuit.'.format(\
-            len(tor_live_guards_for_circ)))
+    top_guards_for_circ = guards_for_circ[0:num_guards]
+    if (len(top_guards_for_circ) < min_num_guards):
+        print('Warning: Only {0} guards for circuit.'.format(\
+            len(top_guards_for_circ)))
             
-    return top_live_guards_for_circ
+    return top_guards_for_circ
 
 def choose_paths(consensus_files, processed_descriptor_files, circuit_reqs):
     """Creates paths for requested circuits based on the inputs consensus
@@ -426,7 +432,7 @@ def choose_paths(consensus_files, processed_descriptor_files, circuit_reqs):
     guard_down_time = 30*24*3600 # time guard can be down until is removed
 
     # build a client with empty initial state
-    # guard is fingerprint -> {'expires':exp_time, 'down_since':down_since}
+    # guard is fingerprint -> {'expires':exp_time, 'bad_since':bad_since}
     guards = {}
 
     circuit_reqs.sort(key = lambda x: x[0])
@@ -464,27 +470,41 @@ def choose_paths(consensus_files, processed_descriptor_files, circuit_reqs):
                 cons_bwweightscale = 10000
                 
         # update client state
-        # set guard as down only if not present/running/valid.
-        # Note: hibernating *not* considered here
+        # Tor does this stuff whenever a descriptor is obtained        
         for guard, guard_props in guards.items():
-            if (guard_props['down_since'] == None):
-                if (guard not in cons_rel_stats):
+            # set guard as down if (following Tor's entry_guard_set_status)
+            # - not in current nodelist (!node check)
+            #   - note that a node can appear the nodelist but not
+            #     in the current consensus if it has an existing descriptor
+            #     in routerlist (unclear to me when this gets purged)
+            # - Running flag not set
+            #   - note that all nodes not in current consensus get
+            #     *all* their node flags set to zero
+            # - Guard flag not set [and not a bridge])
+            # note that hibernating *not* considered here
+            if (guard_props['bad_since'] == None):
+                if (guard not in cons_rel_stats) or\
+                    (stem.Flag.RUNNING not in cons_rel_stats[guard].flags) or\
+                    (stem.Flag.GUARD not in cons_rel_stats[guard].flags):
                     print('Putting down guard {0}'.format(guard))
-                    guard_props['down_since'] = timestamp(cons_valid_after)
-                elif (not guard_filter(guard, cons_rel_stats, descriptors)):
-                    print('Putting down guard {0}'.format(guard))
-                    guard_props['down_since'] = timestamp(cons_valid_after)
+                    guard_props['bad_since'] = timestamp(cons_valid_after)
             else:
-                if (guard in cons_rel_stats):
-                    if (guard_filter(guard, cons_rel_stats, descriptors)):
-                        print('Bringing up guard {0}'.format(guard))
-                        guard_props['down_since'] = None
+                if (guard in cons_rel_stats) and\
+                    (stem.Flag.RUNNING not in cons_rel_stats[guard].flags)\
+                    and (stem.Flag.GUARD not in cons_rel_stats[guard].flags):
+                    print('Bringing up guard {0}'.format(guard))
+                    guard_props['bad_since'] = None
             # remove from list if down time including this period exceeds limit
-            if (guard_props['down_since'] != None):
-                if (timestamp(cons_fresh_until)-guard_props['down_since'] >=\
+            if (guard_props['bad_since'] != None):
+                if (timestamp(cons_fresh_until)-guard_props['bad_since'] >=\
                     guard_down_time):
                     print('Guard down too long, removing: {0}'.format(guard))
                     del guards[guard]
+            # expire old guards
+            if (guard_props['expires'] <= timestamp(cons_valid_after)):
+                print('Expiring guard: {0}'.format(guard))
+                del guards[guard]
+                    
                     
         # go through circuit requests: (time,fast,stable,internal,ip,port)
         while (circuit_idx < len(circuit_reqs)) and\
@@ -601,8 +621,6 @@ if __name__ == '__main__':
 # TODO
 # - support IPv6 addresses
 # - add DNS requests
-# - examine when guard expiration is done in tor
-# - verify guard up/down calculated as in tor
 # - We do not consider removing stable/fast requirements if a suitable relay can't be found at some point. Tor does this. Rather, we just error.
 
 ##### Relevant lines for path selection extracted from Tor specs.
