@@ -16,3 +16,4 @@
 14. According to router_choose_random_node() (routerlist.c), clients with ExcludeSingleHopRelays=1 exclude relays that allow single-hop exit circuits. This isn't noted in the docs.
 15. In general, it often seems that if relays cannot be found satisfying certain restrictions (e.g. fast, stable, guard) the restrictions are removed and relay selection is tried again (cf. router_choose_random_node() and choose_random_entry_impl()).
 16. For some reason, the weighted bandwidth is "weight*this_bw + 0.5" (routerlist.c), where weight is bw_weight/bwweightscale, e.g., 'Wgg' / 10000, and this_bw is the consensus bw in bytes.
+17. Circuit rotation not discussed at all in specs. That is, it is not explained how streams are assigned to dirty/clean circuits and exactly how frequently the "maintained" clean circuits are created.

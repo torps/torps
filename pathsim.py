@@ -407,36 +407,139 @@ def get_guards_for_circ(bw_weights, bwweightscale, cons_rel_stats,\
             
     return top_guards_for_circ
 
-def choose_paths(consensus_files, processed_descriptor_files, circuit_reqs):
-    """Creates paths for requested circuits based on the inputs consensus
-    and descriptor files.
+def choose_path(cons_rel_stats, cons_valid_after, cons_fresh_until,\
+    cons_bw_weights, cons_bwweightscale, descriptors, guards,\
+    circ_time, circ_fast, circ_stable, circ_internal, circ_ip, circ_port):
+    """Creates path for requested circuit based on the input consensus
+    statuses and descriptors.
     Inputs:
-        consensus_files: list of consensus filenames *in correct order*
-        processed_descriptor_files: descriptors corresponding to relays in
-            consensus_files as produced by process_consensuses
-        circuit_reqs: list of requested circuits, where a circuit is a tuple
-            (time,fast,stable,internal,ip,port), where
-                time(int): seconds from time zero
-                fast(bool): indicates all relay must have Fast flag
-                stable(bool): indicates all relay must have Stable flag
-                internal(bool): indicates is for DNS or hidden service
-                ip(str): ip address of destination
-                port(int): port to connect to
+        cons_rel_stats: (dict) relay fingerprint keys and relay status vals
+        cons_valid_after: (datetime) valid_after value of consensus
+        cons_fresh_until: (datetime) fresh_until value of consensus
+        cons_bw_weights: (dict) bw_weights of consensus
+        cons_bwweightscale: (should be float()able) bwweightscale of consensus
+        descriptors: (dict) relay fingerprint keys and descriptor vals
+        guards: (dict) contains guards of requesting client
+        circ_time: (int) timestamp of circuit request
+        circ_fast: (bool) all relays should be fast
+        circ_stable: (bool) all relays should be stable
+        circ_internal: (bool) circuit is for name resolution or hidden service
+        circ_ip: (str) IP address of destination (None if not known)
+        circ_port: (int) desired TCP port (None if not known)
     """
     
-    paths = []
+    if (circ_time < timestamp(cons_valid_after)) or\
+        (circ_time >= timestamp(cons_fresh_until)):
+        raise ValueError('consensus not fresh for circ_time in choose_paths')
+    
     num_guards = 3
     min_num_guards = 2
     guard_expiration_min = 30*24*3600 # min time until guard removed from list
     guard_expiration_max = 60*24*3600 # max time until guard removed from list
     guard_down_time = 30*24*3600 # time guard can be down until is removed
+ 
+    # update client state
+    # Tor does this stuff whenever a descriptor is obtained        
+    for guard, guard_props in guards.items():
+        # set guard as down if (following Tor's entry_guard_set_status)
+        # - not in current nodelist (!node check)
+        #   - note that a node can appear the nodelist but not
+        #     in the current consensus if it has an existing descriptor
+        #     in routerlist (unclear to me when this gets purged)
+        # - Running flag not set
+        #   - note that all nodes not in current consensus get
+        #     *all* their node flags set to zero
+        # - Guard flag not set [and not a bridge])
+        # note that hibernating *not* considered here
+        if (guard_props['bad_since'] == None):
+            if (guard not in cons_rel_stats) or\
+                (stem.Flag.RUNNING not in cons_rel_stats[guard].flags) or\
+                (stem.Flag.GUARD not in cons_rel_stats[guard].flags):
+                print('Putting down guard {0}'.format(guard))
+                guard_props['bad_since'] = timestamp(cons_valid_after)
+        else:
+            if (guard in cons_rel_stats) and\
+                (stem.Flag.RUNNING not in cons_rel_stats[guard].flags)\
+                and (stem.Flag.GUARD not in cons_rel_stats[guard].flags):
+                print('Bringing up guard {0}'.format(guard))
+                guard_props['bad_since'] = None
+        # remove from list if down time including this period exceeds limit
+        if (guard_props['bad_since'] != None):
+            if (timestamp(cons_fresh_until)-guard_props['bad_since'] >=\
+                guard_down_time):
+                print('Guard down too long, removing: {0}'.format(guard))
+                del guards[guard]
+        # expire old guards
+        if (guard_props['expires'] <= timestamp(cons_valid_after)):
+            print('Expiring guard: {0}'.format(guard))
+            del guards[guard]
 
+    # select exit node
+    weighted_exits = get_weighted_exits(cons_bw_weights, 
+        cons_bwweightscale, cons_rel_stats, descriptors, circ_fast,
+        circ_stable, circ_internal, circ_ip, circ_port)
+    exit_node = select_weighted_node(weighted_exits)
+    print('Exit node: {0} [{1}]'.format(
+        cons_rel_stats[exit_node].nickname,
+        cons_rel_stats[exit_node].fingerprint))
+    
+    # select guard node
+    # get first <= num_guards guards suitable for circuit
+    circ_guards = get_guards_for_circ(cons_bw_weights,\
+        cons_bwweightscale, cons_rel_stats, descriptors,\
+        circ_fast, circ_stable, guards, num_guards,\
+        min_num_guards, exit_node, guard_expiration_min,\
+        guard_expiration_max, circ_time)
+    # randomly choose from among those suitable guards
+    guard_node = random.choice(circ_guards)
+    print('Guard node: {0} [{1}]'.format(
+        cons_rel_stats[guard_node].nickname,
+        cons_rel_stats[guard_node].fingerprint))
+    
+    
+    # select middle node
+    weighted_middles = get_weighted_middles(cons_bw_weights,
+        cons_bwweightscale, cons_rel_stats, descriptors, circ_fast,
+        circ_stable, exit_node, guard_node)
+    middle_node = select_weighted_node(weighted_middles)                
+    print('Middle node: {0} [{1}]'.format(
+        cons_rel_stats[middle_node].nickname,
+        cons_rel_stats[middle_node].fingerprint))
+    
+    return (guard_node, middle_node, exit_node)
+    
+def create_circuits(consensus_files, processed_descriptor_files, streams):
+    """Takes streams over time and creates circuits by interaction
+    with choose_paths().
+      Input:
+        consensus_files: list of consensus filenames *in correct order*
+        processed_descriptor_files: descriptors corresponding to relays in
+            consensus_files as produced by process_consensuses      
+        streams: *ordered* list of streams, where a stream is a dict with keys
+            'time': timestamp of when stream request occurs 
+            'type': with value either
+                'resolve' for domain name resolution or
+                'generic' for all other TCP connections
+            'IP': IP address of destination, may be absent for 'type':'resolve'
+            'port': desired TCP port, may be absent for 'type':'generic'
+    Output:
+        circuits: a list of circuits created, where a circuit is a dict as
+                    with keys
+                    'time': (int) seconds from time zero
+                    'fast': (bool) relays must have Fast flag
+                    'stable': (bool) relays must have Stable flag
+                    'internal': (bool) is for DNS or hidden service
+                    'ip': (str) ip address of destination
+                    'port': (int) port to connect to
+                    'dirty': (bool) whether a stream was ever attached
+    """
+    
     # build a client with empty initial state
     # guard is fingerprint -> {'expires':exp_time, 'bad_since':bad_since}
-    guards = {}
-
-    circuit_reqs.sort(key = lambda x: x[0])
-    circuit_idx = 0
+    guards = {}    
+    
+    stream_start = 0
+    stream_end = 0
     
     for c_file, d_file in zip(consensus_files, processed_descriptor_files):
         print('Using consensus file {0}'.format(c_file))
@@ -467,94 +570,55 @@ def choose_paths(consensus_files, processed_descriptor_files, circuit_reqs):
                 # set default value
                 # Yes, I could have set it initially to this value,
                 # but this way, it doesn't get repeatedly set.
-                cons_bwweightscale = 10000
-                
-        # update client state
-        # Tor does this stuff whenever a descriptor is obtained        
-        for guard, guard_props in guards.items():
-            # set guard as down if (following Tor's entry_guard_set_status)
-            # - not in current nodelist (!node check)
-            #   - note that a node can appear the nodelist but not
-            #     in the current consensus if it has an existing descriptor
-            #     in routerlist (unclear to me when this gets purged)
-            # - Running flag not set
-            #   - note that all nodes not in current consensus get
-            #     *all* their node flags set to zero
-            # - Guard flag not set [and not a bridge])
-            # note that hibernating *not* considered here
-            if (guard_props['bad_since'] == None):
-                if (guard not in cons_rel_stats) or\
-                    (stem.Flag.RUNNING not in cons_rel_stats[guard].flags) or\
-                    (stem.Flag.GUARD not in cons_rel_stats[guard].flags):
-                    print('Putting down guard {0}'.format(guard))
-                    guard_props['bad_since'] = timestamp(cons_valid_after)
-            else:
-                if (guard in cons_rel_stats) and\
-                    (stem.Flag.RUNNING not in cons_rel_stats[guard].flags)\
-                    and (stem.Flag.GUARD not in cons_rel_stats[guard].flags):
-                    print('Bringing up guard {0}'.format(guard))
-                    guard_props['bad_since'] = None
-            # remove from list if down time including this period exceeds limit
-            if (guard_props['bad_since'] != None):
-                if (timestamp(cons_fresh_until)-guard_props['bad_since'] >=\
-                    guard_down_time):
-                    print('Guard down too long, removing: {0}'.format(guard))
-                    del guards[guard]
-            # expire old guards
-            if (guard_props['expires'] <= timestamp(cons_valid_after)):
-                print('Expiring guard: {0}'.format(guard))
-                del guards[guard]
-                    
-                    
-        # go through circuit requests: (time,fast,stable,internal,ip,port)
-        while (circuit_idx < len(circuit_reqs)) and\
-            (circuit_reqs[circuit_idx][0] >= timestamp(cons_valid_after)) and\
-                (circuit_reqs[circuit_idx][0] < timestamp(cons_fresh_until)):
-            circ_time = circuit_reqs[circuit_idx][0]
-            circ_fast = circuit_reqs[circuit_idx][1]
-            circ_stable = circuit_reqs[circuit_idx][2]
-            circ_internal = circuit_reqs[circuit_idx][3]
-            circ_ip = circuit_reqs[circuit_idx][4]
-            circ_port = circuit_reqs[circuit_idx][5]
+                cons_bwweightscale = 10000                
 
-            # select exit node
-            weighted_exits = get_weighted_exits(cons_bw_weights, 
-                cons_bwweightscale, cons_rel_stats, descriptors, circ_fast,
-                circ_stable, circ_internal, circ_ip, circ_port)
-            exit_node = select_weighted_node(weighted_exits)
-            print('Exit node: {0} [{1}]'.format(
-                cons_rel_stats[exit_node].nickname,
-                cons_rel_stats[exit_node].fingerprint))
-            
-            # select guard node
-            # get first <= num_guards guards suitable for circuit
-            circ_guards = get_guards_for_circ(cons_bw_weights,\
-                cons_bwweightscale, cons_rel_stats, descriptors,\
-                circ_fast, circ_stable, guards, num_guards,\
-                min_num_guards, exit_node, guard_expiration_min,\
-                guard_expiration_max, circ_time)
-            # randomly choose from among those suitable guards
-            guard_node = random.choice(circ_guards)
-            print('Guard node: {0} [{1}]'.format(
-                cons_rel_stats[guard_node].nickname,
-                cons_rel_stats[guard_node].fingerprint))
-            
-            
-            # select middle node
-            weighted_middles = get_weighted_middles(cons_bw_weights,
-                cons_bwweightscale, cons_rel_stats, descriptors, circ_fast,
-                circ_stable, exit_node, guard_node)
-            middle_node = select_weighted_node(weighted_middles)                
-            print('Middle node: {0} [{1}]'.format(
-                cons_rel_stats[middle_node].nickname,
-                cons_rel_stats[middle_node].fingerprint))
-            
-            paths.append((guard_node, middle_node, exit_node,\
-                cons_rel_stats, descriptors))
-                
-            circuit_idx += 1
-                    
-    return paths
+        # collect streams that occur during consensus fresh period
+        while (stream_start < len(streams)) and\
+            (streams[stream_start]['time'] < timestamp(cons_valid_after)):
+            stream_start += 1
+        stream_end = stream_start
+        while (stream_end < len(streams)) and\
+            (streams[stream_end]['time'] < timestamp(cons_fresh_until)):
+            stream_end += 1
+        
+        # store "live" circuits in a deque
+        # store port needs in a dict, include current covering circuit (or just
+        # time) and expiration of need
+        # for simplicity, step through time one minute at a time, each minute
+        # 1. kill dead circuits
+        # 2. expire needs and cover newly uncovered ones
+        # 3. go through streams in this minute,
+        #   i. try to map through live circuits by working backwards in time
+        #   ii. if not mapped, create new circuit for stream
+        #   iii. update needs by
+        #     a. adding stream port or extending expiration time for it
+        #     b. changing covering circuit for port if circuit created
+        # START
+        
+#        choose_paths(cons_rel_stats, cons_valid_after, cons_fresh_until,\
+#            cons_bw_weights, cons_bwweightscale, descriptors, guards,\
+#            circ_time, circ_fast, circ_stable, circ_internal, circ_ip,\
+#            circ_port)        
+    
+        # Specifically, on startup Tor tries to maintain one clean
+        # fast exit circuit that allows connections to port 80, and at least
+        # two fast clean stable internal circuits in case we get a resolve
+        # request...
+        # After that, Tor will adapt the circuits that it preemptively builds
+        # based on the requests it sees from the user: it tries to have two
+        # fast
+        # clean exit circuits available for every port seen within the past
+        # hour
+        # (each circuit can be adequate for many predicted ports -- it doesn't
+        # need two separate circuits for each port), and it tries to have the
+        # above internal circuits available if we've seen resolves or hidden
+        # service activity within the past hour...
+        # Additionally, when a client request exists that no circuit (built or
+        # pending) might support, we create a new circuit to support the
+        # request.
+        # For exit connections, we pick an exit node that will handle the
+        # most pending requests (choosing arbitrarily among ties) 
+    
     
 if __name__ == '__main__':
     command = None
@@ -591,41 +655,43 @@ if __name__ == '__main__':
                 if (filename[0] != '.'):
                     descriptor_files.append(os.path.join(dirpath,filename))
         descriptor_files.sort()
-    
-        # Specifically, on startup Tor tries to maintain one clean
-        # fast exit circuit that allows connections to port 80, and at least
-        # two fast clean stable internal circuits in case we get a resolve
-        # request...
-        # After that, Tor will adapt the circuits that it preemptively builds
-        # based on the requests it sees from the user: it tries to have two
-        # fast
-        # clean exit circuits available for every port seen within the past
-        # hour
-        # (each circuit can be adequate for many predicted ports -- it doesn't
-        # need two separate circuits for each port), and it tries to have the
-        # above internal circuits available if we've seen resolves or hidden
-        # service activity within the past hour...
-        # Additionally, when a client request exists that no circuit (built or
-        # pending) might support, we create a new circuit to support the
-        # request.
-        # For exit connections, we pick an exit node that will handle the
-        # most pending requests (choosing arbitrarily among ties) 
-        # (timestamp,fast,stable,internal,ip,port)   
-        
-        circ_time = timestamp(datetime.datetime(2012, 8, 2, 0, 0, 0))
-        circuits = [(circ_time,True,False,False,None,80),
-            (circ_time,True,True,True,None,None),
-            (circ_time,True,True,True,None,None)]
-        choose_paths(consensus_files, descriptor_files, circuits)
-    
+
+        stream_time = timestamp(datetime.datetime(2012, 8, 2, 0, 0, 0))        
+        create_circuits(consensus_files, processed_descriptor_files, streams)    
+
 # TODO
 # - support IPv6 addresses
 # - add DNS requests
 # - We do not consider removing stable/fast requirements if a suitable relay can't be found at some point. Tor does this. Rather, we just error.
+# - Instead of immediately using a new consensus, set a random time to
+#   switch to the new one, following the process in dir-spec.txt (Sec. 5.1).
+# - Check for descriptors that aren't the ones in the consensus, particularly
+#   those older than 48 hours, which should expire (dir-spec.txt, Sec. 5.2).
+
 
 ##### Relevant lines for path selection extracted from Tor specs.
 
-# From dir-spec.txt
+# Circuit creation according to path-spec.txt
+# Specifically, on startup Tor tries to maintain one clean
+# fast exit circuit that allows connections to port 80, and at least
+# two fast clean stable internal circuits in case we get a resolve
+# request...
+# After that, Tor will adapt the circuits that it preemptively builds
+# based on the requests it sees from the user: it tries to have two
+# fast
+# clean exit circuits available for every port seen within the past
+# hour
+# (each circuit can be adequate for many predicted ports -- it doesn't
+# need two separate circuits for each port), and it tries to have the
+# above internal circuits available if we've seen resolves or hidden
+# service activity within the past hour...
+# Additionally, when a client request exists that no circuit (built or
+# pending) might support, we create a new circuit to support the
+# request.
+# For exit connections, we pick an exit node that will handle the
+# most pending requests (choosing arbitrarily among ties) 
+
+# Path selection according to dir-spec.txt
 # 1. Clients SHOULD NOT use non-'Valid' or non-'Running' routers
 # 2. Clients SHOULD NOT use non-'Fast' routers for any purpose other than
 #    very-low-bandwidth circuits (such as introduction circuits).
@@ -635,7 +701,7 @@ if __name__ == '__main__':
 # 5. if the [Hibernate] value is 1, then the Tor relay was hibernating when
 #    the descriptor was published, and shouldn't be used to build circuits."    
 
-# From path-spec.txt
+# Path selection according to path-spec.txt
 # 1. We weight node selection according to router bandwidth
 # 2. We also weight the bandwidth of Exit and Guard flagged
 # nodes       
