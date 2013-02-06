@@ -7,6 +7,7 @@ import stem.descriptor.networkstatus as sdn
 import stem
 import random
 import sys
+import collections
 
 def timestamp(t):
     """Returns UNIX timestamp"""
@@ -127,7 +128,25 @@ def select_weighted_node(weighted_nodes):
             return node
         else:
             cum_prob += weight
-    raise ValueError('Weights must sum to 1.')            
+    raise ValueError('Weights must sum to 1.')   
+    
+def can_exit_to_port(descriptor, port):
+    """Returns if there is *some* ip that relay will exit to on port."""             
+    can_exit = None
+    for rule in descriptor.exit_policy:
+        if (port >= rule.min_port) and\
+            (port <= rule.max_port) and\
+            rule.is_accept and (can_exit==None):
+            can_exit = True
+        elif (port >= rule.min_port) and\
+            (port <= rule.max_port) and\
+            (not rule.is_accept) and\
+            rule.is_address_wildcard() and (can_exit==None):
+            can_exit = False
+    if (can_exit == None): # default accept if no rule matches
+        can_exit = True
+    return can_exit                 
+    
 
 def get_weighted_exits(bw_weights, bwweightscale, cons_rel_stats,\
     descriptors, fast, stable, internal, ip, port):
@@ -157,22 +176,9 @@ def get_weighted_exits(bw_weights, bwweightscale, cons_rel_stats,\
             else:
                 if (ip != None) and (desc.exit_policy.can_exit_to(ip, port)):
                     exits.append(fprint)
-                else:
-                    can_exit = None
-                    for rule in desc.exit_policy:
-                        if (port >= rule.min_port) and\
-                            (port <= rule.max_port) and\
-                            rule.is_accept and (can_exit==None):
-                            can_exit = True
-                        elif (port >= rule.min_port) and\
-                            (port <= rule.max_port) and\
-                            (not rule.is_accept) and\
-                            rule.is_address_wildcard() and (can_exit==None):
-                            can_exit = False
-                    if (can_exit == None): # default accept if no rule matches
-                        can_exit = True                    
-                    if can_exit:
-                        exits.append(fprint)
+                elif (can_exit_to_port(desc, port)):
+                    exits.append(fprint)
+                    
     # create weights
     weights = []
     if (internal):
@@ -281,7 +287,7 @@ def guard_filter_for_circ(guard, cons_rel_stats, descriptors, fast,\
     """Returns if guard is usable for circuit."""
     #  - liveness (given by entry_is_live() call in choose_random_entry_impl())
     #       - not bad_since
-    #       - has descriptor (although should be ensured by choose_paths()
+    #       - has descriptor (although should be ensured by create_circuits()
     #  - fast/stable
     #  - not same as exit
     #  - not in exit family
@@ -307,7 +313,7 @@ def get_new_guard(bw_weights, bwweightscale, cons_rel_stats, descriptors,\
     # - running
     # - valid
     # - need guard    
-    # - need descriptor, though should be ensured already by choose_paths()
+    # - need descriptor, though should be ensured already by create_circuits()
     # - not single hop relay
     # Note that hibernation is not considered.
     # follows add_an_entry_guard(NULL,0,0,for_directory) call which appears
@@ -353,7 +359,7 @@ def get_guards_for_circ(bw_weights, bwweightscale, cons_rel_stats,\
     Chooses new guards if needed, and *modifies* guard list by adding them."""
     # Get live guards then add new ones until num_guards reached, where live is
     #  - bad_since isn't set
-    #  - has descriptor, though choose_paths should ensure descriptor exists
+    #  - has descriptor, though create_circuits should ensure descriptor exists
     # Note that node need not have Valid flag to be live. As far as I can tell,
     # a Valid flag is needed to be added to the guard list, but isn't needed 
     # after that point.
@@ -414,8 +420,8 @@ def choose_path(cons_rel_stats, cons_valid_after, cons_fresh_until,\
     statuses and descriptors.
     Inputs:
         cons_rel_stats: (dict) relay fingerprint keys and relay status vals
-        cons_valid_after: (datetime) valid_after value of consensus
-        cons_fresh_until: (datetime) fresh_until value of consensus
+        cons_valid_after: (int) timestamp of valid_after for consensus
+        cons_fresh_until: (int) timestamp of fresh_until for consensus
         cons_bw_weights: (dict) bw_weights of consensus
         cons_bwweightscale: (should be float()able) bwweightscale of consensus
         descriptors: (dict) relay fingerprint keys and descriptor vals
@@ -428,9 +434,9 @@ def choose_path(cons_rel_stats, cons_valid_after, cons_fresh_until,\
         circ_port: (int) desired TCP port (None if not known)
     """
     
-    if (circ_time < timestamp(cons_valid_after)) or\
-        (circ_time >= timestamp(cons_fresh_until)):
-        raise ValueError('consensus not fresh for circ_time in choose_paths')
+    if (circ_time < cons_valid_after) or\
+        (circ_time >= cons_fresh_until):
+        raise ValueError('consensus not fresh for circ_time in choose_path')
     
     num_guards = 3
     min_num_guards = 2
@@ -456,7 +462,7 @@ def choose_path(cons_rel_stats, cons_valid_after, cons_fresh_until,\
                 (stem.Flag.RUNNING not in cons_rel_stats[guard].flags) or\
                 (stem.Flag.GUARD not in cons_rel_stats[guard].flags):
                 print('Putting down guard {0}'.format(guard))
-                guard_props['bad_since'] = timestamp(cons_valid_after)
+                guard_props['bad_since'] = cons_valid_after
         else:
             if (guard in cons_rel_stats) and\
                 (stem.Flag.RUNNING not in cons_rel_stats[guard].flags)\
@@ -465,12 +471,12 @@ def choose_path(cons_rel_stats, cons_valid_after, cons_fresh_until,\
                 guard_props['bad_since'] = None
         # remove from list if down time including this period exceeds limit
         if (guard_props['bad_since'] != None):
-            if (timestamp(cons_fresh_until)-guard_props['bad_since'] >=\
+            if (cons_fresh_until-guard_props['bad_since'] >=\
                 guard_down_time):
                 print('Guard down too long, removing: {0}'.format(guard))
                 del guards[guard]
         # expire old guards
-        if (guard_props['expires'] <= timestamp(cons_valid_after)):
+        if (guard_props['expires'] <= cons_valid_after):
             print('Expiring guard: {0}'.format(guard))
             del guards[guard]
 
@@ -510,9 +516,10 @@ def choose_path(cons_rel_stats, cons_valid_after, cons_fresh_until,\
     
 def create_circuits(consensus_files, processed_descriptor_files, streams):
     """Takes streams over time and creates circuits by interaction
-    with choose_paths().
+    with choose_path().
       Input:
-        consensus_files: list of consensus filenames *in correct order*
+        consensus_files: list of consensus filenames *in correct order*, must
+                        exactly cover a time period (i.e. no gaps or overlaps)
         processed_descriptor_files: descriptors corresponding to relays in
             consensus_files as produced by process_consensuses      
         streams: *ordered* list of streams, where a stream is a dict with keys
@@ -520,30 +527,48 @@ def create_circuits(consensus_files, processed_descriptor_files, streams):
             'type': with value either
                 'resolve' for domain name resolution or
                 'generic' for all other TCP connections
-            'IP': IP address of destination, may be absent for 'type':'resolve'
-            'port': desired TCP port, may be absent for 'type':'generic'
+            'ip': IP address of destination, may be absent for 'type':'resolve'
+            'port': desired TCP port, may be absent for 'type':'resolve'
     Output:
-        circuits: a list of circuits created, where a circuit is a dict as
+        circuits: a list of circuits created, where a circuit is a dict
                     with keys
                     'time': (int) seconds from time zero
                     'fast': (bool) relays must have Fast flag
                     'stable': (bool) relays must have Stable flag
                     'internal': (bool) is for DNS or hidden service
-                    'ip': (str) ip address of destination
-                    'port': (int) port to connect to
                     'dirty': (bool) whether a stream was ever attached
+                    'path': (tuple) lits in-order fingerprints for path's nodes
+                    'cons_rel_stats': (dict) relay stats for active consensus
+                    'descriptors': (dict) descriptors active during this period
     """
+    
+    # max age of a dirty circuit to which new streams can be assigned
+    dirty_circuit_lifetime = 10*60
     
     # build a client with empty initial state
     # guard is fingerprint -> {'expires':exp_time, 'bad_since':bad_since}
     guards = {}    
     
+    cur_period_start = None
+    cur_period_end = None
     stream_start = 0
     stream_end = 0
     
+    # circuits created
+    circuits = [] 
+    # "live" circuits listed by age
+    # circuit is live if it's clean or younger than dirty_circuit_lifetime
+    live_circuits = collections.deque()
+    
+    # port that must be covered by existing circuits
+    port_needs = {80:{'covered_until':0, 'expires':None, 'fast':True,\
+        'stable':False}}
+    # for internal circuits simply require that a live one always exist
+    internal_covered_until = 0       
+    
     for c_file, d_file in zip(consensus_files, processed_descriptor_files):
-        print('Using consensus file {0}'.format(c_file))
         # read in descriptors and consensus statuses
+        print('Using consensus file {0}'.format(c_file))
         descriptors = {}
         cons_rel_stats = {}
         cons_valid_after = None
@@ -555,9 +580,18 @@ def create_circuits(consensus_files, processed_descriptor_files, streams):
                 descriptors[desc.fingerprint] = desc
             for rel_stat in sd.parse_file(cf, validate=False):
                 if (cons_valid_after == None):
-                    cons_valid_after = rel_stat.document.valid_after
+                    cons_valid_after = timestamp(rel_stat.document.valid_after)
+                    if (cur_period_start == None):
+                        cur_period_start = cons_valid_after
+                    elif (cur_period_end == cons_valid_after):
+                        cur_period_start = cons_valid_after
+                    else:
+                        err = 'Gap/overlap in consensus times: {0}:{1}'.\
+                                format(cur_period_end, cons_valid_after)
+                        raise ValueError(err)
                 if (cons_fresh_until == None):
-                    cons_fresh_until = rel_stat.document.fresh_until
+                    cons_fresh_until = timestamp(rel_stat.document.fresh_until)
+                    cur_period_end = cons_fresh_until
                 if (cons_bw_weights == None):
                     cons_bw_weights = rel_stat.document.bandwidth_weights
                 if (cons_bwweightscale == None):
@@ -572,30 +606,100 @@ def create_circuits(consensus_files, processed_descriptor_files, streams):
                 # but this way, it doesn't get repeatedly set.
                 cons_bwweightscale = 10000                
 
-        # collect streams that occur during consensus fresh period
+        # collect streams that occur during current period
         while (stream_start < len(streams)) and\
-            (streams[stream_start]['time'] < timestamp(cons_valid_after)):
+            (streams[stream_start]['time'] < cur_period_start):
             stream_start += 1
         stream_end = stream_start
         while (stream_end < len(streams)) and\
-            (streams[stream_end]['time'] < timestamp(cons_fresh_until)):
+            (streams[stream_end]['time'] < cur_period_end):
             stream_end += 1
+       
+        # for simplicity, step through time one minute at a time
+        cur_time = cur_period_start
+        while (cur_time < cur_period_end):
+            # kill dead circuits
+            while (live_circuits.len() > 0) and\
+                    (live_circuits[0]['time'] < cur_time):
+                live_circuits.popleft()
+                
+            # expire needs and cover newly uncovered ones
+            new_circuits = [] # checked because a new circ may cover many needs
+            for each port, need in port_needs.items():
+                if (need['expires'] != None) and\
+                    (need['expires'] <= cur_time):
+                    del port_needs[port]
+                elif (need['covered_until'] <= cur_time):
+                    # check if some new circuit already covers the need
+                    already_covered = False
+                    for new_circ in new_circuits:
+                        exit_desc = descriptors[new_circ['path'][-1]]
+                        if (can_exit_to_port(exit_desc, port)):
+                            need['covered_until'] = cur_time +\
+                                dirty_circuit_lifetime
+                            already_covered = True
+                            break
+                    if (not already_covered):
+                        # we need to make a new circuit
+                        path = choose_path(cons_rel_stats, cons_valid_after,\
+                            cons_fresh_until, cons_bw_weights,\
+                            cons_bwweightscale, descriptors, guards, cur_time,\
+                            need['fast'], need['stable'], False, None, port)
+                        new_circ = {'time':cur_time,
+                                    'fast':need['fast'],
+                                    'stable':need['stable'],
+                                    'internal':False,
+                                    'dirty':False,
+                                    'path':path,
+                                    'cons_rel_stats':cons_rel_stats,
+                                    'descriptors':descriptors}
+                        circuits.append(new_circ)
+                        live_circuits.append(new_circ)
+                        need['covered_until'] = cur_time +\
+                            dirty_circuit_lifetime
+                    # add internal circuit need: internal_covered_until
+            
+            # map streams in this minute to circuits
+            for stream_idx in range(stream_start, stream_end):
+                stream = streams[stream_idx]
+                for circ in live_circuits:
+                    # resolve/general -> internal
+                    # ip/port -> circ can exit
+                    # port is in stable list -> circ stable
+                    # START
+                
+            """
+            streams: *ordered* list of streams, each stream is a dict with keys
+                'time': timestamp of when stream request occurs 
+                'type': with value either
+                    'resolve' for domain name resolution or
+                    'generic' for all other TCP connections
+                'ip': IP address of destination, may be absent for type:resolve
+                'port': desired TCP port, may be absent for type:resolve
+            """            
+                
+            #   i. try to map to live circuits by working backwards in time
+            #   ii. if not mapped, create new circuit for stream
+            #   iii. update needs by
+            #     a. adding stream port or extending expiration time for it
+            #     b. changing covering circuit for port if circuit created
+            
+            cur_time += 60
+
+        """
+        circuits: a list of circuits created, where a circuit is a dict as
+            with keys
+            'time': (int) seconds from time zero
+            'fast': (bool) relays must have Fast flag
+            'stable': (bool) relays must have Stable flag
+            'internal': (bool) is for DNS or hidden service
+            'dirty': (bool) whether a stream was ever attached
+            'path': (tuple) lits in-order fingerprints for path's nodes
+            'cons_rel_stats': (dict) relay stats for active consensus
+            'descriptors': (dict) descriptors active during this period            
+        """
         
-        # store "live" circuits in a deque
-        # store port needs in a dict, include current covering circuit (or just
-        # time) and expiration of need
-        # for simplicity, step through time one minute at a time, each minute
-        # 1. kill dead circuits
-        # 2. expire needs and cover newly uncovered ones
-        # 3. go through streams in this minute,
-        #   i. try to map through live circuits by working backwards in time
-        #   ii. if not mapped, create new circuit for stream
-        #   iii. update needs by
-        #     a. adding stream port or extending expiration time for it
-        #     b. changing covering circuit for port if circuit created
-        # START
-        
-#        choose_paths(cons_rel_stats, cons_valid_after, cons_fresh_until,\
+#        choose_path(cons_rel_stats, cons_valid_after, cons_fresh_until,\
 #            cons_bw_weights, cons_bwweightscale, descriptors, guards,\
 #            circ_time, circ_fast, circ_stable, circ_internal, circ_ip,\
 #            circ_port)        
