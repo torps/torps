@@ -418,26 +418,18 @@ def circuit_covers_port_need(circuit, descriptors, port, need):
     """Returns if circuit satisfies a port need, ignoring the circuit
     time and need expiration."""
     return (can_exit_to_port(descriptors[circuit['path'][-1]], port)) and\
-        ((not port['fast']) or (circuit['fast'])) and\
-        ((not port['stable']) or (circuit['stable'])):
-#    port_needs = {80:{'covered_until':0, 'expires':None, 'fast':True,\
-#        'stable':False}}
-#                    'time': (int) seconds from time zero
-#                    'fast': (bool) relays must have Fast flag
-#                    'stable': (bool) relays must have Stable flag
-#                    'internal': (bool) is for DNS or hidden service
-#                    'dirty': (bool) whether a stream was ever attached
-#                    'path': (tuple) list in-order fprints for path's #nodes
-#                    'cons_rel_stats': (dict) relay stats for active consensus
-#                    'descriptors': (dict) descriptors active during this period
-
+        ((not need['fast']) or (circuit['fast'])) and\
+        ((not need['stable']) or (circuit['stable']))
         
 
 def circuit_supports_stream(circuit, stream, long_lived_ports):
     """Returns if stream can run over circuit (which is assumed live)."""
 
-    if (stream['type'] == 'resolve') and (circuit['internal']):
-        return True
+    if (stream['type'] == 'resolve'):
+        if (circuit['internal']):
+            return True
+        else:
+            return False
     elif (stream['type'] == 'generic'):
         if (stream['ip'] == None):
             raise ValueError('Stream type generic must have ip.')
@@ -446,7 +438,7 @@ def circuit_supports_stream(circuit, stream, long_lived_ports):
     
         desc = circuit['descriptors'][circuit['path'][-1]]
         if (desc.exit_policy.can_exit_to(stream['ip'], stream['port'])) and\
-            (not stream['internal']) and\
+            (not circuit['internal']) and\
             ((circuit['stable']) or\
                 (stream['port'] not in long_lived_ports)):
             return True
@@ -454,7 +446,7 @@ def circuit_supports_stream(circuit, stream, long_lived_ports):
             return False
     else:
         raise ValueError('stream type not recognized: {0}'.format(\
-            stream['type'])
+            stream['type']))
 
 
 def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
@@ -579,8 +571,8 @@ def create_circuits(consensus_files, processed_descriptor_files, streams):
             'type': with value either
                 'resolve' for domain name resolution or
                 'generic' for all other TCP connections
-            'ip': IP address of destination, may be absent for 'type':'resolve'
-            'port': desired TCP port, may be absent for 'type':'resolve'
+            'ip': IP address of destination, may be None for 'type':'resolve'
+            'port': desired TCP port, may be None for 'type':'resolve'
     Output:
         circuits: a list of circuits created, where a circuit is a dict
                     with keys
@@ -678,13 +670,13 @@ def create_circuits(consensus_files, processed_descriptor_files, streams):
         cur_time = cur_period_start
         while (cur_time < cur_period_end):
             # kill dead circuits
-            while (live_circuits.len() > 0) and\
+            while (len(live_circuits) > 0) and\
                     (live_circuits[0]['time'] < cur_time):
                 live_circuits.popleft()
                 
             # expire port needs and cover newly uncovered ones
             new_circuits = [] # checked bc a new circ may cover many port needs
-            for each port, need in port_needs.items():
+            for port, need in port_needs.items():
                 if (need['expires'] != None) and\
                     (need['expires'] <= cur_time):
                     del port_needs[port]
@@ -764,7 +756,7 @@ def create_circuits(consensus_files, processed_descriptor_files, streams):
                             
                 # add need/extend expiration for ports in streams
                 port = stream['port']
-                if (port in port_needs)
+                if (port in port_needs):
                     if (port_needs[port]['expires'] != None) and\
                         (port_needs[port]['expires'] < stream['time'] +\
                             port_need_lifetime):
@@ -775,42 +767,13 @@ def create_circuits(consensus_files, processed_descriptor_files, streams):
                         'covered_until':(stream_assigned['time'] + \
                                         dirty_circuit_lifetime),\
                         'expires':(stream['time']+port_need_lifetime),\
-                        'fast':False,\
+                        'fast':True,\
                         'stable':(port in long_lived_ports)}
             live_circuits.reverse() # return ordering to increasing in time
             
             cur_time += 60
-            
-
-                
-        """
-        streams: *ordered* list of streams, each stream is a dict with keys
-            'time': timestamp of when stream request occurs 
-            'type': with value either
-                'resolve' for domain name resolution or
-                'generic' for all other TCP connections
-            'ip': IP address of destination, may be absent for type:resolve
-            'port': desired TCP port, may be absent for type:resolve
-        """            
-            
-
-        """
-        circuits: a list of circuits created, where a circuit is a dict as
-            with keys
-            'time': (int) seconds from time zero
-            'fast': (bool) relays must have Fast flag
-            'stable': (bool) relays must have Stable flag
-            'internal': (bool) is for DNS or hidden service
-            'dirty': (bool) whether a stream was ever attached
-            'path': (tuple) lits in-order fingerprints for path's nodes
-            'cons_rel_stats': (dict) relay stats for active consensus
-            'descriptors': (dict) descriptors active during this period            
-        """
-        
-#        choose_path(cons_rel_stats, cons_valid_after, cons_fresh_until,\
-#            cons_bw_weights, cons_bwweightscale, descriptors, guards,\
-#            circ_time, circ_fast, circ_stable, circ_internal, circ_ip,\
-#            circ_port)        
+    
+    return circuits
     
         # Specifically, on startup Tor tries to maintain one clean
         # fast exit circuit that allows connections to port 80, and at least
@@ -849,6 +812,7 @@ if __name__ == '__main__':
         out_dir = 'out/processed-descriptors-2012-08'
         process_consensuses(descriptor_dir, consensus_dir, out_dir)    
     elif (command == 'simulate'):
+        # get lists of consensuses and the related processed-descriptor files 
 #        consensus_dir = 'in/consensuses'
 #        descriptor_dir = 'out/descriptors'
         consensus_dir = 'tmp-cons'
@@ -861,14 +825,39 @@ if __name__ == '__main__':
                     consensus_files.append(os.path.join(dirpath,filename))
         consensus_files.sort()
         
-        descriptor_files = []
+        processed_descriptor_files = []
         for dirpath, dirnames, filenames in os.walk(descriptor_dir):
             for filename in filenames:
                 if (filename[0] != '.'):
-                    descriptor_files.append(os.path.join(dirpath,filename))
-        descriptor_files.sort()
+                    processed_descriptor_files.append(\
+                        os.path.join(dirpath,filename))
+        processed_descriptor_files.sort()
 
-        stream_time = timestamp(datetime.datetime(2012, 8, 2, 0, 0, 0))        
+        # determine start and end times
+        start_time = None
+        with open(consensus_files[0]) as cf:
+            for rel_stat in sd.parse_file(cf, validate=False):
+                if (start_time == None):
+                    start_time =\
+                        timestamp(rel_stat.document.valid_after)
+                    break
+        end_time = None
+        with open(consensus_files[-1]) as cf:
+            for rel_stat in sd.parse_file(cf, validate=False):
+                if (end_time == None):
+                    end_time =\
+                        timestamp(rel_stat.document.fresh_until)
+                    break        
+
+        # simple user that makes a port 80 request & resolve every x seconds
+        http_request_rate = 15 * 60
+        str_ip = '74.125.131.105' # www.google.com
+        t = start_time
+        streams = []
+        while (t < end_time):
+            streams.append({'time':t,'type':'resolve','ip':None,'port':None})
+            streams.append({'time':t,'type':'generic','ip':str_ip,'port':80})
+            t += http_request_rate
         create_circuits(consensus_files, processed_descriptor_files, streams)    
 
 # TODO
@@ -879,6 +868,9 @@ if __name__ == '__main__':
 #   switch to the new one, following the process in dir-spec.txt (Sec. 5.1).
 # - Check for descriptors that aren't the ones in the consensus, particularly
 #   those older than 48 hours, which should expire (dir-spec.txt, Sec. 5.2).
+# - Figure out if circuits made on demand use Fast.
+# - Figure out why it makes sense to have two clean internal circuits and two circuits for recently-seen ports.
+# - Expire internal need if no activity seen for an hour
 
 
 ##### Relevant lines for path selection extracted from Tor specs.
