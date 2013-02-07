@@ -1,0 +1,4 @@
+run_scheduled_events() [main.c]
+-> circuit_build_needed_circs() [circuituse.c]
+  -> circuit_predict_and_launch_new()
+    -> circuit_launch()
