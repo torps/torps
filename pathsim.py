@@ -413,7 +413,7 @@ def get_guards_for_circ(bw_weights, bwweightscale, cons_rel_stats,\
             
     return top_guards_for_circ
 
-def choose_path(cons_rel_stats, cons_valid_after, cons_fresh_until,\
+def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
     cons_bw_weights, cons_bwweightscale, descriptors, guards,\
     circ_time, circ_fast, circ_stable, circ_internal, circ_ip, circ_port):
     """Creates path for requested circuit based on the input consensus
@@ -436,7 +436,7 @@ def choose_path(cons_rel_stats, cons_valid_after, cons_fresh_until,\
     
     if (circ_time < cons_valid_after) or\
         (circ_time >= cons_fresh_until):
-        raise ValueError('consensus not fresh for circ_time in choose_path')
+        raise ValueError('consensus not fresh for circ_time in create_circuit')
     
     num_guards = 3
     min_num_guards = 2
@@ -512,7 +512,25 @@ def choose_path(cons_rel_stats, cons_valid_after, cons_fresh_until,\
         cons_rel_stats[middle_node].nickname,
         cons_rel_stats[middle_node].fingerprint))
     
-    return (guard_node, middle_node, exit_node)
+    return {'time':circ_time,\
+            'fast':circ_fast,\
+            'stable':circ_stable,\
+            'internal':circ_internal,\
+            'dirty':False,\
+            'path':(guard_node, middle_node, exit_node),\
+            'cons_rel_stats':cons_rel_stats,\
+            'descriptors':descriptors}#START
+    
+    
+def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
+        cons_bw_weights, cons_bwweightscale, descriptors, guards, circ_time,\
+        fast, stable, internal, ip, port):
+    """Chooses path for requested circuit and constructs circuit "object"."""
+    path = choose_path(cons_rel_stats, cons_valid_after,\
+        cons_fresh_until, cons_bw_weights,\
+        cons_bwweightscale, descriptors, guards, cur_time,\
+        need['fast'], need['stable'], False, None, port)
+    
     
 def create_circuits(consensus_files, processed_descriptor_files, streams):
     """Takes streams over time and creates circuits by interaction
@@ -641,32 +659,42 @@ def create_circuits(consensus_files, processed_descriptor_files, streams):
                             break
                     if (not already_covered):
                         # we need to make a new circuit
-                        path = choose_path(cons_rel_stats, cons_valid_after,\
-                            cons_fresh_until, cons_bw_weights,\
-                            cons_bwweightscale, descriptors, guards, cur_time,\
-                            need['fast'], need['stable'], False, None, port)
-                        new_circ = {'time':cur_time,
-                                    'fast':need['fast'],
-                                    'stable':need['stable'],
-                                    'internal':False,
-                                    'dirty':False,
-                                    'path':path,
-                                    'cons_rel_stats':cons_rel_stats,
-                                    'descriptors':descriptors}
+                        #START
+                        new_circ = create_circuit(cons_rel_stats,
+                            cons_valid_after, cons_fresh_until,\
+                            cons_bw_weights, cons_bwweightscale, descriptors,\
+                            guards, cur_time, need['fast'], need['stable'],\
+                            False, None, port)
                         circuits.append(new_circ)
                         live_circuits.append(new_circ)
                         need['covered_until'] = cur_time +\
                             dirty_circuit_lifetime
                     # add internal circuit need: internal_covered_until
+                    #START1
             
-            # map streams in this minute to circuits
+            # assign streams in this minute to circuits
             for stream_idx in range(stream_start, stream_end):
                 stream = streams[stream_idx]
-                for circ in live_circuits:
+                if (stream['type'] == 'resolve'):
+                    stream_assigned = False
+                    for circ in live_circuits:
+                        if (circ['internal'] == True):
+                            stream_assigned = True
+                            break
+                    if (stream_assigned == False):
+                        # we need to make a new circuit
+                        # shouldn't happen - live internal circuit should exist
+                        #START2
+                        path = create_circuit(cons_rel_stats,\
+                            cons_valid_after, cons_fresh_until,\
+                            cons_bw_weights, cons_bwweightscale, descriptors,\
+                            guards, cur_time, need['fast'], need['stable'],\
+                            False, None, port)
+                        
                     # resolve/general -> internal
                     # ip/port -> circ can exit
                     # port is in stable list -> circ stable
-                    # START
+
                 
             """
             streams: *ordered* list of streams, each stream is a dict with keys
