@@ -1,0 +1,7 @@
+1. COGS doesn't properly select exits in the paths: guards are chosen first and exits are checked to make sure they aren't the guard. They aren't checked for family or /16 conflicts. Middle nodes have a similar problem, I believe. Also, requested circuits are not Fast (I believe).
+2. Internal circuits are not made or considered at all.
+3. COGS uses a very old version of Tor. I'm not sure if this affects guard selection.
+4. COGS doesn't exactly choose guards as Tor does. For new circuits, extra guards may be added if not enough guards in the list are both live *and* don't conflict with the exit.
+5. COGS uses an extremely simple model of circuit creation: creation of NumPaths circuits to port 80 every hour.
+6. COGS had a mistake in how descriptors were assigned to relay. It appeared to actually be taking the oldest published descriptor that appeared before the consensus. Even with this corrected to what was obviously intended, the descriptor used should actually be the most recent descriptor before the descriptor date published in that relay's entry in the consensus.
+7. COGS was not using descriptor published in a previous month during multi-month experiments. That is, it effectively wiped the descriptor history clean every month.
