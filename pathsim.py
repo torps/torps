@@ -807,16 +807,16 @@ if __name__ == '__main__':
             print(usage)
 
     if (command == 'process'):
-        descriptor_dir = ['in/server-descriptors-2012-08']
-        consensus_dir = 'in/consensuses-2012-08'
-        out_dir = 'out/processed-descriptors-2012-08'
+        descriptor_dir = ['in/descriptors']
+        consensus_dir = 'in/consensuses'
+        out_dir = 'out/descriptors'
         process_consensuses(descriptor_dir, consensus_dir, out_dir)    
     elif (command == 'simulate'):
         # get lists of consensuses and the related processed-descriptor files 
-#        consensus_dir = 'in/consensuses'
-#        descriptor_dir = 'out/descriptors'
-        consensus_dir = 'tmp-cons'
-        descriptor_dir = 'tmp-desc'
+        consensus_dir = 'in/consensuses'
+        descriptor_dir = 'out/descriptors'
+#        consensus_dir = 'tmp-cons'
+#        descriptor_dir = 'tmp-desc'
         
         consensus_files = []
         for dirpath, dirnames, filenames in os.walk(consensus_dir):
