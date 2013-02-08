@@ -814,7 +814,7 @@ if __name__ == '__main__':
     elif (command == 'simulate'):
         # get lists of consensuses and the related processed-descriptor files 
         consensus_dir = 'in/consensuses'
-        descriptor_dir = 'out/descriptors'
+        descriptor_dir = 'out/processed-descriptors'
 #        consensus_dir = 'tmp-cons'
 #        descriptor_dir = 'tmp-desc'
         
