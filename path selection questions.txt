@@ -19,3 +19,4 @@
 17. Circuit rotation not discussed at all in specs. That is, it is not explained how streams are assigned to dirty/clean circuits and exactly how frequently the "maintained" clean circuits are created. One question here is, are dirty circuits rotated based on their create time or on the time they are dirtied?
 18. Are circuits that are created to be internal ever used to exit, if the last relay does happen to support it? Conversely, are streams created to exit ever used for internal connections?
 19. When circuits are created for waiting stream requests, is the Fast flag used at all?
+20. When are clean circuits torn down if ever?

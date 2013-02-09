@@ -447,7 +447,7 @@ def circuit_supports_stream(circuit, stream, long_lived_ports):
     else:
         raise ValueError('stream type not recognized: {0}'.format(\
             stream['type']))
-
+            
 
 def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
     cons_bw_weights, cons_bwweightscale, descriptors, guards,\
@@ -468,6 +468,17 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
         circ_internal: (bool) circuit is for name resolution or hidden service
         circ_ip: (str) IP address of destination (None if not known)
         circ_port: (int) desired TCP port (None if not known)
+    Output:
+        circuit: (dict) a newly created circuit with keys
+            'time': (int) seconds from time zero
+            'fast': (bool) relays must have Fast flag
+            'stable': (bool) relays must have Stable flag
+            'internal': (bool) is for DNS or hidden service
+            'dirty_time': (int) timestamp of time dirtied, None if clean
+            'path': (tuple) list in-order fingerprints for path's nodes
+            'cons_rel_stats': (dict) relay stats for active consensus
+            'descriptors': (dict) descriptors active during this period
+            'covering': (list) ports with needs covered by circuit        
     """
     
     if (circ_time < cons_valid_after) or\
@@ -480,42 +491,6 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
     guard_expiration_max = 60*24*3600 # max time until guard removed from list
     guard_down_time = 30*24*3600 # time guard can be down until is removed
  
-    # update client state
-    # Tor does this stuff whenever a descriptor is obtained        
-    for guard, guard_props in guards.items():
-        # set guard as down if (following Tor's entry_guard_set_status)
-        # - not in current nodelist (!node check)
-        #   - note that a node can appear the nodelist but not
-        #     in the current consensus if it has an existing descriptor
-        #     in routerlist (unclear to me when this gets purged)
-        # - Running flag not set
-        #   - note that all nodes not in current consensus get
-        #     *all* their node flags set to zero
-        # - Guard flag not set [and not a bridge])
-        # note that hibernating *not* considered here
-        if (guard_props['bad_since'] == None):
-            if (guard not in cons_rel_stats) or\
-                (stem.Flag.RUNNING not in cons_rel_stats[guard].flags) or\
-                (stem.Flag.GUARD not in cons_rel_stats[guard].flags):
-                print('Putting down guard {0}'.format(guard))
-                guard_props['bad_since'] = cons_valid_after
-        else:
-            if (guard in cons_rel_stats) and\
-                (stem.Flag.RUNNING not in cons_rel_stats[guard].flags)\
-                and (stem.Flag.GUARD not in cons_rel_stats[guard].flags):
-                print('Bringing up guard {0}'.format(guard))
-                guard_props['bad_since'] = None
-        # remove from list if down time including this period exceeds limit
-        if (guard_props['bad_since'] != None):
-            if (cons_fresh_until-guard_props['bad_since'] >=\
-                guard_down_time):
-                print('Guard down too long, removing: {0}'.format(guard))
-                del guards[guard]
-        # expire old guards
-        if (guard_props['expires'] <= cons_valid_after):
-            print('Expiring guard: {0}'.format(guard))
-            del guards[guard]
-
     # select exit node
     weighted_exits = get_weighted_exits(cons_bw_weights, 
         cons_bwweightscale, cons_rel_stats, descriptors, circ_fast,
@@ -538,7 +513,6 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
         cons_rel_stats[guard_node].nickname,
         cons_rel_stats[guard_node].fingerprint))
     
-    
     # select middle node
     weighted_middles = get_weighted_middles(cons_bw_weights,
         cons_bwweightscale, cons_rel_stats, descriptors, circ_fast,
@@ -552,13 +526,15 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
             'fast':circ_fast,\
             'stable':circ_stable,\
             'internal':circ_internal,\
-            'dirty':False,\
+            'dirty_time':None,\
             'path':(guard_node, middle_node, exit_node),\
             'cons_rel_stats':cons_rel_stats,\
-            'descriptors':descriptors}
+            'descriptors':descriptors,\
+            'covering':[]}
     
     
-def create_circuits(consensus_files, processed_descriptor_files, streams):
+def create_circuits(consensus_files, processed_descriptor_files, streams,\
+    num_samples):
     """Takes streams over time and creates circuits by interaction
     with choose_path().
       Input:
@@ -573,50 +549,50 @@ def create_circuits(consensus_files, processed_descriptor_files, streams):
                 'generic' for all other TCP connections
             'ip': IP address of destination, may be None for 'type':'resolve'
             'port': desired TCP port, may be None for 'type':'resolve'
+        num_samples: (int) # circuit-creation samples to take for given streams
     Output:
-        circuits: a list of circuits created, where a circuit is a dict
-                    with keys
-                    'time': (int) seconds from time zero
-                    'fast': (bool) relays must have Fast flag
-                    'stable': (bool) relays must have Stable flag
-                    'internal': (bool) is for DNS or hidden service
-                    'dirty': (bool) whether a stream was ever attached
-                    'path': (tuple) list in-order fingerprints for path's nodes
-                    'cons_rel_stats': (dict) relay stats for active consensus
-                    'descriptors': (dict) descriptors active during this period
+        [Prints circuit and guard selections of clients.]
     """
     
+    ### Tor parameters ###
     # max age of a dirty circuit to which new streams can be assigned
     dirty_circuit_lifetime = 10*60
     
     # long-lived ports (taken from path-spec.txt)
     long_lived_ports = [21, 22, 706, 1863, 5050, 5190, 5222, 5223, 6667,\
         6697, 8300]
-    
-    # port that must be covered by existing circuits
-    port_needs = {80:{'covered_until':0, 'expires':None, 'fast':True,\
-        'stable':False}}
-    # for internal circuits simply require that a live one always exist
-    internal_covered_until = 0       
-    
+        
     # observed port creates a need active for a limited amount of time
     port_need_lifetime = 60*60 # need expires after an hour
-
-    # build a client with empty initial state
-    # guard is fingerprint -> {'expires':exp_time, 'bad_since':bad_since}
-    guards = {}    
     
+    
+    ### Client states for each sample ###
+    client_states = []
+    for i in range(num_samples):
+        # guard is fingerprint -> {'expires':exp_time, 'bad_since':bad_since}
+        # port_needs are ports that must be covered by existing circuits        
+        # internal_covered_count just ensures a clean internal
+        # circuits stored all circuits created
+        # live_circuits listed by age, circuit live if it's clean or younger
+        #   than dirty_circuit_lifetime
+        client_states.append({'id':i,\
+                            'guards':{},\
+                            'port_needs':{80:{'covered_count':0,\
+                                'expires':None, 'fast':True, 'stable':False}},\
+                            'circuits':[],\
+                            'clean_exit_circuits':collections.deque(),
+                            'dirty_exit_circuits':collections.deque(),
+                            'clean_internal_circuit':None,
+                            'dirty_internal_circuit':None})
+    
+    ### Simulation variables ###
     cur_period_start = None
     cur_period_end = None
     stream_start = 0
     stream_end = 0
     
-    # circuits created
-    circuits = [] 
-    # "live" circuits listed by age
-    # circuit is live if it's clean or younger than dirty_circuit_lifetime
-    live_circuits = collections.deque()
     
+    # run simulation period one pair of consensus/descriptor files at a time
     for c_file, d_file in zip(consensus_files, processed_descriptor_files):
         # read in descriptors and consensus statuses
         print('Using consensus file {0}'.format(c_file))
@@ -655,125 +631,238 @@ def create_circuits(consensus_files, processed_descriptor_files, streams):
                 # set default value
                 # Yes, I could have set it initially to this value,
                 # but this way, it doesn't get repeatedly set.
-                cons_bwweightscale = 10000                
-
-        # collect streams that occur during current period
-        while (stream_start < len(streams)) and\
-            (streams[stream_start]['time'] < cur_period_start):
-            stream_start += 1
-        stream_end = stream_start
-        while (stream_end < len(streams)) and\
-            (streams[stream_end]['time'] < cur_period_end):
-            stream_end += 1
+                cons_bwweightscale = 10000  
+                
+        for client_state in client_states:
+            print('Updating state for client {0}.'.format(client_state['id']))
+            guards = client_state['guards']
+                
+            # update client state
+            # Tor does this stuff whenever a descriptor is obtained        
+            for guard, guard_props in guards.items():
+                # set guard as down if (following Tor's
+                # entry_guard_set_status)
+                # - not in current nodelist (!node check)
+                #   - note that a node can appear the nodelist but not
+                #     in consensus if it has an existing descriptor
+                #     in routerlist (unclear to me when this gets purged)
+                # - Running flag not set
+                #   - note that all nodes not in current consensus get
+                #     *all* their node flags set to zero
+                # - Guard flag not set [and not a bridge])
+                # note that hibernating *not* considered here
+                if (guard_props['bad_since'] == None):
+                    if (guard not in cons_rel_stats) or\
+                        (stem.Flag.RUNNING not in\
+                         cons_rel_stats[guard].flags) or\
+                        (stem.Flag.GUARD not in\
+                         cons_rel_stats[guard].flags):
+                        print('Putting down guard {0}'.format(guard))
+                        guard_props['bad_since'] = cons_valid_after
+                else:
+                    if (guard in cons_rel_stats) and\
+                        (stem.Flag.RUNNING not in\
+                         cons_rel_stats[guard].flags) and\
+                        (stem.Flag.GUARD not in\
+                         cons_rel_stats[guard].flags):
+                        print('Bringing up guard {0}'.format(guard))
+                        guard_props['bad_since'] = None
+                # remove if down time including this period exceeds limit
+                if (guard_props['bad_since'] != None):
+                    if (cons_fresh_until-guard_props['bad_since'] >=\
+                        guard_down_time):
+                        print('Guard down too long, removing: {0}'.\
+                            format(guard))
+                        del guards[guard]
+                # expire old guards
+                if (guard_props['expires'] <= cons_valid_after):
+                    print('Expiring guard: {0}'.format(guard))
+                    del guards[guard]
+                              
        
         # for simplicity, step through time one minute at a time
+        time_step = 60
         cur_time = cur_period_start
-        while (cur_time < cur_period_end):
-            # kill dead circuits
-            while (len(live_circuits) > 0) and\
-                    (live_circuits[0]['time'] < cur_time):
-                live_circuits.popleft()
+        while (cur_time < cur_period_end):    
+            # collect streams that occur during current period
+            while (stream_start < len(streams)) and\
+                (streams[stream_start]['time'] < cur_time):
+                stream_start += 1
+            stream_end = stream_start
+            while (stream_end < len(streams)) and\
+                (streams[stream_end]['time'] < cur_time + time_step):
+                stream_end += 1
+
+            for client_state in client_states:
+                print('Client {0}.'.format(client_state['id']))
+                guards = client_state['guards']
+                #circuits = client_state['circuits'] # just printing for now
+                dirty_exit_circuits = client_state['dirty_exit_circuits']
+                clean_exit_circuits = client_state['clean_exit_circuits']
+                dirty_internal_circuit = client_state['dirty_internal_circuit']
+                clean_internal_circuit = client_state['clean_internal_circuit']
+            
+                # kill old dirty circuits
+                while (len(dirty_exit_circuits)>0) and\
+                        (dirty_exit_circuits[-1]['dirty_time'] <=\
+                            cur_time - dirty_circuit_lifetime):
+                    print('Killed exit circuit at time {0} w/ dirty time {1}'.\
+                            format(cur_time,\
+                                dirty_exit_circuits[-1]['dirty_time']))
+                    dirty_exit_circuits.pop()
+                if (dirty_internal_circuit != None) and\
+                    (dirty_internal_circuit['dirty_time'] <=\
+                        cur_time - dirty_circuit_lifetime):
+                    print('Killed internal circuit at time {0} w/ dirty time\
+{1}'.format(cur_time,dirty_internal_circuit['dirty_time']))
+                    dirty_internal_circuit = None
+                    
+                # expire port needs
+                port_needs = client_state['port_needs']                
+                for port, need in port_needs.items():
+                    if (need['expires'] != None) and\
+                        (need['expires'] <= cur_time):
+                        del port_needs[port]
                 
-            # expire port needs and cover newly uncovered ones
-            new_circuits = [] # checked bc a new circ may cover many port needs
-            for port, need in port_needs.items():
-                if (need['expires'] != None) and\
-                    (need['expires'] <= cur_time):
-                    del port_needs[port]
-                elif (need['covered_until'] <= cur_time):
-                    # check if some new circuit already covers the need
-                    already_covered = False
-                    for new_circ in new_circuits:
-                        if (circuit_covers_port_need(new_circ, descriptors,\
-                                port, need)):
-                            need['covered_until'] = cur_time +\
-                                dirty_circuit_lifetime
-                            already_covered = True
-                            break
-                    if (not already_covered):
+                # cover uncovered ports
+                for port, need in port_needs.items():
+                    if (need['covered_count'] == 0):
                         # we need to make a new circuit
-                        new_circ = create_circuit(cons_rel_stats,
+                        new_circ = create_circuit(cons_rel_stats,\
+                            cons_valid_after, cons_fresh_until,\
+                            cons_bw_weights, cons_bwweightscale,\
+                            descriptors, guards, cur_time, need['fast'],\
+                            need['stable'], False, None, port)
+                        #circuits.append(new_circ)
+                        clean_exit_circuits.appendleft(new_circ)
+                        # have new_circ cover all port it can
+                        for pt, nd in port_needs.items():
+                            if (circuit_covers_port_need(new_circ,\
+                                descriptors, pt, nd)):
+                                nd['covered_count'] += 1
+                                new_circ['covering'].append(pt)
+                        print('Created circuit at time {0} to cover port \
+{1}.'.format(cur_time, port))
+
+                # check for internal circuit
+                if (clean_internal_circuit == None):
+                    # create new internal circuit
+                    client_state['clean_internal_circuit'] =\
+                        create_circuit(cons_rel_stats,\
                             cons_valid_after, cons_fresh_until,\
                             cons_bw_weights, cons_bwweightscale, descriptors,\
-                            guards, cur_time, need['fast'], need['stable'],\
-                            False, None, port)
-                        circuits.append(new_circ)
-                        live_circuits.append(new_circ)
-                        new_circuits.append(new_circ)
-                        need['covered_until'] = cur_time +\
-                            dirty_circuit_lifetime
-            # check that internal circuit hasn't expired
-            if (internal_covered_until <= cur_time):
-                # create new internal circuit
-                new_circ = create_circuit(cons_rel_stats, cons_valid_after,\
-                    cons_fresh_until, cons_bw_weights, cons_bwweightscale,\
-                    descriptors, guards, cur_time, True, True, True, None,\
-                    None)
-                circuits.append(new_circ)
-                live_circuits.append(new_circ)
-                internal_covered_until = cur_time + dirty_circuit_lifetime
+                            guards, cur_time, True, True, True, None, None)
+                    clean_internal_circuit =\
+                        client_state['clean_internal_circuit']
+                    #circuits.append(new_circ)
+                    print('Created clean internal circuit at time {0}.'.\
+                        format(cur_time))                        
                 
-            # assign streams in this minute to circuits
-            live_circuits.reverse() # prefer newest circuits               
-            for stream_idx in range(stream_start, stream_end):
-                stream = streams[stream_idx]
-                stream_assigned = None
-                for circuit in live_circuits:
-                    if circuit_supports_stream(circuit, stream,\
-                        long_lived_ports):
-                        stream_assigned = circuit
-                        circuit['dirty'] = True
-                        break        
-                if (stream_assigned == None):
-                    # we need to make a new circuit
-                    fast = False
-                    stable = (stream['port'] in long_lived_ports)
-                    internal = (stream['type'] == 'resolve')
-                    new_circ = create_circuit(cons_rel_stats,\
-                        cons_valid_after, cons_fresh_until,\
-                        cons_bw_weights, cons_bwweightscale, descriptors,\
-                        guards, stream['time'], fast,\
-                        stable, internal, stream['ip'], stream['port'])
-                    new_circ['dirty'] = True
-                    stream_assigned = new_circ
-                    circuits.append(new_circ)
-                    live_circuits.appendleft(new_circ)
-                    
-                    # new circuit may cover needs longer, so update them
-                    for port, need in port_needs.items():
-                        desc = descriptors[new_circ['path'][-1]]
-                        if (circuit_covers_port_need(new_circ, descriptors,\
-                                port, need)) and\
-                            (need['covered_until'] < new_circ['time'] +\
-                                dirty_circuit_lifetime):
-                            need['covered_until'] = new_circ['time'] +\
-                                dirty_circuit_lifetime
-                    if (new_circ['internal']) and (internal_covered_until <\
-                            new_circ['time'] + dirty_circuit_lifetime):
-                        # shouldn't happen - exists persistent internal circuit
-                        internal_covered_until = new_circ['time'] +\
-                            dirty_circuit_lifetime
-                            
-                # add need/extend expiration for ports in streams
-                port = stream['port']
-                if (port in port_needs):
-                    if (port_needs[port]['expires'] != None) and\
-                        (port_needs[port]['expires'] < stream['time'] +\
-                            port_need_lifetime):
-                        port_needs[port]['expires'] = stream['time'] +\
-                            port_need_lifetime
-                else:
-                    port_needs[port] = {\
-                        'covered_until':(stream_assigned['time'] + \
-                                        dirty_circuit_lifetime),\
-                        'expires':(stream['time']+port_need_lifetime),\
-                        'fast':True,\
-                        'stable':(port in long_lived_ports)}
-            live_circuits.reverse() # return ordering to increasing in time
+                # assign streams in this minute to circuits
+                for stream_idx in range(stream_start, stream_end):
+                    stream = streams[stream_idx]
+                    if (stream['type'] == 'resolve'):
+                        if (dirty_internal_circuit != None):
+                            # use existing dirty internal circuit
+                            print('Assigned stream to dirty internal circuit \
+at {0}'.format(stream['time']))
+                        elif (clean_internal_circuit != None):
+                            # dirty clean internal circuit
+                            clean_internal_circuit['dirty_time'] =\
+                                stream['time']
+                            client_state['dirty_internal_circuit'] =\
+                                clean_internal_circuit
+                            dirty_internal_circuit = clean_internal_circuit
+                            client_state['clean_internal_circuit'] = None
+                            clean_internal_circuit =\
+                                client_state['clean_internal_circuit']
+                            print('Assigned stream to clean internal circuit \
+at {0}'.format(stream['time']))
+                        else:
+                            # create new internal circuit
+                            client_state['dirty_internal_circuit'] =\
+                                create_circuit(cons_rel_stats,\
+                                    cons_valid_after, cons_fresh_until,\
+                                    cons_bw_weights, cons_bwweightscale,\
+                                    descriptors, guards, stream['time'], True,\
+                                    True, True, None, None)
+                            dirty_internal_circuit =\
+                                client_state['dirty_internal_circuit']
+                            dirty_internal_circuit['dirty_time'] =\
+                                stream['time']
+                            print('Created new internal circuit for stream \
+at {0}'.format(stream['time']))                               
+                    elif (stream['type'] == 'generic'):
+                        stream_assigned = None                    
+                        # try to use a dirty circuit
+                        for circuit in dirty_exit_circuits:
+                            if circuit_supports_stream(circuit, stream,\
+                                long_lived_ports):
+                                stream_assigned = circuit
+                                print('Assigned stream to port {0} at \
+{1}'.format(stream['port'],stream['time']))                                    
+                                break        
+                        # next try and use a clean circuit
+                        if (stream_assigned == None):
+                            new_clean_exit_circuits = collections.deque()
+                            while (len(clean_exit_circuits) > 0):
+                                circuit = clean_exit_circuits.popleft()
+                                if (circuit_supports_stream(circuit, stream,\
+                                    long_lived_ports)):
+                                    stream_assigned = circuit
+                                    circuit['dirty_time'] = stream['time']
+                                    dirty_exit_circuits.appendleft(circuit)
+                                    new_clean_exit_circuits.extend(\
+                                        clean_exit_circuits)
+                                    clean_exit_circuits.clear()
+                                    print('Assigned stream to port {0} at \
+{1}'.format(stream['port'], stream['time']))                                
+                                        
+                                    # reduce cover count for covered port needs
+                                    for port in circuit['covering']:
+                                        if (port in port_needs):
+                                            port_needs[port]['covered_count'] \
+                                                -= 1
+                                else:
+                                    new_clean_exit_circuits.append(circuit)
+                            client_state['clean_exit_circuits'] =\
+                                new_clean_exit_circuits
+                            clean_exit_circuits = new_clean_exit_circuits
+                        # if stream still unassigned we must make new circuit
+                        if (stream_assigned == None):
+                            stable = (stream['port'] in long_lived_ports)
+                            new_circ = create_circuit(cons_rel_stats,\
+                                cons_valid_after, cons_fresh_until,\
+                                cons_bw_weights, cons_bwweightscale,\
+                                descriptors, guards, stream['time'], True,\
+                                stable, False, stream['ip'], stream['port'])
+                            new_circ['dirty_time'] = stream['time']
+                            stream_assigned = new_circ
+                            #circuits.append(new_circ)
+                            dirty_exit_circuits.appendleft(new_circ)
+                            print('Created circuit at time {0} to cover stream\
+ to ip {1} and port {2}.'.format(stream['time'], stream['ip'], stream['port']))  
+                    else:
+                        raise ValueError('Stream type not recognized: {0}'.\
+                            format(stream['type']))
+                                
+                    # add need/extend expiration for ports in streams
+                    port = stream['port']
+                    if (port in port_needs):
+                        if (port_needs[port]['expires'] != None) and\
+                            (port_needs[port]['expires'] < stream['time'] +\
+                                port_need_lifetime):
+                            port_needs[port]['expires'] = stream['time'] +\
+                                port_need_lifetime
+                    else:
+                        port_needs[port] = {\
+                            'covered_count':0,\
+                            'expires':(stream['time']+port_need_lifetime),\
+                            'fast':True,\
+                            'stable':(port in long_lived_ports)}
             
-            cur_time += 60
-    
-    return circuits
+            cur_time += time_step
+
     
         # Specifically, on startup Tor tries to maintain one clean
         # fast exit circuit that allows connections to port 80, and at least
@@ -850,7 +939,7 @@ if __name__ == '__main__':
                     break        
 
         # simple user that makes a port 80 request & resolve every x seconds
-        http_request_rate = 15 * 60
+        http_request_rate = 5 * 60
         str_ip = '74.125.131.105' # www.google.com
         t = start_time
         streams = []
@@ -858,7 +947,8 @@ if __name__ == '__main__':
             streams.append({'time':t,'type':'resolve','ip':None,'port':None})
             streams.append({'time':t,'type':'generic','ip':str_ip,'port':80})
             t += http_request_rate
-        create_circuits(consensus_files, processed_descriptor_files, streams)    
+        create_circuits(consensus_files, processed_descriptor_files, streams,\
+            1)    
 
 # TODO
 # - support IPv6 addresses
@@ -868,9 +958,11 @@ if __name__ == '__main__':
 #   switch to the new one, following the process in dir-spec.txt (Sec. 5.1).
 # - Check for descriptors that aren't the ones in the consensus, particularly
 #   those older than 48 hours, which should expire (dir-spec.txt, Sec. 5.2).
-# - Figure out if circuits made on demand use Fast.
-# - Figure out why it makes sense to have two clean internal circuits and two circuits for recently-seen ports.
-# - Expire internal need if no activity seen for an hour
+# - Implement that circuits made on demand use Fast.
+# - Implement (or indicate) fail-back if enough fast/stable nodes not found.
+# - Implement max limit (12 in path-spec.txt) on # circuits.
+# - Figure out if and when clean circuits are torn down.
+# - Implement user non-activity for an hour means _no_ preemptive circuits.
 
 
 ##### Relevant lines for path selection extracted from Tor specs.
