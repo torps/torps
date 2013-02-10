@@ -147,31 +147,56 @@ def can_exit_to_port(descriptor, port):
         can_exit = True
     return can_exit                 
     
-
-def get_weighted_exits(bw_weights, bwweightscale, cons_rel_stats,\
-    descriptors, fast, stable, internal, ip, port):
-    """Returns list of fingerprints for potential exits along with
-    selection weights for use in a circuit with the indicated properties."""
-    
+def filter_exits(cons_rel_stats, descriptors):
+    """Applies basic exit filter to given relays."""
     exits = []
-
-    if (port == None) and (not internal):
-        raise ValueError('get_weighted_exits() needs a port.')            
-
-    
     for fprint in cons_rel_stats:
-        rel_stat = cons_rel_stats[fprint]
-        desc = descriptors[fprint]
+        rel_stat = cons_rel_stats[fprint] 
+        desc = descriptors[fprint]   
         if (stem.Flag.BADEXIT not in rel_stat.flags) and\
-            ((not fast) or (stem.Flag.FAST in rel_stat.flags)) and\
             (stem.Flag.RUNNING in rel_stat.flags) and\
-            ((not stable) or (stem.Flag.STABLE in rel_stat.flags)) and\
             (stem.Flag.VALID in rel_stat.flags) and\
             (not desc.hibernating):
+            exits.append(fprint)
+    return exits
+    
+def get_position_weights(nodes, cons_rel_stats, position, bw_weights,\
+    bwweightscale):
+    """Computes the consensus "bandwidth" weighted by position weights."""
+    weights = {}
+    for node in nodes:
+        bw = float(cons_rel_stats[node].bandwidth)
+        weight = float(get_bw_weight(cons_rel_stats[node].flags,\
+            position,bw_weights)) / float(bwweightscale)
+        weights[node] = bw * weight
+    return weights        
+
+def get_weighted_exits(bw_weights, bwweightscale, cons_rel_stats,\
+    descriptors, fast, stable, internal, ip, port, potential_exits=None,\
+    exit_weights=None, middle_weights=None):
+    """Returns list of fingerprints for potential exits along with
+    selection weights for use in a circuit with the indicated properties.
+        exit_list: (Optional) precomputed list of potential exits
+        exit_weights: (Optional) precomputed list of relay weights as exit
+        middle_weights: (Optional) precomputed list of relay weights as middle        
+    """    
+    if (port == None) and (not internal):
+        raise ValueError('get_weighted_exits() needs a port.')            
+        
+    exits = []
+
+    # apply basic exit filter if not already done
+    if (potential_exits == None):
+        potential_exits = filter_exits(cons_rel_stats, descriptors)    
+    
+    for fprint in potential_exits:
+        rel_stat = cons_rel_stats[fprint]     
+        desc = descriptors[fprint]
+        if ((not fast) or (stem.Flag.FAST in rel_stat.flags)) and\
+            ((not stable) or (stem.Flag.STABLE in rel_stat.flags)):
             if (internal):
-                # An "internal" circuit, on the other hand, is one where
-                # the final node is chosen just like a middle node (ignoring          
-                # its exit policy).
+                # In an "internal" circuit final node is chosen just like a
+                # middle node (ignoring its exit policy).
                 exits.append(fprint)
             else:
                 if (ip != None) and (desc.exit_policy.can_exit_to(ip, port)):
@@ -180,23 +205,25 @@ def get_weighted_exits(bw_weights, bwweightscale, cons_rel_stats,\
                     exits.append(fprint)
                     
     # create weights
-    weights = []
+    weights = None
     if (internal):
-        for exit in exits:
-            bw = float(cons_rel_stats[exit].bandwidth)
-            weight = float(get_bw_weight(cons_rel_stats[exit].flags,\
-                'm',bw_weights)) / float(bwweightscale)
-            weights.append(bw * weight)
+        if (middle_weights == None):
+            weights = get_position_weights(exits, cons_rel_stats, 'm',\
+                        bw_weights, bwweightscale)
+        else:
+            weights = middle_weights
     else:
-        for exit in exits:
-            bw = float(cons_rel_stats[exit].bandwidth)
-            weight = float(get_bw_weight(cons_rel_stats[exit].flags,\
-                'e',bw_weights)) / float(bwweightscale)
-            weights.append(bw * weight)
-    total_weight = sum(weights)
+        if (exit_weights == None):
+            weights = get_position_weights(exits, cons_rel_stats, 'e',\
+                bw_weights, bwweightscale)
+        else:
+            weights = exit_weights
+    total_weight = 0
+    for exit in exits:
+        total_weight += weights[exit]
     weighted_exits = []
-    for exit, weight in zip(exits,weights):
-        weighted_exits.append((exit,weight/total_weight))
+    for exit in exits:
+        weighted_exits.append((exit,weights[exit]/total_weight))
         
     return weighted_exits
     
@@ -241,22 +268,35 @@ def in_same_16_subnet(address1, address2):
     return (address1_list[0] == address2_list[0]) and\
         (address1_list[1] == address2_list[1])
 
+def filter_middles(cons_rel_stats, descriptors):
+    """Applies basic middle filter to relays."""
+    middles = []
+    for fprint in cons_rel_stats:
+        rel_stat = cons_rel_stats[fprint]
+        desc = descriptors[fprint]
+        if (stem.Flag.RUNNING in rel_stat.flags) and\
+            (not desc.hibernating):
+            middles.append(fprint)
+    return middles
+    
 def get_weighted_middles(bw_weights, bwweightscale, cons_rel_stats,\
-    descriptors, fast, stable, exit_node, guard_node):
+    descriptors, fast, stable, exit_node, guard_node, potential_middles=None,\
+    middle_weights=None):
     """Returns list of fingerprints for potential middle nodes along with
     selection weights for use in a circuit with the indicated properties."""
+    
+    if (potential_middles == None):
+        potential_middles = filter_middles(cons_rel_stats, descriptors)
     
     # filter out some nodes with zero selection probability
     # Note that we intentionally allow non-Valid routers for middle
     # as per path-spec.txt default config
     middles = []
-    for fprint in cons_rel_stats:
+    for fprint in potential_middles:
         rel_stat = cons_rel_stats[fprint]
         desc = descriptors[fprint]
         if ((not fast) or (stem.Flag.FAST in rel_stat.flags)) and\
-            (stem.Flag.RUNNING in rel_stat.flags) and\
             ((not stable) or (stem.Flag.STABLE in rel_stat.flags)) and\
-            (not desc.hibernating) and\
             (exit_node != fprint) and\
             (not in_same_family(descriptors, exit_node, fprint)) and\
             (not in_same_16_subnet(descriptors[exit_node].address,\
@@ -268,17 +308,20 @@ def get_weighted_middles(bw_weights, bwweightscale, cons_rel_stats,\
             middles.append(fprint)
 
     # create weights
-    weights = []
+    weights = None   
+    if (middle_weights == None):
+        weights = get_position_weights(middles, cons_rel_stats, 'm',\
+            bw_weights, bwweightscale)
+    else:
+        weights = middle_weights
+        
+    total_weight = 0
     for middle in middles:
-        bw = float(cons_rel_stats[middle].bandwidth)
-        weight = float(get_bw_weight(cons_rel_stats[middle].flags,\
-            'm',bw_weights)) / float(bwweightscale)
-        weights.append(bw * weight)
+        total_weight += weights[middle]
 
-    total_weight = sum(weights)
     weighted_middles = []
-    for middle, weight in zip(middles,weights):
-        weighted_middles.append((middle,weight/total_weight))
+    for middle in middles:
+        weighted_middles.append((middle,weights[middle]/total_weight))
 
     return weighted_middles
 
@@ -295,15 +338,20 @@ def guard_filter_for_circ(guard, cons_rel_stats, descriptors, fast,\
     # note that Valid flag not checked
     # also note that hibernate status not checked
     
-    rel_stat = cons_rel_stats[guard]
-    return (guards[guard]['bad_since'] == None) and\
-        (guard in descriptors) and\
-        ((not fast) or (stem.Flag.FAST in rel_stat.flags)) and\
-        ((not stable) or (stem.Flag.FAST in rel_stat.flags)) and\
-        (exit != guard) and\
-        (not in_same_family(descriptors, exit, guard)) and\
-        (not in_same_16_subnet(descriptors[exit].address,\
-                   descriptors[guard].address))
+    if (guards[guard]['bad_since'] == None):
+        if (guard in cons_rel_stats) and\
+            (guard in descriptors):
+            rel_stat = cons_rel_stats[guard]
+            return ((not fast) or (stem.Flag.FAST in rel_stat.flags)) and\
+                ((not stable) or (stem.Flag.STABLE in rel_stat.flags)) and\
+                (exit != guard) and\
+                (not in_same_family(descriptors, exit, guard)) and\
+                (not in_same_16_subnet(descriptors[exit].address,\
+                           descriptors[guard].address))
+        else:
+            raise ValueError('Guard {0} not present in consensus or\ descriptors but wasn\'t marked bad.'.format(guard))
+    else:
+        return False
 
 def get_new_guard(bw_weights, bwweightscale, cons_rel_stats, descriptors,\
     guards):
@@ -451,7 +499,9 @@ def circuit_supports_stream(circuit, stream, long_lived_ports):
 
 def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
     cons_bw_weights, cons_bwweightscale, descriptors, guards,\
-    circ_time, circ_fast, circ_stable, circ_internal, circ_ip, circ_port):
+    circ_time, circ_fast, circ_stable, circ_internal, circ_ip, circ_port,\
+    potential_exits=None, potential_middles=None, exit_weights=None,\
+    middle_weights=None):
     """Creates path for requested circuit based on the input consensus
     statuses and descriptors.
     Inputs:
@@ -468,6 +518,10 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
         circ_internal: (bool) circuit is for name resolution or hidden service
         circ_ip: (str) IP address of destination (None if not known)
         circ_port: (int) desired TCP port (None if not known)
+        potential_exits: (list) relay fingerprints after basic exit filtering
+        potential_middles: (list) fingerprints after basic middle filtering
+        exit_weights: (dict) consensus weights for exit position
+        middle_weights: (dict) consensus weights for middle position
     Output:
         circuit: (dict) a newly created circuit with keys
             'time': (int) seconds from time zero
@@ -489,12 +543,12 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
     min_num_guards = 2
     guard_expiration_min = 30*24*3600 # min time until guard removed from list
     guard_expiration_max = 60*24*3600 # max time until guard removed from list
-    guard_down_time = 30*24*3600 # time guard can be down until is removed
  
     # select exit node
     weighted_exits = get_weighted_exits(cons_bw_weights, 
         cons_bwweightscale, cons_rel_stats, descriptors, circ_fast,
-        circ_stable, circ_internal, circ_ip, circ_port)
+        circ_stable, circ_internal, circ_ip, circ_port, potential_exits,\
+        exit_weights, middle_weights)
     exit_node = select_weighted_node(weighted_exits)
     print('Exit node: {0} [{1}]'.format(
         cons_rel_stats[exit_node].nickname,
@@ -516,7 +570,7 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
     # select middle node
     weighted_middles = get_weighted_middles(cons_bw_weights,
         cons_bwweightscale, cons_rel_stats, descriptors, circ_fast,
-        circ_stable, exit_node, guard_node)
+        circ_stable, exit_node, guard_node, potential_middles, middle_weights)
     middle_node = select_weighted_node(weighted_middles)                
     print('Middle node: {0} [{1}]'.format(
         cons_rel_stats[middle_node].nickname,
@@ -564,7 +618,9 @@ def create_circuits(consensus_files, processed_descriptor_files, streams,\
         
     # observed port creates a need active for a limited amount of time
     port_need_lifetime = 60*60 # need expires after an hour
-    
+
+    # time a guard can stay down until it is removed from list    
+    guard_down_time = 30*24*3600 # time guard can be down until is removed    
     
     ### Client states for each sample ###
     client_states = []
@@ -679,6 +735,15 @@ def create_circuits(consensus_files, processed_descriptor_files, streams,\
                     print('Expiring guard: {0}'.format(guard))
                     del guards[guard]
                               
+        # apply basic exit filter
+        potential_exits = filter_exits(cons_rel_stats, descriptors)
+        potential_middles = filter_middles(cons_rel_stats, descriptors)        
+        
+        # pre-compute weights at different positions
+        middle_weights = get_position_weights(cons_rel_stats.keys(),\
+            cons_rel_stats, 'm', cons_bw_weights, cons_bwweightscale)
+        exit_weights = get_position_weights(cons_rel_stats.keys(),\
+            cons_rel_stats, 'e', cons_bw_weights, cons_bwweightscale)            
        
         # for simplicity, step through time one minute at a time
         time_step = 60
@@ -732,7 +797,9 @@ def create_circuits(consensus_files, processed_descriptor_files, streams,\
                             cons_valid_after, cons_fresh_until,\
                             cons_bw_weights, cons_bwweightscale,\
                             descriptors, guards, cur_time, need['fast'],\
-                            need['stable'], False, None, port)
+                            need['stable'], False, None, port,\
+                            potential_exits, potential_middles, exit_weights,\
+                            middle_weights)
                         #circuits.append(new_circ)
                         clean_exit_circuits.appendleft(new_circ)
                         # have new_circ cover all port it can
@@ -751,7 +818,9 @@ def create_circuits(consensus_files, processed_descriptor_files, streams,\
                         create_circuit(cons_rel_stats,\
                             cons_valid_after, cons_fresh_until,\
                             cons_bw_weights, cons_bwweightscale, descriptors,\
-                            guards, cur_time, True, True, True, None, None)
+                            guards, cur_time, True, True, True, None, None,\
+                            potential_exits, potential_middles, exit_weights,\
+                            middle_weights)
                     clean_internal_circuit =\
                         client_state['clean_internal_circuit']
                     #circuits.append(new_circ)
@@ -785,7 +854,9 @@ at {0}'.format(stream['time']))
                                     cons_valid_after, cons_fresh_until,\
                                     cons_bw_weights, cons_bwweightscale,\
                                     descriptors, guards, stream['time'], True,\
-                                    True, True, None, None)
+                                    True, True, None, None, potential_exits,\
+                                    potential_middles, exit_weights,\
+                                    middle_weights)
                             dirty_internal_circuit =\
                                 client_state['dirty_internal_circuit']
                             dirty_internal_circuit['dirty_time'] =\
@@ -835,31 +906,33 @@ at {0}'.format(stream['time']))
                                 cons_valid_after, cons_fresh_until,\
                                 cons_bw_weights, cons_bwweightscale,\
                                 descriptors, guards, stream['time'], True,\
-                                stable, False, stream['ip'], stream['port'])
+                                stable, False, stream['ip'], stream['port'],\
+                                potential_exits, potential_middles,\
+                                exit_weights, middle_weights)
                             new_circ['dirty_time'] = stream['time']
                             stream_assigned = new_circ
                             #circuits.append(new_circ)
                             dirty_exit_circuits.appendleft(new_circ)
                             print('Created circuit at time {0} to cover stream\
- to ip {1} and port {2}.'.format(stream['time'], stream['ip'], stream['port']))  
+ to ip {1} and port {2}.'.format(stream['time'], stream['ip'], stream['port'])) 
+ 
+                         # add need/extend expiration for ports in streams
+                        port = stream['port']
+                        if (port in port_needs):
+                            if (port_needs[port]['expires'] != None) and\
+                                (port_needs[port]['expires'] <\
+                                    stream['time'] + port_need_lifetime):
+                                port_needs[port]['expires'] = stream['time'] +\
+                                    port_need_lifetime
+                        else:
+                            port_needs[port] = {\
+                                'covered_count':0,\
+                                'expires':(stream['time']+port_need_lifetime),\
+                                'fast':True,\
+                                'stable':(port in long_lived_ports)}
                     else:
                         raise ValueError('Stream type not recognized: {0}'.\
                             format(stream['type']))
-                                
-                    # add need/extend expiration for ports in streams
-                    port = stream['port']
-                    if (port in port_needs):
-                        if (port_needs[port]['expires'] != None) and\
-                            (port_needs[port]['expires'] < stream['time'] +\
-                                port_need_lifetime):
-                            port_needs[port]['expires'] = stream['time'] +\
-                                port_need_lifetime
-                    else:
-                        port_needs[port] = {\
-                            'covered_count':0,\
-                            'expires':(stream['time']+port_need_lifetime),\
-                            'fast':True,\
-                            'stable':(port in long_lived_ports)}
             
             cur_time += time_step
 
@@ -886,7 +959,7 @@ at {0}'.format(stream['time']))
     
 if __name__ == '__main__':
     command = None
-    usage = 'Usage: pathsim.py [command]\nCommands:\n\tprocess: Pair consensuses with recent descriptors.\n\tsimulate: Do a bunch of simulated path selections.'
+    usage = 'Usage: pathsim.py [command]\nCommands:\n\tprocess: Pair consensuses with recent descriptors.\n\tsimulate [in] [out] [# samples]: Do a bunch of simulated path selections using consensus from [in], processed descriptors from [out], and taking [# samples] samples.'
     if (len(sys.argv) <= 1):
         print(usage)
         sys.exit(1)
@@ -902,10 +975,18 @@ if __name__ == '__main__':
         process_consensuses(descriptor_dir, consensus_dir, out_dir)    
     elif (command == 'simulate'):
         # get lists of consensuses and the related processed-descriptor files 
-        consensus_dir = 'in/consensuses'
-        descriptor_dir = 'out/processed-descriptors'
-#        consensus_dir = 'tmp-cons'
-#        descriptor_dir = 'tmp-desc'
+        if (len(sys.argv) >= 3):
+            consensus_dir = sys.argv[2]
+        else:
+            consensus_dir = 'in/consensuses'
+        if (len(sys.argv) >= 4):
+            descriptor_dir = sys.argv[3]
+        else:
+            descriptor_dir = 'out/processed-descriptors'
+        if (len(sys.argv) >= 5):
+            num_samples = int(sys.argv[4])
+        else:
+            num_samples = 1
         
         consensus_files = []
         for dirpath, dirnames, filenames in os.walk(consensus_dir):
@@ -948,7 +1029,7 @@ if __name__ == '__main__':
             streams.append({'time':t,'type':'generic','ip':str_ip,'port':80})
             t += http_request_rate
         create_circuits(consensus_files, processed_descriptor_files, streams,\
-            1)    
+            num_samples)    
 
 # TODO
 # - support IPv6 addresses
