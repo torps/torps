@@ -8,6 +8,7 @@ import stem
 import random
 import sys
 import collections
+import cPickle as pickle
 
 def timestamp(t):
     """Returns UNIX timestamp"""
@@ -15,8 +16,9 @@ def timestamp(t):
     ts = td.days*24*60*60 + td.seconds
     return ts
 
-def process_consensuses(descriptor_dir, consensus_dir, out_dir):
-    """For every input consensus, finds the descriptors published most recently before that consensus for every contained relay, and outputs that list of descriptors."""
+def process_consensuses(in_consensuses_dir, in_descriptors_dir,\
+    out_relstats_dir, out_descriptors_dir):
+    """For every input consensus, finds the descriptors published most recently before the descriptor times listed for the relays in that consensus, and pickles dicts containing each rel_stat and its matching descriptor."""
     # read all descriptors into memory
     descriptors = {}
     num_descriptors = 0    
@@ -25,7 +27,7 @@ def process_consensuses(descriptor_dir, consensus_dir, out_dir):
     def skip_listener(path, event):
         print('ERROR [{0}]: {1}'.format(path, event))
     
-    with sdr.DescriptorReader(descriptor_dir, validate=False) as reader:
+    with sdr.DescriptorReader(in_descriptors_dir, validate=False) as reader:
         reader.register_skip_listener(skip_listener)
         for desc in reader:
             if (num_descriptors % 1000 == 0):
@@ -41,41 +43,60 @@ def process_consensuses(descriptor_dir, consensus_dir, out_dir):
 
     # go through consensuses, output most recent descriptors for relays
     num_consensuses = 0
-    for dirpath, dirnames, filenames in os.walk(consensus_dir):
+    for dirpath, dirnames, filenames in os.walk(in_consensuses_dir):
         for filename in filenames:
             if (filename[0] != '.'):
                 print(filename)
                 with open(os.path.join(dirpath,filename), 'r') as cons_f:
-                    relays = []
-                    cons_t = None
+                    r_stats_out = {}
+                    descriptors_out = {}
+                    cons_valid_after = None
                     for r_stat in sd.parse_file(cons_f, validate=False):
-                        cons_t = r_stat.document.valid_after
-                        # find descriptor published just before consensus time
-                        pub_t = timestamp(r_stat.published)
-                        desc_t = 0
+                        if (cons_valid_after == None):
+                            cons_valid_after = r_stat.document.valid_after
+                        # find most recent descriptor published before the
+                        # time the consensus lists the descriptor as published
+                        pub_time = timestamp(r_stat.published)
+                        desc_time = 0
                         # get all descriptors with this fingerprint
                         if (r_stat.fingerprint in descriptors):
                             for t in descriptors[r_stat.fingerprint].keys():
-                                if (t <= pub_t) and (t >= desc_t):
-                                    desc_t = t
-                        if (desc_t == 0):
+                                if (t <= pub_time) and (t >= desc_time):
+                                    desc_time = t
+                        if (desc_time == 0):
                             print(\
                             'Descriptor not found for {0} :\{1}:{2}'.format(\
-                                r_stat.nickname,r_stat.fingerprint,pub_t))
+                                r_stat.nickname,r_stat.fingerprint,pub_time))
                         else:
-                            relays.append(\
-                                descriptors[r_stat.fingerprint][desc_t])
+                            r_stats_out[r_stat.fingerprint] = r_stat
+                            descriptors_out[r_stat.fingerprint] = \
+                                descriptors[r_stat.fingerprint][desc_time]
                     # output all discovered descriptors
-                    if cons_t:
-                        outpath = os.path.join(out_dir,\
-                            cons_t.strftime('%Y-%m-%d-%H-%M-%S-descriptor'))
+                    if (cons_valid_after != None):
+                        # pickle statuses of relays with discovered descriptors
+                        outpath = os.path.join(out_relstats_dir,\
+                            cons_valid_after.strftime(\
+                                '%Y-%m-%d-%H-%M-%S-relstats'))
                         f = open(outpath,'w')
+                        pickle.dump(r_stats_out, f)
+                        f.close()
+                        
+                        # pickle matching descriptors
+                        outpath = os.path.join(out_descriptors_dir,\
+                            cons_valid_after.strftime(\
+                                '%Y-%m-%d-%H-%M-%S-descriptors'))
+                        f = open(outpath,'w')
+                        pickle.dump(descriptors_out, f)
+                        f.close()
+# changed to pickle objects                        
                         # annotation needed for stem parser to work correctly
-                        f.write('@type server-descriptor 1.0\n')                    
-                        for relay in relays:
-                            f.write(str(relay))
-                            f.write('\n')
-                        f.close()                
+#                        f.write('@type server-descriptor 1.0\n')                    
+#                        for relay in relays:
+#                            f.write(str(relay))
+#                            f.write('\n')
+#                        f.close()
+                    else:
+                        print('Problem parsing {0}.'.format(filename))             
                     num_consensuses += 1
     print('# consensuses: {0}'.format(num_consensuses))
 
@@ -311,10 +332,7 @@ def middle_filter(node, cons_rel_stats, descriptors, fast=None,\
                     (not in_same_family(descriptors, guard_node, node)) and\
                     (not in_same_16_subnet(descriptors[guard_node].address,\
                         descriptors[node].address))))
-                            
                         
-#START:
-#  add binary search into select_weighted_node?
 
 def select_middle_node(bw_weights, bwweightscale, cons_rel_stats,\
     descriptors, fast, stable, exit_node, guard_node, weighted_middles=None):
@@ -611,15 +629,17 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
             'covering':[]}
     
     
-def create_circuits(consensus_files, processed_descriptor_files, streams,\
-    num_samples):
+def create_circuits(relstats_files, processed_descriptor_files, streams,\
+    num_samples, pickled):
     """Takes streams over time and creates circuits by interaction
     with choose_path().
       Input:
-        consensus_files: list of consensus filenames *in correct order*, must
-                        exactly cover a time period (i.e. no gaps or overlaps)
-        processed_descriptor_files: descriptors corresponding to relays in
-            consensus_files as produced by process_consensuses      
+        relstats_files: list of filenames with pickled rel_stats
+                        *in correct order*, must exactly cover a time period
+                        (i.e. no gaps or overlaps)
+        processed_descriptor_files: list of filenames with pickled descriptors
+            corresponding to relays in relstats_files as produced by
+            process_consensuses      
         streams: *ordered* list of streams, where a stream is a dict with keys
             'time': timestamp of when stream request occurs 
             'type': with value either
@@ -628,6 +648,7 @@ def create_circuits(consensus_files, processed_descriptor_files, streams,\
             'ip': IP address of destination, may be None for 'type':'resolve'
             'port': desired TCP port, may be None for 'type':'resolve'
         num_samples: (int) # circuit-creation samples to take for given streams
+        pickled: (bool) if rel_stats and descriptors are pickled
     Output:
         [Prints circuit and guard selections of clients.]
     """
@@ -679,44 +700,73 @@ def create_circuits(consensus_files, processed_descriptor_files, streams,\
      # store old descriptors (for entry guards that leave consensus)    
     descriptors = {}
     # run simulation period one pair of consensus/descriptor files at a time
-    for c_file, d_file in zip(consensus_files, processed_descriptor_files):
+    for r_file, d_file in zip(relstats_files, processed_descriptor_files):
         # read in descriptors and consensus statuses
-        print('Using consensus file {0}'.format(c_file))
-        cons_rel_stats = {}
+        print('Using rel_stats file {0}'.format(r_file))
+        cons_rel_stats = None
         cons_valid_after = None
         cons_fresh_until = None
         cons_bw_weights = None
-        cons_bwweightscale = None
-        with open(d_file) as df, open(c_file) as cf:
-            for desc in sd.parse_file(df, validate=False):
-                descriptors[desc.fingerprint] = desc
-            for rel_stat in sd.parse_file(cf, validate=False):
-                if (cons_valid_after == None):
-                    cons_valid_after = timestamp(rel_stat.document.valid_after)
-                    if (cur_period_start == None):
-                        cur_period_start = cons_valid_after
-                    elif (cur_period_end == cons_valid_after):
-                        cur_period_start = cons_valid_after
-                    else:
-                        err = 'Gap/overlap in consensus times: {0}:{1}'.\
-                                format(cur_period_end, cons_valid_after)
-                        raise ValueError(err)
-                if (cons_fresh_until == None):
-                    cons_fresh_until = timestamp(rel_stat.document.fresh_until)
-                    cur_period_end = cons_fresh_until
-                if (cons_bw_weights == None):
-                    cons_bw_weights = rel_stat.document.bandwidth_weights
+        cons_bwweightscale = None        
+        if (pickled):
+            with open(r_file) as rf, open(d_file) as df:
+                cons_rel_stats = pickle.load(rf)
+                descriptors.update(pickle.load(df))
+            for rel_stat in cons_rel_stats.itervalues():
+                cons_valid_after = timestamp(rel_stat.document.valid_after)
+                cons_fresh_until = timestamp(rel_stat.document.fresh_until)
+                print('cons_valid_after: {0}'.format(cons_valid_after))
+                print('cons_fresh_until: {0}'.format(cons_fresh_until))
+                cons_bw_weights = rel_stat.document.bandwidth_weights
+                if ('bwweightscale' in rel_stat.document.params):
+                    cons_bwweightscale = \
+                        rel_stat.document.params['bwweightscale']
+                else:
+                    cons_bwweightscale = 10000
+                break
+            if (cur_period_start == None):
+                cur_period_start = cons_valid_after
+            elif (cur_period_end == cons_valid_after):
+                cur_period_start = cons_valid_after
+            else:
+                err = 'Gap/overlap in consensus times: {0}:{1}'.\
+                    format(cur_period_end, cons_valid_after)
+                raise ValueError(err)
+            cur_period_end = cons_fresh_until
+        else:
+            cons_rel_stats = {}
+            with open(d_file) as df, open(r_file) as cf:
+                for desc in sd.parse_file(df, validate=False):
+                    descriptors[desc.fingerprint] = desc
+                for rel_stat in sd.parse_file(cf, validate=False):
+                    if (cons_valid_after == None):
+                        cons_valid_after = \
+                            timestamp(rel_stat.document.valid_after)
+                        if (cur_period_start == None):
+                            cur_period_start = cons_valid_after
+                        elif (cur_period_end == cons_valid_after):
+                            cur_period_start = cons_valid_after
+                        else:
+                            err = 'Gap/overlap in consensus times: {0}:{1}'.\
+                                    format(cur_period_end, cons_valid_after)
+                            raise ValueError(err)
+                    if (cons_fresh_until == None):
+                        cons_fresh_until = \
+                            timestamp(rel_stat.document.fresh_until)
+                        cur_period_end = cons_fresh_until
+                    if (cons_bw_weights == None):
+                        cons_bw_weights = rel_stat.document.bandwidth_weights
+                    if (cons_bwweightscale == None):
+                        if ('bwweightscale' in rel_stat.document.params):
+                            cons_bwweightscale = rel_stat.document.params[\
+                                'bwweightscale']
+                    if (rel_stat.fingerprint in descriptors):
+                        cons_rel_stats[rel_stat.fingerprint] = rel_stat
                 if (cons_bwweightscale == None):
-                    if ('bwweightscale' in rel_stat.document.params):
-                        cons_bwweightscale = rel_stat.document.params[\
-                            'bwweightscale']
-                if (rel_stat.fingerprint in descriptors):
-                    cons_rel_stats[rel_stat.fingerprint] = rel_stat
-            if (cons_bwweightscale == None):
-                # set default value
-                # Yes, I could have set it initially to this value,
-                # but this way, it doesn't get repeatedly set.
-                cons_bwweightscale = 10000  
+                    # set default value
+                    # Yes, I could have set it initially to this value,
+                    # but this way, it doesn't get repeatedly set.
+                    cons_bwweightscale = 10000  
                 
         for client_state in client_states:
             print('Updating state for client {0}.'.format(client_state['id']))
@@ -1052,7 +1102,6 @@ port_needs_covered'.format(port))
                             dirty_exit_circuits.appendleft(new_circ)
                             print('Created circuit at time {0} to cover stream\
  to ip {1} and port {2}.'.format(stream['time'], stream['ip'], stream['port'])) 
-#START 
                     else:
                         raise ValueError('Stream type not recognized: {0}'.\
                             format(stream['type']))
@@ -1082,10 +1131,17 @@ port_needs_covered'.format(port))
     
 if __name__ == '__main__':
     command = None
-    usage = 'Usage: pathsim.py [command]\nCommands:\n\tprocess: Pair \
-consensuses with recent descriptors.\n\tsimulate [in] [out] [# samples]: Do a \
-bunch of simulated path selections using consensus from [in], processed \
-descriptors from [out], and taking [# samples] samples.'
+    usage = 'Usage: pathsim.py [command]\nCommands:\n\tprocess \
+[in consensus dir] [in descriptor dir] [out rel_stats dir] [out \
+descriptors dir]: match relays in each consensus in [in consensus dir] with \
+descriptors in [in descriptor dir], put pickled dicts of the statuses with \
+matched descriptors \
+in [out rel_stats dir], and put pickled dicts of the matched descriptors in \
+[out descriptors dir].\n\tsimulate [rel_stats] [descriptors] [# samples] \
+[pickled]: Do a\
+ bunch of simulated path selections using pickled relay statuses from \
+[rel_stats], pickled matching descriptors from [descriptors], taking \
+[# samples] samples, using pickled rel_stats and descriptors if [pickled].'
     if (len(sys.argv) <= 1):
         print(usage)
         sys.exit(1)
@@ -1095,31 +1151,49 @@ descriptors from [out], and taking [# samples] samples.'
             print(usage)
 
     if (command == 'process'):
-        descriptor_dir = ['in/descriptors']
-        consensus_dir = 'in/consensuses'
-        out_dir = 'out/descriptors'
-        process_consensuses(descriptor_dir, consensus_dir, out_dir)    
+        if (len(sys.argv) >= 3):
+            in_consensuses_dir = sys.argv[2]
+        else:
+             in_consensuses_dir = 'in/consensuses'
+        if (len(sys.argv) >= 4):
+            in_descriptors_dir = sys.argv[3]
+        else:
+            in_descriptors_dir = ['in/descriptors']
+        if (len(sys.argv) >= 5):
+            out_relstats_dir = sys.argv[4]
+        else:
+            out_relstats_dir = 'out/relstats'
+        if (len(sys.argv) >= 6):
+            out_descriptors_dir = sys.argv[5]
+        else:            
+            out_descriptors_dir = 'out/descriptors'
+        process_consensuses(in_consensuses_dir, in_descriptors_dir,\
+            out_relstats_dir, out_descriptors_dir)    
     elif (command == 'simulate'):
         # get lists of consensuses and the related processed-descriptor files 
         if (len(sys.argv) >= 3):
-            consensus_dir = sys.argv[2]
+            relstats_dir = sys.argv[2]
         else:
-            consensus_dir = 'in/consensuses'
+            relstats_dir = 'out/pickled-relstats'
         if (len(sys.argv) >= 4):
             descriptor_dir = sys.argv[3]
         else:
-            descriptor_dir = 'out/processed-descriptors'
+            descriptor_dir = 'out/pickled-descriptors'
         if (len(sys.argv) >= 5):
             num_samples = int(sys.argv[4])
         else:
             num_samples = 1
+        if (len(sys.argv) >= 6) and (sys.argv[5] == '1'):
+            pickled = True
+        else:
+            pickled = False            
         
-        consensus_files = []
-        for dirpath, dirnames, filenames in os.walk(consensus_dir):
+        relstats_files = []
+        for dirpath, dirnames, filenames in os.walk(relstats_dir):
             for filename in filenames:
                 if (filename[0] != '.'):
-                    consensus_files.append(os.path.join(dirpath,filename))
-        consensus_files.sort()
+                    relstats_files.append(os.path.join(dirpath,filename))
+        relstats_files.sort()
         
         processed_descriptor_files = []
         for dirpath, dirnames, filenames in os.walk(descriptor_dir):
@@ -1130,20 +1204,30 @@ descriptors from [out], and taking [# samples] samples.'
         processed_descriptor_files.sort()
 
         # determine start and end times
-        start_time = None
-        with open(consensus_files[0]) as cf:
-            for rel_stat in sd.parse_file(cf, validate=False):
-                if (start_time == None):
-                    start_time =\
-                        timestamp(rel_stat.document.valid_after)
-                    break
-        end_time = None
-        with open(consensus_files[-1]) as cf:
-            for rel_stat in sd.parse_file(cf, validate=False):
-                if (end_time == None):
-                    end_time =\
-                        timestamp(rel_stat.document.fresh_until)
-                    break        
+        if pickled: # just leaving both options for testing pickling approach
+            with open(relstats_files[0]) as rf:
+                rel_stats = pickle.load(rf)
+                fprint, rel_stat = rel_stats.popitem()
+                start_time = timestamp(rel_stat.document.valid_after)
+            with open(relstats_files[-1]) as rf:
+                rel_stats = pickle.load(rf)
+                fprint, rel_stat = rel_stats.popitem()
+                end_time = timestamp(rel_stat.document.fresh_until)
+        else:        
+            start_time = None
+            with open(relstats_files[0]) as cf:
+                for rel_stat in sd.parse_file(cf, validate=False):
+                    if (start_time == None):
+                        start_time =\
+                            timestamp(rel_stat.document.valid_after)
+                        break
+            end_time = None
+            with open(relstats_files[-1]) as cf:
+                for rel_stat in sd.parse_file(cf, validate=False):
+                    if (end_time == None):
+                        end_time =\
+                            timestamp(rel_stat.document.fresh_until)
+                        break        
 
         # simple user that makes a port 80 request & resolve every x seconds
         http_request_rate = 5 * 60
@@ -1154,8 +1238,8 @@ descriptors from [out], and taking [# samples] samples.'
             streams.append({'time':t,'type':'resolve','ip':None,'port':None})
             streams.append({'time':t,'type':'generic','ip':str_ip,'port':80})
             t += http_request_rate
-        create_circuits(consensus_files, processed_descriptor_files, streams,\
-            num_samples)    
+        create_circuits(relstats_files, processed_descriptor_files, streams,\
+            num_samples, pickled)    
 
 # TODO
 # - support IPv6 addresses
