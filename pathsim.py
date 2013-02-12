@@ -1137,7 +1137,7 @@ descriptors dir]: match relays in each consensus in [in consensus dir] with \
 descriptors in [in descriptor dir], put pickled dicts of the statuses with \
 matched descriptors \
 in [out rel_stats dir], and put pickled dicts of the matched descriptors in \
-[out descriptors dir].\n\tsimulate [rel_stats] [descriptors] [# samples] \
+[out descriptors dir].\n\tsimulate [consensuses] [descriptors] [# samples] \
 [pickled]: Do a\
  bunch of simulated path selections using pickled relay statuses from \
 [rel_stats], pickled matching descriptors from [descriptors], taking \
