@@ -77,7 +77,7 @@ def process_consensuses(in_consensuses_dir, in_descriptors,\
                         f = open(outpath,'wb')
                         # annotation needed for stem parser to work correctly
                         f.write('@type server-descriptor 1.0\n')                    
-                        for desc in descriptors_out:
+                        for fprint, desc in descriptors_out:
                             f.write(str(desc))
                             f.write('\n')
                         f.close()
