@@ -47,7 +47,7 @@ def process_consensuses(in_consensuses_dir, in_descriptors,\
         for filename in filenames:
             if (filename[0] != '.'):
                 print(filename)
-                with open(os.path.join(dirpath,filename), 'rb') as cons_f:
+                with open(os.path.join(dirpath,filename), 'r') as cons_f:
                     descriptors_out = {}
                     cons_valid_after = None
                     for r_stat in sd.parse_file(cons_f, validate=False):
@@ -74,7 +74,7 @@ def process_consensuses(in_consensuses_dir, in_descriptors,\
                         outpath = os.path.join(out_descriptors_dir,\
                             cons_valid_after.strftime(\
                                 '%Y-%m-%d-%H-%M-%S-descriptors'))
-                        f = open(outpath,'wb')
+                        f = open(outpath,'w')
                         # annotation needed for stem parser to work correctly
                         f.write('@type server-descriptor 1.0\n')                    
                         for fprint, desc in descriptors_out.items():
@@ -721,7 +721,7 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
         cons_bw_weights = None
         cons_bwweightscale = None        
         cons_rel_stats = {}
-        with open(d_file, 'rb') as df, open(r_file, 'rb') as cf:
+        with open(d_file, 'r') as df, open(r_file, 'r') as cf:
             for desc in sd.parse_file(df, validate=False):
                 descriptors[desc.fingerprint] = desc
             for rel_stat in sd.parse_file(cf, validate=False):
