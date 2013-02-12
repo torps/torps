@@ -10,6 +10,8 @@ import sys
 import collections
 import cPickle as pickle
 
+_testing = True
+
 def timestamp(t):
     """Returns UNIX timestamp"""
     td = t - datetime.datetime(1970, 1, 1)
@@ -350,7 +352,8 @@ def select_middle_node(bw_weights, bwweightscale, cons_rel_stats,\
     i = 1
     while True:
         middle_node = select_weighted_node(weighted_middles)
-        print('select_middle_node() made choice #{0}.'.format(i))
+        if _testing:
+            print('select_middle_node() made choice #{0}.'.format(i))
         i += 1
         if (middle_filter(middle_node, cons_rel_stats, descriptors, fast,\
             stable, exit_node, guard_node)):
@@ -426,7 +429,8 @@ def get_new_guard(bw_weights, bwweightscale, cons_rel_stats, descriptors,\
     i = 1
     while True:
         guard_node = select_weighted_node(weighted_guards)
-        print('get_new_guard() made choice #{0}.'.format(i))
+        if _testing:
+            print('get_new_guard() made choice #{0}.'.format(i))
         i += 1
 
         guard_conflict = False
@@ -471,8 +475,9 @@ def get_guards_for_circ(bw_weights, bwweightscale, cons_rel_stats,\
             for i in range(num_guards - len(live_guards)):
                 new_guard = get_new_guard(bw_weights, bwweightscale,\
                     cons_rel_stats, descriptors, guards, weighted_guards)
-                print('Need guard. Adding {0} [{1}]'.format(\
-                    cons_rel_stats[new_guard].nickname, new_guard))
+                if _testing:                
+                    print('Need guard. Adding {0} [{1}]'.format(\
+                        cons_rel_stats[new_guard].nickname, new_guard))
                 expiration = random.randint(guard_expiration_min,\
                     guard_expiration_max)
                 guards[new_guard] = {'expires':(expiration+\
@@ -486,8 +491,9 @@ def get_guards_for_circ(bw_weights, bwweightscale, cons_rel_stats,\
     while (len(guards_for_circ) < min_num_guards):
             new_guard = get_new_guard(bw_weights, bwweightscale,\
                 cons_rel_stats, descriptors, guards, weighted_guards)
-            print('Need guard for circuit. Adding {0} [{1}]'.format(\
-                cons_rel_stats[new_guard].nickname, new_guard))
+            if _testing:                
+                print('Need guard for circuit. Adding {0} [{1}]'.format(\
+                    cons_rel_stats[new_guard].nickname, new_guard))
             expiration = random.randint(guard_expiration_min,\
                 guard_expiration_max)
             guards[new_guard] = {'expires':(expiration+\
@@ -499,8 +505,9 @@ def get_guards_for_circ(bw_weights, bwweightscale, cons_rel_stats,\
     # choose first num_guards usable guards
     top_guards_for_circ = guards_for_circ[0:num_guards]
     if (len(top_guards_for_circ) < min_num_guards):
-        print('Warning: Only {0} guards for circuit.'.format(\
-            len(top_guards_for_circ)))
+        if _testing:    
+            print('Warning: Only {0} guards for circuit.'.format(\
+                len(top_guards_for_circ)))
             
     return top_guards_for_circ
 
@@ -512,6 +519,20 @@ def circuit_covers_port_need(circuit, descriptors, port, need):
         ((not need['fast']) or (circuit['fast'])) and\
         ((not need['stable']) or (circuit['stable']))
         
+        
+def print_mapped_stream(client_id, circuit, stream, descriptors):
+    """Prints log line showing client, time and IPs in path of stream."""
+    
+    guard_ip = descriptors[circuit['path'][0]].address
+    middle_ip = descriptors[circuit['path'][1]].address
+    exit_ip = descriptors[circuit['path'][2]].address
+    dest_ip = None
+    if (stream['ip'] == None):
+        dest_ip = 0
+    else:
+        dest_ip = stream['ip']
+    print('{0}\t{1}\t{2}\t{3}\t{4}\t{5}'.format(client_id, stream['time'],\
+        guard_ip, middle_ip, exit_ip, dest_ip))
 
 def circuit_supports_stream(circuit, stream, long_lived_ports):
     """Returns if stream can run over circuit (which is assumed live)."""
@@ -590,9 +611,10 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
             cons_bwweightscale, cons_rel_stats, descriptors, circ_fast,
             circ_stable, circ_internal, circ_ip, circ_port)
     exit_node = select_weighted_node(weighted_exits)
-    print('Exit node: {0} [{1}]'.format(
-        cons_rel_stats[exit_node].nickname,
-        cons_rel_stats[exit_node].fingerprint))
+    if _testing:    
+        print('Exit node: {0} [{1}]'.format(
+            cons_rel_stats[exit_node].nickname,
+            cons_rel_stats[exit_node].fingerprint))
     
     # select guard node
     # get first <= num_guards guards suitable for circuit
@@ -603,9 +625,10 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
         guard_expiration_max, circ_time, weighted_guards)
     # randomly choose from among those suitable guards
     guard_node = random.choice(circ_guards)
-    print('Guard node: {0} [{1}]'.format(
-        cons_rel_stats[guard_node].nickname,
-        cons_rel_stats[guard_node].fingerprint))
+    if _testing:
+        print('Guard node: {0} [{1}]'.format(
+            cons_rel_stats[guard_node].nickname,
+            cons_rel_stats[guard_node].fingerprint))
     
     # select middle node
     # a random relay is unlikely to conflict with the guard and exit
@@ -614,9 +637,10 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
     middle_node = select_middle_node(cons_bw_weights,
         cons_bwweightscale, cons_rel_stats, descriptors, circ_fast,
         circ_stable, exit_node, guard_node, weighted_middles)        
-    print('Middle node: {0} [{1}]'.format(
-        cons_rel_stats[middle_node].nickname,
-        cons_rel_stats[middle_node].fingerprint))
+    if _testing:
+        print('Middle node: {0} [{1}]'.format(
+            cons_rel_stats[middle_node].nickname,
+            cons_rel_stats[middle_node].fingerprint))
     
     return {'time':circ_time,\
             'fast':circ_fast,\
@@ -630,14 +654,14 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
     
     
 def create_circuits(relstats_files, processed_descriptor_files, streams,\
-    num_samples, pickled):
+    num_samples):
     """Takes streams over time and creates circuits by interaction
     with choose_path().
       Input:
-        relstats_files: list of filenames with pickled rel_stats
+        relstats_files: list of filenames with consensuses
                         *in correct order*, must exactly cover a time period
                         (i.e. no gaps or overlaps)
-        processed_descriptor_files: list of filenames with pickled descriptors
+        processed_descriptor_files: list of filenames with descriptors
             corresponding to relays in relstats_files as produced by
             process_consensuses      
         streams: *ordered* list of streams, where a stream is a dict with keys
@@ -648,7 +672,6 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
             'ip': IP address of destination, may be None for 'type':'resolve'
             'port': desired TCP port, may be None for 'type':'resolve'
         num_samples: (int) # circuit-creation samples to take for given streams
-        pickled: (bool) if rel_stats and descriptors are pickled
     Output:
         [Prints circuit and guard selections of clients.]
     """
@@ -696,80 +719,61 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
     cur_period_end = None
     stream_start = 0
     stream_end = 0
+    
+    if (not _testing):
+        print('Sample\tTimestamp\tGuard IP\tMiddle IP\tExit IP\tDestination\
+ IP')
 
      # store old descriptors (for entry guards that leave consensus)    
     descriptors = {}
     # run simulation period one pair of consensus/descriptor files at a time
     for r_file, d_file in zip(relstats_files, processed_descriptor_files):
         # read in descriptors and consensus statuses
-        print('Using rel_stats file {0}'.format(r_file))
+        if _testing:
+            print('Using rel_stats file {0}'.format(r_file))
         cons_rel_stats = None
         cons_valid_after = None
         cons_fresh_until = None
         cons_bw_weights = None
         cons_bwweightscale = None        
-        if (pickled):
-            with open(r_file) as rf, open(d_file) as df:
-                cons_rel_stats = pickle.load(rf)
-                descriptors.update(pickle.load(df))
-            for rel_stat in cons_rel_stats.itervalues():
-                cons_valid_after = timestamp(rel_stat.document.valid_after)
-                cons_fresh_until = timestamp(rel_stat.document.fresh_until)
-                print('cons_valid_after: {0}'.format(cons_valid_after))
-                print('cons_fresh_until: {0}'.format(cons_fresh_until))
-                cons_bw_weights = rel_stat.document.bandwidth_weights
-                if ('bwweightscale' in rel_stat.document.params):
-                    cons_bwweightscale = \
-                        rel_stat.document.params['bwweightscale']
-                else:
-                    cons_bwweightscale = 10000
-                break
-            if (cur_period_start == None):
-                cur_period_start = cons_valid_after
-            elif (cur_period_end == cons_valid_after):
-                cur_period_start = cons_valid_after
-            else:
-                err = 'Gap/overlap in consensus times: {0}:{1}'.\
-                    format(cur_period_end, cons_valid_after)
-                raise ValueError(err)
-            cur_period_end = cons_fresh_until
-        else:
-            cons_rel_stats = {}
-            with open(d_file) as df, open(r_file) as cf:
-                for desc in sd.parse_file(df, validate=False):
-                    descriptors[desc.fingerprint] = desc
-                for rel_stat in sd.parse_file(cf, validate=False):
-                    if (cons_valid_after == None):
-                        cons_valid_after = \
-                            timestamp(rel_stat.document.valid_after)
-                        if (cur_period_start == None):
-                            cur_period_start = cons_valid_after
-                        elif (cur_period_end == cons_valid_after):
-                            cur_period_start = cons_valid_after
-                        else:
-                            err = 'Gap/overlap in consensus times: {0}:{1}'.\
-                                    format(cur_period_end, cons_valid_after)
-                            raise ValueError(err)
-                    if (cons_fresh_until == None):
-                        cons_fresh_until = \
-                            timestamp(rel_stat.document.fresh_until)
-                        cur_period_end = cons_fresh_until
-                    if (cons_bw_weights == None):
-                        cons_bw_weights = rel_stat.document.bandwidth_weights
-                    if (cons_bwweightscale == None):
-                        if ('bwweightscale' in rel_stat.document.params):
-                            cons_bwweightscale = rel_stat.document.params[\
-                                'bwweightscale']
-                    if (rel_stat.fingerprint in descriptors):
-                        cons_rel_stats[rel_stat.fingerprint] = rel_stat
+        cons_rel_stats = {}
+        with open(d_file, 'rb') as df, open(r_file, 'rb') as cf:
+            for desc in sd.parse_file(df, validate=False):
+                descriptors[desc.fingerprint] = desc
+            for rel_stat in sd.parse_file(cf, validate=False):
+                if (cons_valid_after == None):
+                    cons_valid_after = \
+                        timestamp(rel_stat.document.valid_after)
+                    if (cur_period_start == None):
+                        cur_period_start = cons_valid_after
+                    elif (cur_period_end == cons_valid_after):
+                        cur_period_start = cons_valid_after
+                    else:
+                        err = 'Gap/overlap in consensus times: {0}:{1}'.\
+                                format(cur_period_end, cons_valid_after)
+                        raise ValueError(err)
+                if (cons_fresh_until == None):
+                    cons_fresh_until = \
+                        timestamp(rel_stat.document.fresh_until)
+                    cur_period_end = cons_fresh_until
+                if (cons_bw_weights == None):
+                    cons_bw_weights = rel_stat.document.bandwidth_weights
                 if (cons_bwweightscale == None):
-                    # set default value
-                    # Yes, I could have set it initially to this value,
-                    # but this way, it doesn't get repeatedly set.
-                    cons_bwweightscale = 10000  
+                    if ('bwweightscale' in rel_stat.document.params):
+                        cons_bwweightscale = rel_stat.document.params[\
+                            'bwweightscale']
+                if (rel_stat.fingerprint in descriptors):
+                    cons_rel_stats[rel_stat.fingerprint] = rel_stat
+            if (cons_bwweightscale == None):
+                # set default value
+                # Yes, I could have set it initially to this value,
+                # but this way, it doesn't get repeatedly set.
+                cons_bwweightscale = 10000  
                 
         for client_state in client_states:
-            print('Updating state for client {0}.'.format(client_state['id']))
+            if _testing:
+                print('Updating state for client {0}.'.\
+                    format(client_state['id']))
             guards = client_state['guards']
                 
             # update client state
@@ -792,7 +796,8 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
                          cons_rel_stats[guard].flags) or\
                         (stem.Flag.GUARD not in\
                          cons_rel_stats[guard].flags):
-                        print('Putting down guard {0}'.format(guard))
+                        if _testing:
+                            print('Putting down guard {0}'.format(guard))
                         guard_props['bad_since'] = cons_valid_after
                 else:
                     if (guard in cons_rel_stats) and\
@@ -800,18 +805,21 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
                          cons_rel_stats[guard].flags) and\
                         (stem.Flag.GUARD not in\
                          cons_rel_stats[guard].flags):
-                        print('Bringing up guard {0}'.format(guard))
+                        if _testing:
+                            print('Bringing up guard {0}'.format(guard))
                         guard_props['bad_since'] = None
                 # remove if down time including this period exceeds limit
                 if (guard_props['bad_since'] != None):
                     if (cons_fresh_until-guard_props['bad_since'] >=\
                         guard_down_time):
-                        print('Guard down too long, removing: {0}'.\
-                            format(guard))
+                        if _testing:
+                            print('Guard down too long, removing: {0}'.\
+                                format(guard))
                         del guards[guard]
                 # expire old guards
                 if (guard_props['expires'] <= cons_valid_after):
-                    print('Expiring guard: {0}'.format(guard))
+                    if _testing:
+                        print('Expiring guard: {0}'.format(guard))
                     del guards[guard]
                               
         # filter exits for port needs and compute their weights
@@ -820,8 +828,9 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
         for port, need in port_needs_global.items():
             port_need_exits = filter_exits(cons_rel_stats, descriptors,\
                 need['fast'], need['stable'], False, None, port)
-            print('# exits for port {0}: {1}'.\
-                format(port, len(port_need_exits)))
+            if _testing:
+                print('# exits for port {0}: {1}'.\
+                    format(port, len(port_need_exits)))
             port_need_exit_weights = get_position_weights(\
                 port_need_exits, cons_rel_stats, 'e', cons_bw_weights,\
                 cons_bwweightscale)
@@ -841,7 +850,8 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
         # filter middles and precompute cumulative weights
         potential_middles = filter(lambda x: middle_filter(x, cons_rel_stats,\
             descriptors, None, None, None, None), cons_rel_stats.keys())
-        print('# potential middles: {0}'.format(len(potential_middles)))                
+        if _testing:
+            print('# potential middles: {0}'.format(len(potential_middles)))                
         potential_middle_weights = get_position_weights(potential_middles,\
             cons_rel_stats, 'm', cons_bw_weights, cons_bwweightscale)
         weighted_middles = get_weighted_nodes(potential_middles,\
@@ -852,12 +862,12 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
         # so doing this here instead of on-demand per client may actually
         # slow things down. We do it to improve scalability with sample number.
         potential_guards = filter_guards(cons_rel_stats, descriptors)
-        print('# potential guards: {0}'.format(len(potential_guards)))        
+        if _testing:
+            print('# potential guards: {0}'.format(len(potential_guards)))        
         potential_guard_weights = get_position_weights(potential_guards,\
             cons_rel_stats, 'g', cons_bw_weights, cons_bwweightscale)
         weighted_guards = get_weighted_nodes(potential_guards,\
             potential_guard_weights)    
-
        
         # for simplicity, step through time one minute at a time
         time_step = 60
@@ -873,7 +883,9 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
             
             # do timed client updates
             for client_state in client_states:
-                print('Client {0} timed update.'.format(client_state['id']))
+                if _testing:
+                    print('Client {0} timed update.'.\
+                        format(client_state['id']))
                 guards = client_state['guards']
                 dirty_exit_circuits = client_state['dirty_exit_circuits']
                 clean_exit_circuits = client_state['clean_exit_circuits']
@@ -884,15 +896,16 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
                 while (len(dirty_exit_circuits)>0) and\
                         (dirty_exit_circuits[-1]['dirty_time'] <=\
                             cur_time - dirty_circuit_lifetime):
-                    print('Killed exit circuit at time {0} w/ dirty time {1}'.\
-                            format(cur_time,\
-                                dirty_exit_circuits[-1]['dirty_time']))
+                    if _testing:
+                        print('Killed exit circuit at time {0} w/ dirty time \
+{1}'.format(cur_time, dirty_exit_circuits[-1]['dirty_time']))
                     dirty_exit_circuits.pop()
                 if (dirty_internal_circuit != None) and\
                     (dirty_internal_circuit['dirty_time'] <=\
                         cur_time - dirty_circuit_lifetime):
-                    print('Killed internal circuit at time {0} w/ dirty time \
-{1}'.format(cur_time,dirty_internal_circuit['dirty_time']))
+                    if _testing:                        
+                        print('Killed internal circuit at time {0} w/ dirty \
+time {1}'.format(cur_time,dirty_internal_circuit['dirty_time']))
                     client_state['dirty_internal_circuit'] = None
                     dirty_internal_circuit =\
                         client_state['dirty_internal_circuit']
@@ -916,7 +929,8 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
                                 descriptors, pt, nd)):
                                 port_needs_covered[pt] += 1
                                 new_circ['covering'].append(pt)
-                        print('Created circuit at time {0} to cover port \
+                        if _testing:                                
+                            print('Created circuit at time {0} to cover port \
 {1}.'.format(cur_time, port))
 
                 # check for internal circuit
@@ -932,8 +946,9 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
                     clean_internal_circuit =\
                         client_state['clean_internal_circuit']
                     #circuits.append(new_circ)
-                    print('Created clean internal circuit at time {0}.'.\
-                        format(cur_time))  
+                    if _testing:                    
+                        print('Created clean internal circuit at time {0}.'.\
+                            format(cur_time))  
                         
             # collect streams that occur during current period
             while (stream_start < len(streams)) and\
@@ -977,8 +992,9 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
                             descriptors, port_needs_global[port]['fast'],\
                             port_needs_global[port]['stable'], False,\
                             None, port)
-                        print('# exits for new need at port {0}: {1}'.\
-                            format(len(port_need_exits)))
+                        if _testing:                            
+                            print('# exits for new need at port {0}: {1}'.\
+                                format(len(port_need_exits)))
                         port_need_exit_weights = get_position_weights(\
                             port_need_exits, cons_rel_stats, 'e',\
                             cons_bw_weights, cons_bwweightscale)
@@ -993,8 +1009,9 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
                     stream_exits = filter_exits(cons_rel_stats,\
                         descriptors, True, stable, False, stream['ip'],\
                         stream['port'])                    
-                    print('# exits for stream to {0}:{1}'.\
-                        format(stream['ip'], stream['port']))
+                    if _testing:                        
+                        print('# exits for stream to {0}:{1}'.\
+                            format(stream['ip'], stream['port']))
                     stream_exit_weights = get_position_weights(\
                         stream_exits, cons_rel_stats, 'e', cons_bw_weights,\
                         cons_bwweightscale)
@@ -1003,8 +1020,9 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
                 
                 # do client stream assignment
                 for client_state in client_states:
-                    print('Client {0} stream assignment.'.\
-                        format(client_state['id']))
+                    if _testing:                
+                        print('Client {0} stream assignment.'.\
+                            format(client_state['id']))
                     guards = client_state['guards']
                     dirty_exit_circuits = client_state['dirty_exit_circuits']
                     clean_exit_circuits = client_state['clean_exit_circuits']
@@ -1014,11 +1032,14 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
                         client_state['clean_internal_circuit']
                     port_needs_covered = client_state['port_needs_covered']
                  
+                    stream_assigned = None
                     if (stream['type'] == 'resolve'):
                         if (dirty_internal_circuit != None):
                             # use existing dirty internal circuit
-                            print('Assigned stream to dirty internal circuit \
-at {0}'.format(stream['time']))
+                            stream_assigned = dirty_internal_circuit
+                            if _testing:                            
+                                print('Assigned stream to dirty internal \
+circuit at {0}'.format(stream['time']))
                         elif (clean_internal_circuit != None):
                             # dirty clean internal circuit
                             clean_internal_circuit['dirty_time'] =\
@@ -1029,8 +1050,10 @@ at {0}'.format(stream['time']))
                             client_state['clean_internal_circuit'] = None
                             clean_internal_circuit =\
                                 client_state['clean_internal_circuit']
-                            print('Assigned stream to clean internal circuit \
-at {0}'.format(stream['time']))
+                            stream_assigned = dirty_internal_circuit
+                            if _testing:                                
+                                print('Assigned stream to clean internal \
+circuit at {0}'.format(stream['time']))
                         else:
                             # create new internal circuit
                             client_state['dirty_internal_circuit'] =\
@@ -1045,8 +1068,9 @@ at {0}'.format(stream['time']))
                                 client_state['dirty_internal_circuit']
                             dirty_internal_circuit['dirty_time'] =\
                                 stream['time']
-                            print('Created new internal circuit for stream \
-at {0}'.format(stream['time']))                               
+                            stream_assigned = dirty_internal_circuit
+                            if _testing:                                
+                                print('Created new internal circuit for \                                stream at {0}'.format(stream['time'])) 
                     elif (stream['type'] == 'generic'):
                         stream_assigned = None                    
                         # try to use a dirty circuit
@@ -1054,8 +1078,9 @@ at {0}'.format(stream['time']))
                             if circuit_supports_stream(circuit, stream,\
                                 long_lived_ports):
                                 stream_assigned = circuit
-                                print('Assigned stream to port {0} to dirty \
-circuit at {1}'.format(stream['port'],stream['time']))                                    
+                                if _testing:                                
+                                    print('Assigned stream to port {0} to \
+dirty circuit at {1}'.format(stream['port'],stream['time']))                                    
                                 break        
                         # next try and use a clean circuit
                         if (stream_assigned == None):
@@ -1070,17 +1095,20 @@ circuit at {1}'.format(stream['port'],stream['time']))
                                     new_clean_exit_circuits.extend(\
                                         clean_exit_circuits)
                                     clean_exit_circuits.clear()
-                                    print('Assigned stream to port {0} to \
+                                    if _testing:                                    
+                                        print('Assigned stream to port {0} to \
 clean circuit at {1}'.format(stream['port'], stream['time']))                                
                                         
                                     # reduce cover count for covered port needs
                                     for port in circuit['covering']:
                                         if (port in port_needs_covered):
                                             port_needs_covered[port] -= 1
-                                            print('Decreased cover count for \
-port {0} to {1}.'.format(port, port_needs_covered[port]))
+                                            if _testing:                                                
+                                                print('Decreased cover count \
+for port {0} to {1}.'.format(port, port_needs_covered[port]))
                                         else:
-                                            print('Port {0} not found in \
+                                            if _testing:                                        
+                                                print('Port {0} not found in \
 port_needs_covered'.format(port))
                                 else:
                                     new_clean_exit_circuits.append(circuit)
@@ -1100,11 +1128,16 @@ port_needs_covered'.format(port))
                             new_circ['dirty_time'] = stream['time']
                             stream_assigned = new_circ
                             dirty_exit_circuits.appendleft(new_circ)
-                            print('Created circuit at time {0} to cover stream\
- to ip {1} and port {2}.'.format(stream['time'], stream['ip'], stream['port'])) 
+                            if _testing:                            
+                                print('Created circuit at time {0} to cover \
+stream to ip {1} and port {2}.'.format(stream['time'], stream['ip'],\
+stream['port'])) 
                     else:
                         raise ValueError('Stream type not recognized: {0}'.\
                             format(stream['type']))
+                    if (not _testing):
+                        print_mapped_stream(client_state['id'],\
+                            stream_assigned, stream, descriptors)
             
             cur_time += time_step
 
@@ -1138,10 +1171,10 @@ descriptors in [in descriptor dir], put pickled dicts of the statuses with \
 matched descriptors \
 in [out rel_stats dir], and put pickled dicts of the matched descriptors in \
 [out descriptors dir].\n\tsimulate [rel_stats] [descriptors] [# samples] \
-[pickled]: Do a\
+[testing]: Do a\
  bunch of simulated path selections using pickled relay statuses from \
 [rel_stats], pickled matching descriptors from [descriptors], taking \
-[# samples] samples, using pickled rel_stats and descriptors if [pickled].'
+[# samples] samples, printing debug info if [testing].'
     if (len(sys.argv) <= 1):
         print(usage)
         sys.exit(1)
@@ -1184,9 +1217,9 @@ in [out rel_stats dir], and put pickled dicts of the matched descriptors in \
         else:
             num_samples = 1
         if (len(sys.argv) >= 6) and (sys.argv[5] == '1'):
-            pickled = True
+            _testing = True
         else:
-            pickled = False            
+            _testing = False            
         
         relstats_files = []
         for dirpath, dirnames, filenames in os.walk(relstats_dir):
@@ -1204,30 +1237,20 @@ in [out rel_stats dir], and put pickled dicts of the matched descriptors in \
         processed_descriptor_files.sort()
 
         # determine start and end times
-        if pickled: # just leaving both options for testing pickling approach
-            with open(relstats_files[0]) as rf:
-                rel_stats = pickle.load(rf)
-                fprint, rel_stat = rel_stats.popitem()
-                start_time = timestamp(rel_stat.document.valid_after)
-            with open(relstats_files[-1]) as rf:
-                rel_stats = pickle.load(rf)
-                fprint, rel_stat = rel_stats.popitem()
-                end_time = timestamp(rel_stat.document.fresh_until)
-        else:        
-            start_time = None
-            with open(relstats_files[0]) as cf:
-                for rel_stat in sd.parse_file(cf, validate=False):
-                    if (start_time == None):
-                        start_time =\
-                            timestamp(rel_stat.document.valid_after)
-                        break
-            end_time = None
-            with open(relstats_files[-1]) as cf:
-                for rel_stat in sd.parse_file(cf, validate=False):
-                    if (end_time == None):
-                        end_time =\
-                            timestamp(rel_stat.document.fresh_until)
-                        break        
+        start_time = None
+        with open(relstats_files[0]) as cf:
+            for rel_stat in sd.parse_file(cf, validate=False):
+                if (start_time == None):
+                    start_time =\
+                        timestamp(rel_stat.document.valid_after)
+                    break
+        end_time = None
+        with open(relstats_files[-1]) as cf:
+            for rel_stat in sd.parse_file(cf, validate=False):
+                if (end_time == None):
+                    end_time =\
+                        timestamp(rel_stat.document.fresh_until)
+                    break        
 
         # simple user that makes a port 80 request & resolve every x seconds
         http_request_rate = 5 * 60
@@ -1239,7 +1262,7 @@ in [out rel_stats dir], and put pickled dicts of the matched descriptors in \
             streams.append({'time':t,'type':'generic','ip':str_ip,'port':80})
             t += http_request_rate
         create_circuits(relstats_files, processed_descriptor_files, streams,\
-            num_samples, pickled)    
+            num_samples)    
 
 # TODO
 # - support IPv6 addresses
