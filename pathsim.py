@@ -18,8 +18,8 @@ def timestamp(t):
     ts = td.days*24*60*60 + td.seconds
     return ts
 
-def process_consensuses(in_consensuses_dir, in_descriptors_dir,\
-    out_relstats_dir, out_descriptors_dir):
+def process_consensuses(in_consensuses_dir, in_descriptors,\
+    out_descriptors_dir):
     """For every input consensus, finds the descriptors published most recently before the descriptor times listed for the relays in that consensus, and pickles dicts containing each rel_stat and its matching descriptor."""
     # read all descriptors into memory
     descriptors = {}
@@ -29,7 +29,7 @@ def process_consensuses(in_consensuses_dir, in_descriptors_dir,\
     def skip_listener(path, event):
         print('ERROR [{0}]: {1}'.format(path, event))
     
-    with sdr.DescriptorReader(in_descriptors_dir, validate=False) as reader:
+    with sdr.DescriptorReader(in_descriptors, validate=False) as reader:
         reader.register_skip_listener(skip_listener)
         for desc in reader:
             if (num_descriptors % 1000 == 0):
@@ -39,8 +39,6 @@ def process_consensuses(in_consensuses_dir, in_descriptors_dir,\
                 descriptors[desc.fingerprint] = {}
                 num_relays += 1
             descriptors[desc.fingerprint][timestamp(desc.published)] = desc
-#            print('Adding {0}:{1}:{2}'.format(desc.nickname,desc.fingerprint,\
-#                timestamp(desc.published)))
     print('#descriptors: {0}; #relays:{1}'.format(num_descriptors,num_relays)) 
 
     # go through consensuses, output most recent descriptors for relays
@@ -49,8 +47,7 @@ def process_consensuses(in_consensuses_dir, in_descriptors_dir,\
         for filename in filenames:
             if (filename[0] != '.'):
                 print(filename)
-                with open(os.path.join(dirpath,filename), 'r') as cons_f:
-                    r_stats_out = {}
+                with open(os.path.join(dirpath,filename), 'rb') as cons_f:
                     descriptors_out = {}
                     cons_valid_after = None
                     for r_stat in sd.parse_file(cons_f, validate=False):
@@ -70,33 +67,20 @@ def process_consensuses(in_consensuses_dir, in_descriptors_dir,\
                             'Descriptor not found for {0} :\{1}:{2}'.format(\
                                 r_stat.nickname,r_stat.fingerprint,pub_time))
                         else:
-                            r_stats_out[r_stat.fingerprint] = r_stat
                             descriptors_out[r_stat.fingerprint] = \
                                 descriptors[r_stat.fingerprint][desc_time]
                     # output all discovered descriptors
-                    if (cons_valid_after != None):
-                        # pickle statuses of relays with discovered descriptors
-                        outpath = os.path.join(out_relstats_dir,\
-                            cons_valid_after.strftime(\
-                                '%Y-%m-%d-%H-%M-%S-relstats'))
-                        f = open(outpath,'w')
-                        pickle.dump(r_stats_out, f)
-                        f.close()
-                        
-                        # pickle matching descriptors
+                    if (cons_valid_after != None):                        
                         outpath = os.path.join(out_descriptors_dir,\
                             cons_valid_after.strftime(\
                                 '%Y-%m-%d-%H-%M-%S-descriptors'))
-                        f = open(outpath,'w')
-                        pickle.dump(descriptors_out, f)
-                        f.close()
-# changed to pickle objects                        
+                        f = open(outpath,'wb')
                         # annotation needed for stem parser to work correctly
-#                        f.write('@type server-descriptor 1.0\n')                    
-#                        for relay in relays:
-#                            f.write(str(relay))
-#                            f.write('\n')
-#                        f.close()
+                        f.write('@type server-descriptor 1.0\n')                    
+                        for desc in descriptors_out:
+                            f.write(str(desc))
+                            f.write('\n')
+                        f.close()
                     else:
                         print('Problem parsing {0}.'.format(filename))             
                     num_consensuses += 1
@@ -1165,8 +1149,8 @@ stream['port']))
 if __name__ == '__main__':
     command = None
     usage = 'Usage: pathsim.py [command]\nCommands:\n\tprocess \
-[in consensus dir] [in descriptor dir] [out rel_stats dir] [out \
-descriptors dir]: match relays in each consensus in [in consensus dir] with \
+[in consensus dir] [in descriptor dir] [out descriptors dir]: match relays in \
+each consensus in [in consensus dir] with \
 descriptors in [in descriptor dir], put pickled dicts of the statuses with \
 matched descriptors \
 in [out rel_stats dir], and put pickled dicts of the matched descriptors in \
@@ -1189,19 +1173,15 @@ in [out rel_stats dir], and put pickled dicts of the matched descriptors in \
         else:
              in_consensuses_dir = 'in/consensuses'
         if (len(sys.argv) >= 4):
-            in_descriptors_dir = sys.argv[3]
+            in_descriptors = sys.argv[3]
         else:
-            in_descriptors_dir = ['in/descriptors']
+            in_descriptors = ['in/descriptors']
         if (len(sys.argv) >= 5):
-            out_relstats_dir = sys.argv[4]
-        else:
-            out_relstats_dir = 'out/relstats'
-        if (len(sys.argv) >= 6):
-            out_descriptors_dir = sys.argv[5]
+            out_descriptors_dir = sys.argv[4]
         else:            
             out_descriptors_dir = 'out/descriptors'
-        process_consensuses(in_consensuses_dir, in_descriptors_dir,\
-            out_relstats_dir, out_descriptors_dir)    
+        process_consensuses(in_consensuses_dir, in_descriptors,\
+            out_descriptors_dir)    
     elif (command == 'simulate'):
         # get lists of consensuses and the related processed-descriptor files 
         if (len(sys.argv) >= 3):
