@@ -48,7 +48,7 @@ def process_consensuses(in_consensuses_dir, in_descriptors,\
             if (filename[0] != '.'):
                 print(filename)
                 with open(os.path.join(dirpath,filename), 'r') as cons_f:
-                    descriptors_out = {}
+                    descriptors_out = []
                     cons_valid_after = None
                     for r_stat in sd.parse_file(cons_f, validate=False):
                         if (cons_valid_after == None):
@@ -67,8 +67,8 @@ def process_consensuses(in_consensuses_dir, in_descriptors,\
                             'Descriptor not found for {0} :\{1}:{2}'.format(\
                                 r_stat.nickname,r_stat.fingerprint,pub_time))
                         else:
-                            descriptors_out[r_stat.fingerprint] = \
-                                descriptors[r_stat.fingerprint][desc_time]
+                            descriptors_out.append(\
+                                descriptors[r_stat.fingerprint][desc_time])
                     # output all discovered descriptors
                     if (cons_valid_after != None):                        
                         outpath = os.path.join(out_descriptors_dir,\
@@ -77,7 +77,7 @@ def process_consensuses(in_consensuses_dir, in_descriptors,\
                         f = open(outpath,'w')
                         # annotation needed for stem parser to work correctly
                         f.write('@type server-descriptor 1.0\n')                    
-                        for fprint, desc in descriptors_out.items():
+                        for desc in descriptors_out:
                             f.write(str(desc))
                             f.write('\n')
                         f.close()
