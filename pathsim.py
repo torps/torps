@@ -32,7 +32,7 @@ def process_consensuses(in_dirs, out_dir):
     def skip_listener(path, event):
         print('ERROR [{0}]: {1}'.format(path, event))
         
-    for in_consensuses_dir, in_descriptors in in_dirs:
+    for in_consensuses_dir, in_descriptors, desc_out_dir in in_dirs:
         num_descriptors = 0    
         num_relays = 0
     
@@ -58,6 +58,11 @@ def process_consensuses(in_dirs, out_dir):
                 descriptors[desc.fingerprint][timestamp(desc.published)] = desc
         print('#descriptors: {0}; #relays:{1}'.\
             format(num_descriptors,num_relays)) 
+
+        # create out_dir/desc_out_dir
+        full_out_dir = os.path.join(out_dir, desc_out_dir)
+        if (not os.path.isdir(full_out_dir)):
+            os.mkdir(full_out_dir)
 
         # go through consensuses, output most recent descriptors for relays
         num_consensuses = 0
@@ -93,7 +98,7 @@ def process_consensuses(in_dirs, out_dir):
                                 descriptors[r_stat.fingerprint][desc_time])
                     # output all discovered descriptors
                     if (cons_valid_after != None):                        
-                        outpath = os.path.join(out_dir,\
+                        outpath = os.path.join(full_out_dir,\
                             cons_valid_after.strftime(\
                                 '%Y-%m-%d-%H-%M-%S-descriptors'))
                         f = open(outpath,'wb')
@@ -1203,12 +1208,18 @@ descriptors for each consensus to [out descriptors dir].\n\tsimulate \
             while month <= 12:
                 if (month <= 9):
                     prepend = '0'
-                in_dirs.append(('consensuses-{0}-{1}{2}'.\
-                    format(year, prepend, month),\
-                    'server-descriptors-{0}-{1}{2}'.\
-                    format(year, prepend, month)))
+                else:
+                    prepend = ''
+                cons_dir = 'consensuses-{0}-{1}{2}'.\
+                    format(year, prepend, month)
+                desc_dir = 'server-descriptors-{0}-{1}{2}'.\
+                    format(year, prepend, month)
+                desc_out_dir = 'processed-descriptors-{0}-{1}{2}'.\
+                    format(year, prepend, month)
+                in_dirs.append((cons_dir, desc_dir, desc_out_dir))
                 month += 1
             month = 1
+        
         
         process_consensuses(in_dirs, out_dir)
     elif (command == 'simulate'):
