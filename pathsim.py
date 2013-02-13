@@ -1206,7 +1206,7 @@ out_dir/processed_descriptors-year-month.\n\
         in_dirs = []
         month = start_month
         for year in range(start_year, end_year+1):
-            while month <= 12:
+            while (year < end_year) or (month <= end_month):
                 if (month <= 9):
                     prepend = '0'
                 else:
