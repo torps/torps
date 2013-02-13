@@ -39,10 +39,10 @@ def process_consensuses(in_dirs):
         # expire descriptors to save memory
         print('Expiring old descriptors from {0}.'.format(newest_fresh_until))
         num_expired_descs = 0
-        for descriptor_times in descriptors:
-            for time in descriptor_times:
-                if (newest_fresh_until - time >= descriptor_expiration_time):
-                    del descs[time]
+        for fprint, descriptor_times in descriptors.items():
+            for dtime in descriptor_times:
+                if (newest_fresh_until - dtime >= descriptor_expiration_time):
+                    del descriptor_times[dtime]
                     num_expired_descs += 1
         print('Expired {0} descriptors.'.format(num_expired_descs))
     
@@ -63,6 +63,7 @@ def process_consensuses(in_dirs):
         # go through consensuses, output most recent descriptors for relays
         num_consensuses = 0
         for dirpath, dirnames, filenames in os.walk(in_consensuses_dir):
+            filenames.sort()
             for filename in filenames:
                 if (filename[0] == '.'):
                     continue
