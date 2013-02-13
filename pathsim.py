@@ -17,11 +17,11 @@ def timestamp(t):
     ts = td.days*24*60*60 + td.seconds
     return ts
 
-def process_consensuses(in_dirs, out_dir):
+def process_consensuses(in_dirs):
     """For every input consensus, finds the descriptors published most recently before the descriptor times listed for the relays in that consensus, and pickles dicts containing each rel_stat and its matching descriptor.
         Inputs:
-            in_dirs: list of (consensus dir, descriptor dir) pairs *in order*
-            out_dir: output directory for processed descriptors
+            in_dirs: list of (consensus in dir, descriptor in dir, \
+                processed descriptor out dir) triples *in order*
     """
     # read all descriptors into memory
     descriptors = {}
@@ -35,6 +35,11 @@ def process_consensuses(in_dirs, out_dir):
     for in_consensuses_dir, in_descriptors, desc_out_dir in in_dirs:
         num_descriptors = 0    
         num_relays = 0
+        
+        print(in_consensuses_dir)
+        print(in_descriptors)
+        print(desc_out_dir)
+        continue
     
         # expire descriptors to save memory
         print('Expiring old descriptors from {0}.'.format(newest_fresh_until))
@@ -58,11 +63,6 @@ def process_consensuses(in_dirs, out_dir):
                 descriptors[desc.fingerprint][timestamp(desc.published)] = desc
         print('#descriptors: {0}; #relays:{1}'.\
             format(num_descriptors,num_relays)) 
-
-        # create out_dir/desc_out_dir
-        full_out_dir = os.path.join(out_dir, desc_out_dir)
-        if (not os.path.isdir(full_out_dir)):
-            os.mkdir(full_out_dir)
 
         # go through consensuses, output most recent descriptors for relays
         num_consensuses = 0
@@ -98,7 +98,7 @@ def process_consensuses(in_dirs, out_dir):
                                 descriptors[r_stat.fingerprint][desc_time])
                     # output all discovered descriptors
                     if (cons_valid_after != None):                        
-                        outpath = os.path.join(full_out_dir,\
+                        outpath = os.path.join(desc_out_dir,\
                             cons_valid_after.strftime(\
                                 '%Y-%m-%d-%H-%M-%S-descriptors'))
                         f = open(outpath,'wb')
@@ -1175,12 +1175,14 @@ stream['port']))
     
 if __name__ == '__main__':
     command = None
-    usage = 'Usage: pathsim.py [command]\nCommands:\n\tprocess \
-[start_year] [start_month] [end_year] [end_month] [out descriptors dir]: match\
- relays in each consensus in dir consensuses-year-month with descriptors in \
-dir server-descriptors-year-month, where year and month range from \
-start_year and start_month to end_year and end_month. Write the matched \
-descriptors for each consensus to [out descriptors dir].\n\tsimulate \
+    usage = 'Usage: pathsim.py [command]\nCommands:\n\
+\tprocess [start_year] [start_month] [end_year] [end_month] [in_dir] [out_dir]:\
+ match relays in each consensus in in_dir/consensuses-year-month with \
+descriptors in in_dir/server-descriptors-year-month, where year and month \
+range from start_year and start_month to end_year and end_month. Write the \
+matched descriptors for each consensus to \
+out_dir/processed_descriptors-year-month.\n\
+\tsimulate \
 [consensuses] [descriptors] [# samples] [testing]: Do a\
  bunch of simulated path selections using consensuses from \
 [consensuses], matching descriptors from [descriptors], taking \
@@ -1193,15 +1195,16 @@ descriptors for each consensus to [out descriptors dir].\n\tsimulate \
     if (command != 'process') and (command != 'simulate'):
         print(usage)
     elif (command == 'process'):
-        if (len(sys.argv) < 7):
+        if (len(sys.argv) < 8):
             print(usage)
             sys.exit(1)
         start_year = int(sys.argv[2])
         start_month = int(sys.argv[3])
         end_year = int(sys.argv[4])
         end_month = int(sys.argv[5])
-        out_dir = sys.argv[6]
-        
+        in_dir = sys.argv[6]
+        out_dir = sys.argv[7]
+
         in_dirs = []
         month = start_month
         for year in range(start_year, end_year+1):
@@ -1210,18 +1213,20 @@ descriptors for each consensus to [out descriptors dir].\n\tsimulate \
                     prepend = '0'
                 else:
                     prepend = ''
-                cons_dir = 'consensuses-{0}-{1}{2}'.\
-                    format(year, prepend, month)
-                desc_dir = 'server-descriptors-{0}-{1}{2}'.\
-                    format(year, prepend, month)
-                desc_out_dir = 'processed-descriptors-{0}-{1}{2}'.\
-                    format(year, prepend, month)
+                cons_dir = os.path.join(in_dir, 'consensuses-{0}-{1}{2}'.\
+                    format(year, prepend, month))
+                desc_dir = os.path.join(in_dir, \
+                    'server-descriptors-{0}-{1}{2}'.\
+                    format(year, prepend, month))
+                desc_out_dir = os.path.join(out_dir, \
+                    'processed-descriptors-{0}-{1}{2}'.\
+                    format(year, prepend, month))
+                if (not os.path.exists(desc_out_dir)):
+                    os.mkdir(desc_out_dir)
                 in_dirs.append((cons_dir, desc_dir, desc_out_dir))
                 month += 1
             month = 1
-        
-        
-        process_consensuses(in_dirs, out_dir)
+        process_consensuses(in_dirs)
     elif (command == 'simulate'):
         # get lists of consensuses and the related processed-descriptor files 
         if (len(sys.argv) >= 3):
