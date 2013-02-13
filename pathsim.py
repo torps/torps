@@ -63,7 +63,7 @@ def process_consensuses(in_consensuses_dir, in_descriptors,\
                                     desc_time = t
                         if (desc_time == 0):
                             print(\
-                            'Descriptor not found for {0} :\{1}:{2}'.format(\
+                            'Descriptor not found for {0}:{1}:{2}'.format(\
                                 r_stat.nickname,r_stat.fingerprint,pub_time))
                         else:
                             descriptors_out.append(\
