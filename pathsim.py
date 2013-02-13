@@ -17,34 +17,55 @@ def timestamp(t):
     ts = td.days*24*60*60 + td.seconds
     return ts
 
-def process_consensuses(in_consensuses_dir, in_descriptors,\
-    out_descriptors_dir):
-    """For every input consensus, finds the descriptors published most recently before the descriptor times listed for the relays in that consensus, and pickles dicts containing each rel_stat and its matching descriptor."""
+def process_consensuses(in_dirs, out_dir):
+    """For every input consensus, finds the descriptors published most recently before the descriptor times listed for the relays in that consensus, and pickles dicts containing each rel_stat and its matching descriptor.
+        Inputs:
+            in_dirs: list of (consensus dir, descriptor dir) pairs *in order*
+            out_dir: output directory for processed descriptors
+    """
     # read all descriptors into memory
     descriptors = {}
-    num_descriptors = 0    
-    num_relays = 0
-    
+    newest_fresh_until = 0
+    # unclear from docs when relay will stop using an old descriptor
+    # going with 5 days
+    descriptor_expiration_time = 5*24*60*60
     def skip_listener(path, event):
         print('ERROR [{0}]: {1}'.format(path, event))
+        
+    for in_consensuses_dir, in_descriptors in in_dirs:
+        num_descriptors = 0    
+        num_relays = 0
     
-    with sdr.DescriptorReader(in_descriptors, validate=False) as reader:
-        reader.register_skip_listener(skip_listener)
-        for desc in reader:
-            if (num_descriptors % 1000 == 0):
-                print(num_descriptors)
-            num_descriptors += 1
-            if (desc.fingerprint not in descriptors):
-                descriptors[desc.fingerprint] = {}
-                num_relays += 1
-            descriptors[desc.fingerprint][timestamp(desc.published)] = desc
-    print('#descriptors: {0}; #relays:{1}'.format(num_descriptors,num_relays)) 
+        # expire descriptors to save memory
+        print('Expiring old descriptors from {0}.'.format(newesh_fresh_until))
+        num_expired_descs = 0
+        for descriptor_times in descriptors:
+            for time in descriptor_times:
+                if (newest_fresh_until - time >= descriptor_expiration_time):
+                    del descs[time]
+                    num_expired_descs += 1
+        print('Expired {0} descriptors.'.format(num_expired_descs))
+    
+        with sdr.DescriptorReader(in_descriptors, validate=False) as reader:
+            reader.register_skip_listener(skip_listener)
+            for desc in reader:
+                if (num_descriptors % 10000 == 0):
+                    print(num_descriptors)
+                num_descriptors += 1
+                if (desc.fingerprint not in descriptors):
+                    descriptors[desc.fingerprint] = {}
+                    num_relays += 1
+                descriptors[desc.fingerprint][timestamp(desc.published)] = desc
+        print('#descriptors: {0}; #relays:{1}'.\
+            format(num_descriptors,num_relays)) 
 
-    # go through consensuses, output most recent descriptors for relays
-    num_consensuses = 0
-    for dirpath, dirnames, filenames in os.walk(in_consensuses_dir):
-        for filename in filenames:
-            if (filename[0] != '.'):
+        # go through consensuses, output most recent descriptors for relays
+        num_consensuses = 0
+        for dirpath, dirnames, filenames in os.walk(in_consensuses_dir):
+            for filename in filenames:
+                if (filename[0] == '.'):
+                    continue
+                
                 print(filename)
                 with open(os.path.join(dirpath,filename), 'rb') as cons_f:
                     descriptors_out = []
@@ -52,8 +73,10 @@ def process_consensuses(in_consensuses_dir, in_descriptors,\
                     for r_stat in sd.parse_file(cons_f, validate=False):
                         if (cons_valid_after == None):
                             cons_valid_after = r_stat.document.valid_after
+                        if (r_stat.document.fresh_until > newest_fresh_until):
+                            newest_fresh_until = r_stat.document.fresh_until
                         # find most recent descriptor published before the
-                        # time the consensus lists the descriptor as published
+                        # publication time in the consensus
                         pub_time = timestamp(r_stat.published)
                         desc_time = 0
                         # get all descriptors with this fingerprint
@@ -64,13 +87,13 @@ def process_consensuses(in_consensuses_dir, in_descriptors,\
                         if (desc_time == 0):
                             print(\
                             'Descriptor not found for {0}:{1}:{2}'.format(\
-                                r_stat.nickname,r_stat.fingerprint,pub_time))
+                                r_stat.nickname,r_stat.fingerprint, pub_time))
                         else:
                             descriptors_out.append(\
                                 descriptors[r_stat.fingerprint][desc_time])
                     # output all discovered descriptors
                     if (cons_valid_after != None):                        
-                        outpath = os.path.join(out_descriptors_dir,\
+                        outpath = os.path.join(out_dir,\
                             cons_valid_after.strftime(\
                                 '%Y-%m-%d-%H-%M-%S-descriptors'))
                         f = open(outpath,'wb')
@@ -83,7 +106,7 @@ def process_consensuses(in_consensuses_dir, in_descriptors,\
                     else:
                         print('Problem parsing {0}.'.format(filename))             
                     num_consensuses += 1
-    print('# consensuses: {0}'.format(num_consensuses))
+        print('# consensuses: {0}'.format(num_consensuses))
 
 def get_bw_weight(flags, position, bw_weights):
     """Returns weight to apply to relay's bandwidth for given position.
@@ -1148,39 +1171,46 @@ stream['port']))
 if __name__ == '__main__':
     command = None
     usage = 'Usage: pathsim.py [command]\nCommands:\n\tprocess \
-[in consensus dir] [in descriptor dir] [out descriptors dir]: match relays in \
-each consensus in [in consensus dir] with \
-descriptors in [in descriptor dir], put pickled dicts of the statuses with \
-matched descriptors \
-in [out rel_stats dir], and put pickled dicts of the matched descriptors in \
-[out descriptors dir].\n\tsimulate [consensuses] [descriptors] [# samples] \
-[testing]: Do a\
- bunch of simulated path selections using pickled relay statuses from \
-[rel_stats], pickled matching descriptors from [descriptors], taking \
-[# samples] samples, printing debug info if [testing].'
+[start_year] [start_month] [end_year] [end_month] [out descriptors dir]: match\
+ relays in each consensus in dir consensuses-year-month with descriptors in \
+dir server-descriptors-year-month, where year and month range from \
+start_year and start_month to end_year and end_month. Write the matched \
+descriptors for each consensus to [out descriptors dir].\n\tsimulate \
+[consensuses] [descriptors] [# samples] [testing]: Do a\
+ bunch of simulated path selections using consensuses from \
+[consensuses], matching descriptors from [descriptors], taking \
+[# samples] samples, and printing debug info if [testing].'
     if (len(sys.argv) <= 1):
         print(usage)
         sys.exit(1)
-    else:
-        command = sys.argv[1]
-        if (command != 'process') and (command != 'simulate'):
+        
+    command = sys.argv[1]
+    if (command != 'process') and (command != 'simulate'):
+        print(usage)
+    elif (command == 'process'):
+        if (len(sys.argv) < 7):
             print(usage)
-
-    if (command == 'process'):
-        if (len(sys.argv) >= 3):
-            in_consensuses_dir = sys.argv[2]
-        else:
-             in_consensuses_dir = 'in/consensuses'
-        if (len(sys.argv) >= 4):
-            in_descriptors = sys.argv[3]
-        else:
-            in_descriptors = ['in/descriptors']
-        if (len(sys.argv) >= 5):
-            out_descriptors_dir = sys.argv[4]
-        else:            
-            out_descriptors_dir = 'out/descriptors'
-        process_consensuses(in_consensuses_dir, in_descriptors,\
-            out_descriptors_dir)    
+            sys.exit(1)
+        start_year = int(sys.argv[2])
+        start_month = int(sys.argv[3])
+        end_year = int(sys.argv[4])
+        end_month = int(sys.argv[5])
+        out_dir = sys.argv[6]
+        
+        in_dirs = []
+        month = start_month
+        for year in range(start_year, end_year+1):
+            while month <= 12:
+                if (month <= 9):
+                    prepend = '0'
+                in_dirs.append(('consensuses-{0}-{1}{2}'.\
+                    format(year, prepend, month),\
+                    'server-descriptors-{0}-{1}{2}'.\
+                    format(year, prepend, month)))
+                month += 1
+            month = 1
+        
+        process_consensuses(in_dirs, out_dir)
     elif (command == 'simulate'):
         # get lists of consensuses and the related processed-descriptor files 
         if (len(sys.argv) >= 3):
@@ -1256,6 +1286,7 @@ in [out rel_stats dir], and put pickled dicts of the matched descriptors in \
 # - Implement user non-activity for an hour means _no_ preemptive circuits.
 # - Add in multiple circuits covering the same need
 # - check if exits and middles should be excluding hibernating relays (they currently are)
+# - check that empty node sets are handled
 
 
 ##### Relevant lines for path selection extracted from Tor specs.
