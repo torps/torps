@@ -8,7 +8,6 @@ import stem
 import random
 import sys
 import collections
-import cPickle as pickle
 
 _testing = True
 
@@ -47,7 +46,7 @@ def process_consensuses(in_consensuses_dir, in_descriptors,\
         for filename in filenames:
             if (filename[0] != '.'):
                 print(filename)
-                with open(os.path.join(dirpath,filename), 'r') as cons_f:
+                with open(os.path.join(dirpath,filename), 'rb') as cons_f:
                     descriptors_out = []
                     cons_valid_after = None
                     for r_stat in sd.parse_file(cons_f, validate=False):
@@ -74,11 +73,11 @@ def process_consensuses(in_consensuses_dir, in_descriptors,\
                         outpath = os.path.join(out_descriptors_dir,\
                             cons_valid_after.strftime(\
                                 '%Y-%m-%d-%H-%M-%S-descriptors'))
-                        f = open(outpath,'w')
+                        f = open(outpath,'wb')
                         # annotation needed for stem parser to work correctly
                         f.write('@type server-descriptor 1.0\n')                    
                         for desc in descriptors_out:
-                            f.write(str(desc))
+                            f.write(unicode(desc).encode('utf8'))
                             f.write('\n')
                         f.close()
                     else:
