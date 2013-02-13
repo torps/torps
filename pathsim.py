@@ -23,7 +23,6 @@ def process_consensuses(in_dirs):
             in_dirs: list of (consensus in dir, descriptor in dir, \
                 processed descriptor out dir) triples *in order*
     """
-    # read all descriptors into memory
     descriptors = {}
     newest_fresh_until = 0
     # unclear from docs when relay will stop using an old descriptor
@@ -32,6 +31,7 @@ def process_consensuses(in_dirs):
     def skip_listener(path, event):
         print('ERROR [{0}]: {1}'.format(path, event))
         
+    # read all descriptors into memory        
     for in_consensuses_dir, in_descriptors, desc_out_dir in in_dirs:
         num_descriptors = 0    
         num_relays = 0
@@ -40,10 +40,13 @@ def process_consensuses(in_dirs):
         print('Expiring old descriptors from {0}.'.format(newest_fresh_until))
         num_expired_descs = 0
         for fprint, descriptor_times in descriptors.items():
+            remove_times = []
             for dtime in descriptor_times:
                 if (newest_fresh_until - dtime >= descriptor_expiration_time):
-                    del descriptor_times[dtime]
+                    remove_times.append(dtime)
                     num_expired_descs += 1
+            for dtime in remove_times:
+                del descriptor_times[dtime]
         print('Expired {0} descriptors.'.format(num_expired_descs))
     
         print('Reading descriptors from: {0}'.format(in_descriptors))
@@ -72,6 +75,8 @@ def process_consensuses(in_dirs):
                 with open(os.path.join(dirpath,filename), 'rb') as cons_f:
                     descriptors_out = []
                     cons_valid_after = None
+                    num_not_found = 0
+                    num_found = 0
                     for r_stat in sd.parse_file(cons_f, validate=False):
                         if (cons_valid_after == None):
                             cons_valid_after = r_stat.document.valid_after
@@ -89,12 +94,14 @@ def process_consensuses(in_dirs):
                                 if (t <= pub_time) and (t >= desc_time):
                                     desc_time = t
                         if (desc_time == 0):
-                            print(\
-                            'Descriptor not found for {0}:{1}:{2}'.format(\
-                                r_stat.nickname,r_stat.fingerprint, pub_time))
+#                            print(\
+#                            'Descriptor not found for {0}:{1}:{2}'.format(\
+#                                r_stat.nickname,r_stat.fingerprint, pub_time))
+                            num_not_found += 1
                         else:
                             descriptors_out.append(\
                                 descriptors[r_stat.fingerprint][desc_time])
+                            num_found += 1
                     # output all discovered descriptors
                     if (cons_valid_after != None):                        
                         outpath = os.path.join(desc_out_dir,\
@@ -107,6 +114,10 @@ def process_consensuses(in_dirs):
                             f.write(unicode(desc).encode('utf8'))
                             f.write('\n')
                         f.close()
+                        print('Wrote descriptors for {0} relays.'.\
+                            format(num_found))
+                        print('Did not find descriptors for {0} relays\n'.\
+                            format(num_not_found))
                     else:
                         print('Problem parsing {0}.'.format(filename))             
                     num_consensuses += 1
