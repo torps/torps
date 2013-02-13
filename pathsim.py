@@ -35,12 +35,7 @@ def process_consensuses(in_dirs):
     for in_consensuses_dir, in_descriptors, desc_out_dir in in_dirs:
         num_descriptors = 0    
         num_relays = 0
-        
-        print(in_consensuses_dir)
-        print(in_descriptors)
-        print(desc_out_dir)
-        continue
-    
+
         # expire descriptors to save memory
         print('Expiring old descriptors from {0}.'.format(newest_fresh_until))
         num_expired_descs = 0
@@ -51,6 +46,7 @@ def process_consensuses(in_dirs):
                     num_expired_descs += 1
         print('Expired {0} descriptors.'.format(num_expired_descs))
     
+        print('Reading descriptors from: {0}'.format(in_descriptors))
         with sdr.DescriptorReader(in_descriptors, validate=False) as reader:
             reader.register_skip_listener(skip_listener)
             for desc in reader:
