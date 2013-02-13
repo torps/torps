@@ -51,7 +51,7 @@ def process_consensuses(in_dirs):
             reader.register_skip_listener(skip_listener)
             for desc in reader:
                 if (num_descriptors % 10000 == 0):
-                    print(num_descriptors)
+                    print('{0} descriptors processed.'.format(num_descriptors))
                 num_descriptors += 1
                 if (desc.fingerprint not in descriptors):
                     descriptors[desc.fingerprint] = {}
@@ -74,8 +74,10 @@ def process_consensuses(in_dirs):
                     for r_stat in sd.parse_file(cons_f, validate=False):
                         if (cons_valid_after == None):
                             cons_valid_after = r_stat.document.valid_after
-                        if (r_stat.document.fresh_until > newest_fresh_until):
-                            newest_fresh_until = r_stat.document.fresh_until
+                        if (timestamp(r_stat.document.fresh_until) > \
+                            newest_fresh_until):
+                            newest_fresh_until = \
+                                timestamp(r_stat.document.fresh_until)
                         # find most recent descriptor published before the
                         # publication time in the consensus
                         pub_time = timestamp(r_stat.published)
