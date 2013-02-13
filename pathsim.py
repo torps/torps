@@ -37,7 +37,7 @@ def process_consensuses(in_dirs, out_dir):
         num_relays = 0
     
         # expire descriptors to save memory
-        print('Expiring old descriptors from {0}.'.format(newesh_fresh_until))
+        print('Expiring old descriptors from {0}.'.format(newest_fresh_until))
         num_expired_descs = 0
         for descriptor_times in descriptors:
             for time in descriptor_times:
