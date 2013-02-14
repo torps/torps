@@ -166,27 +166,37 @@ def select_weighted_node(weighted_nodes):
     """Takes (node,cum_weight) pairs where non-negative cum_weight increases,
     ending at 1. Use cum_weights as cumulative probablity to select a node."""
     r = random.random()
-    for node, cum_weight in weighted_nodes:
-        if (r <= cum_weight):
-            return node
-    raise ValueError('Weights must sum to 1.')   
+    
+    begin = 0
+    end = len(weighted_nodes)-1
+    mid = int((end+begin)/2)
+    while True:
+        if (r <= weighted_nodes[mid][1]):
+            if (mid == begin):
+                return weighted_nodes[mid][0]
+            else:
+                end = mid
+                mid = int((end+begin)/2)
+        else:
+            if (mid == end):
+                raise ValueError('Weights must sum to 1.')
+            else:
+                begin = mid+1
+                mid = int((end+begin)/2)
     
 def can_exit_to_port(descriptor, port):
     """Returns if there is *some* ip that relay will exit to on port."""             
-    can_exit = None
     for rule in descriptor.exit_policy:
         if (port >= rule.min_port) and\
             (port <= rule.max_port) and\
-            rule.is_accept and (can_exit==None):
-            can_exit = True
+            rule.is_accept:
+            return True
         elif (port >= rule.min_port) and\
             (port <= rule.max_port) and\
             (not rule.is_accept) and\
-            rule.is_address_wildcard() and (can_exit==None):
-            can_exit = False
-    if (can_exit == None): # default accept if no rule matches
-        can_exit = True
-    return can_exit                 
+            rule.is_address_wildcard():
+            return False
+    return True # default accept if no rule matches
     
 def filter_exits(cons_rel_stats, descriptors, fast, stable, internal, ip,\
     port):
@@ -258,7 +268,7 @@ def get_weighted_exits(bw_weights, bwweightscale, cons_rel_stats,\
     exits = filter_exits(cons_rel_stats, descriptors, fast,\
         stable, internal, ip, port)
                     
-    # create weights if not given
+    # create weights
     weights = None
     if (internal):
         weights = get_position_weights(exits, cons_rel_stats, 'm',\
