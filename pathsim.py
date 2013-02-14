@@ -600,6 +600,217 @@ def circuit_supports_stream(circuit, stream, long_lived_ports):
             stream['type']))
             
 
+def timed_client_updates(cur_time, client_state, dirty_circuit_lifetime,\
+    port_needs_global, cons_rel_stats, cons_valid_after, cons_fresh_until,\
+    cons_bw_weights, cons_bwweightscale, descriptors,\
+    port_need_weighted_exits, weighted_middles, weighted_guards,\
+    internal_need_weighted_exits, _testing):
+    """Performs updates to client state that occur on a time schedule."""
+    
+    if _testing:
+        print('Client {0} timed update.'.\
+            format(client_state['id']))
+    guards = client_state['guards']
+    dirty_exit_circuits = client_state['dirty_exit_circuits']
+    clean_exit_circuits = client_state['clean_exit_circuits']
+    dirty_internal_circuit = client_state['dirty_internal_circuit']
+    clean_internal_circuit = client_state['clean_internal_circuit']
+            
+    # kill old dirty circuits
+    while (len(dirty_exit_circuits)>0) and\
+            (dirty_exit_circuits[-1]['dirty_time'] <=\
+                cur_time - dirty_circuit_lifetime):
+        if _testing:
+            print('Killed exit circuit at time {0} w/ dirty time \
+{1}'.format(cur_time, dirty_exit_circuits[-1]['dirty_time']))
+        dirty_exit_circuits.pop()
+    if (dirty_internal_circuit != None) and\
+        (dirty_internal_circuit['dirty_time'] <=\
+            cur_time - dirty_circuit_lifetime):
+        if _testing:                        
+            print('Killed internal circuit at time {0} w/ dirty \
+time {1}'.format(cur_time,dirty_internal_circuit['dirty_time']))
+        client_state['dirty_internal_circuit'] = None
+        dirty_internal_circuit =\
+            client_state['dirty_internal_circuit']
+                    
+    # cover uncovered ports
+    port_needs_covered = client_state['port_needs_covered']
+    for port, need in port_needs_global.items():
+        if (port_needs_covered[port] == 0):
+            # we need to make a new circuit
+            new_circ = create_circuit(cons_rel_stats,\
+                cons_valid_after, cons_fresh_until,\
+                cons_bw_weights, cons_bwweightscale,\
+                descriptors, guards, cur_time, need['fast'],\
+                need['stable'], False, None, port,\
+                port_need_weighted_exits[port], weighted_middles,
+                weighted_guards)
+            clean_exit_circuits.appendleft(new_circ)
+            # cover this port and any others
+            port_needs_covered[port] += 1
+            new_circ['covering'].append(port)
+            for pt, nd in port_needs_global.items():
+                if (pt != port) and\
+                    (circuit_covers_port_need(new_circ,\
+                        descriptors, pt, nd)):
+                    port_needs_covered[pt] += 1
+                    new_circ['covering'].append(pt)
+            if _testing:                                
+                print('Created circuit at time {0} to cover port \
+{1}.'.format(cur_time, port))
+
+    # check for internal circuit
+    if (clean_internal_circuit == None):
+        # create new internal circuit
+        client_state['clean_internal_circuit'] =\
+            create_circuit(cons_rel_stats,\
+                cons_valid_after, cons_fresh_until,\
+                cons_bw_weights, cons_bwweightscale, descriptors,\
+                guards, cur_time, True, True, True, None, None,\
+                internal_need_weighted_exits, weighted_middles,
+                weighted_guards)
+        clean_internal_circuit =\
+            client_state['clean_internal_circuit']
+        #circuits.append(new_circ)
+        if _testing:                    
+            print('Created clean internal circuit at time {0}.'.\
+                format(cur_time))  
+                
+                
+def client_assign_resolve_stream(client_state, stream, cons_rel_stats,\
+    cons_valid_after, cons_fresh_until, cons_bw_weights, cons_bwweightscale,\
+    descriptors, internal_need_weighted_exits, weighted_middles,\
+    weighted_guards, _testing):
+    """Assigns a 'resolve' stream to a circuit for a given client."""
+    
+    ### Variables added when code removed from create_circuits() ###
+    guards = client_state['guards']    
+    stream_assigned = None
+    dirty_internal_circuit =\
+        client_state['dirty_internal_circuit']
+    clean_internal_circuit =\
+        client_state['clean_internal_circuit']
+    ### End variables added when code removed from create_circuits() ###        
+
+    if (dirty_internal_circuit != None):
+        # use existing dirty internal circuit
+        stream_assigned = dirty_internal_circuit
+        if _testing:                            
+            print('Assigned stream to dirty internal \
+circuit at {0}'.format(stream['time']))
+    elif (clean_internal_circuit != None):
+        # dirty clean internal circuit
+        clean_internal_circuit['dirty_time'] =\
+            stream['time']
+        client_state['dirty_internal_circuit'] =\
+            clean_internal_circuit
+        dirty_internal_circuit = clean_internal_circuit
+        client_state['clean_internal_circuit'] = None
+        clean_internal_circuit =\
+            client_state['clean_internal_circuit']
+        stream_assigned = dirty_internal_circuit
+        if _testing:                                
+            print('Assigned stream to clean internal \
+circuit at {0}'.format(stream['time']))
+    else:
+        # create new internal circuit
+        client_state['dirty_internal_circuit'] =\
+            create_circuit(cons_rel_stats,\
+                cons_valid_after, cons_fresh_until,\
+                cons_bw_weights, cons_bwweightscale,\
+                descriptors, guards, stream['time'], True,\
+                True, True, None, None,\
+                internal_need_weighted_exits,\
+                weighted_middles, weighted_guards)
+        dirty_internal_circuit =\
+            client_state['dirty_internal_circuit']
+        dirty_internal_circuit['dirty_time'] =\
+            stream['time']
+        stream_assigned = dirty_internal_circuit
+        if _testing:                                
+            print('Created new internal circuit for \                                stream at {0}'.format(stream['time'])) 
+            
+    return stream_assigned         
+        
+        
+def client_assign_generic_stream(client_state, stream, cons_rel_stats,\
+    cons_valid_after, cons_fresh_until, cons_bw_weights, cons_bwweightscale,\
+    descriptors, stream_weighted_exits, weighted_middles, weighted_guards,\
+    long_lived_ports, _testing):
+    """Assigns a 'generic' stream to a circuit for a given client."""
+        
+    ### Variables added after code removed from create_circuits() ###
+    guards = client_state['guards']
+    dirty_exit_circuits = client_state['dirty_exit_circuits']
+    clean_exit_circuits = client_state['clean_exit_circuits']
+    stream_assigned = None
+    port_needs_covered = client_state['port_needs_covered']    
+    ######    
+
+    # try to use a dirty circuit
+    for circuit in dirty_exit_circuits:
+        if circuit_supports_stream(circuit, stream,\
+            long_lived_ports):
+            stream_assigned = circuit
+            if _testing:                                
+                print('Assigned stream to port {0} to \
+dirty circuit at {1}'.format(stream['port'],stream['time']))                                    
+            break        
+    # next try and use a clean circuit
+    if (stream_assigned == None):
+        new_clean_exit_circuits = collections.deque()
+        while (len(clean_exit_circuits) > 0):
+            circuit = clean_exit_circuits.popleft()
+            if (circuit_supports_stream(circuit, stream,\
+                long_lived_ports)):
+                stream_assigned = circuit
+                circuit['dirty_time'] = stream['time']
+                dirty_exit_circuits.appendleft(circuit)
+                new_clean_exit_circuits.extend(\
+                    clean_exit_circuits)
+                clean_exit_circuits.clear()
+                if _testing:                                    
+                    print('Assigned stream to port {0} to \
+clean circuit at {1}'.format(stream['port'], stream['time']))                                
+                    
+                # reduce cover count for covered port needs
+                for port in circuit['covering']:
+                    if (port in port_needs_covered):
+                        port_needs_covered[port] -= 1
+                        if _testing:                                                
+                            print('Decreased cover count \
+for port {0} to {1}.'.format(port, port_needs_covered[port]))
+                    else:
+                        if _testing:                                        
+                            print('Port {0} not found in \
+port_needs_covered'.format(port))
+            else:
+                new_clean_exit_circuits.append(circuit)
+        client_state['clean_exit_circuits'] =\
+            new_clean_exit_circuits
+        clean_exit_circuits = new_clean_exit_circuits
+    # if stream still unassigned we must make new circuit
+    if (stream_assigned == None):
+        stable = (stream['port'] in long_lived_ports)
+        new_circ = create_circuit(cons_rel_stats,\
+            cons_valid_after, cons_fresh_until,\
+            cons_bw_weights, cons_bwweightscale,\
+            descriptors, guards, stream['time'], True,\
+            stable, False, stream['ip'], stream['port'],\
+            stream_weighted_exits, weighted_middles,\
+            weighted_guards)
+        new_circ['dirty_time'] = stream['time']
+        stream_assigned = new_circ
+        dirty_exit_circuits.appendleft(new_circ)
+        if _testing:                            
+            print('Created circuit at time {0} to cover \
+stream to ip {1} and port {2}.'.format(stream['time'], stream['ip'],\
+stream['port'])) 
+
+    return stream_assigned                          
+
+
 def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
     cons_bw_weights, cons_bwweightscale, descriptors, guards,\
     circ_time, circ_fast, circ_stable, circ_internal, circ_ip, circ_port,\
@@ -922,76 +1133,13 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
             
             # do timed client updates
             for client_state in client_states:
-                if _testing:
-                    print('Client {0} timed update.'.\
-                        format(client_state['id']))
-                guards = client_state['guards']
-                dirty_exit_circuits = client_state['dirty_exit_circuits']
-                clean_exit_circuits = client_state['clean_exit_circuits']
-                dirty_internal_circuit = client_state['dirty_internal_circuit']
-                clean_internal_circuit = client_state['clean_internal_circuit']
-            
-                # kill old dirty circuits
-                while (len(dirty_exit_circuits)>0) and\
-                        (dirty_exit_circuits[-1]['dirty_time'] <=\
-                            cur_time - dirty_circuit_lifetime):
-                    if _testing:
-                        print('Killed exit circuit at time {0} w/ dirty time \
-{1}'.format(cur_time, dirty_exit_circuits[-1]['dirty_time']))
-                    dirty_exit_circuits.pop()
-                if (dirty_internal_circuit != None) and\
-                    (dirty_internal_circuit['dirty_time'] <=\
-                        cur_time - dirty_circuit_lifetime):
-                    if _testing:                        
-                        print('Killed internal circuit at time {0} w/ dirty \
-time {1}'.format(cur_time,dirty_internal_circuit['dirty_time']))
-                    client_state['dirty_internal_circuit'] = None
-                    dirty_internal_circuit =\
-                        client_state['dirty_internal_circuit']
-                    
-                # cover uncovered ports
-                port_needs_covered = client_state['port_needs_covered']
-                for port, need in port_needs_global.items():
-                    if (port_needs_covered[port] == 0):
-                        # we need to make a new circuit
-                        new_circ = create_circuit(cons_rel_stats,\
-                            cons_valid_after, cons_fresh_until,\
-                            cons_bw_weights, cons_bwweightscale,\
-                            descriptors, guards, cur_time, need['fast'],\
-                            need['stable'], False, None, port,\
-                            port_need_weighted_exits[port], weighted_middles,
-                            weighted_guards)
-                        clean_exit_circuits.appendleft(new_circ)
-                        # cover this port and any others
-                        port_needs_covered[port] += 1
-                        new_circ['covering'].append(port)
-                        for pt, nd in port_needs_global.items():
-                            if (pt != port) and\
-                                (circuit_covers_port_need(new_circ,\
-                                    descriptors, pt, nd)):
-                                port_needs_covered[pt] += 1
-                                new_circ['covering'].append(pt)
-                        if _testing:                                
-                            print('Created circuit at time {0} to cover port \
-{1}.'.format(cur_time, port))
+                timed_client_updates(cur_time, client_state,\
+                    dirty_circuit_lifetime, port_needs_global, cons_rel_stats,\
+                    cons_valid_after, cons_fresh_until, cons_bw_weights,\
+                    cons_bwweightscale, descriptors, port_need_weighted_exits,\
+                    weighted_middles, weighted_guards,\
+                    internal_need_weighted_exits, _testing)
 
-                # check for internal circuit
-                if (clean_internal_circuit == None):
-                    # create new internal circuit
-                    client_state['clean_internal_circuit'] =\
-                        create_circuit(cons_rel_stats,\
-                            cons_valid_after, cons_fresh_until,\
-                            cons_bw_weights, cons_bwweightscale, descriptors,\
-                            guards, cur_time, True, True, True, None, None,\
-                            internal_need_weighted_exits, weighted_middles,
-                            weighted_guards)
-                    clean_internal_circuit =\
-                        client_state['clean_internal_circuit']
-                    #circuits.append(new_circ)
-                    if _testing:                    
-                        print('Created clean internal circuit at time {0}.'.\
-                            format(cur_time))  
-                        
             # collect streams that occur during current period
             while (stream_start < len(streams)) and\
                 (streams[stream_start]['time'] < cur_time):
@@ -1076,104 +1224,20 @@ time {1}'.format(cur_time,dirty_internal_circuit['dirty_time']))
                  
                     stream_assigned = None
                     if (stream['type'] == 'resolve'):
-                        if (dirty_internal_circuit != None):
-                            # use existing dirty internal circuit
-                            stream_assigned = dirty_internal_circuit
-                            if _testing:                            
-                                print('Assigned stream to dirty internal \
-circuit at {0}'.format(stream['time']))
-                        elif (clean_internal_circuit != None):
-                            # dirty clean internal circuit
-                            clean_internal_circuit['dirty_time'] =\
-                                stream['time']
-                            client_state['dirty_internal_circuit'] =\
-                                clean_internal_circuit
-                            dirty_internal_circuit = clean_internal_circuit
-                            client_state['clean_internal_circuit'] = None
-                            clean_internal_circuit =\
-                                client_state['clean_internal_circuit']
-                            stream_assigned = dirty_internal_circuit
-                            if _testing:                                
-                                print('Assigned stream to clean internal \
-circuit at {0}'.format(stream['time']))
-                        else:
-                            # create new internal circuit
-                            client_state['dirty_internal_circuit'] =\
-                                create_circuit(cons_rel_stats,\
-                                    cons_valid_after, cons_fresh_until,\
-                                    cons_bw_weights, cons_bwweightscale,\
-                                    descriptors, guards, stream['time'], True,\
-                                    True, True, None, None,\
-                                    internal_need_weighted_exits,\
-                                    weighted_middles, weighted_guards)
-                            dirty_internal_circuit =\
-                                client_state['dirty_internal_circuit']
-                            dirty_internal_circuit['dirty_time'] =\
-                                stream['time']
-                            stream_assigned = dirty_internal_circuit
-                            if _testing:                                
-                                print('Created new internal circuit for \                                stream at {0}'.format(stream['time'])) 
+                        stream_assigned = client_assign_resolve_stream(\
+                            client_state, stream, cons_rel_stats,\
+                            cons_valid_after, cons_fresh_until,\
+                            cons_bw_weights, cons_bwweightscale,\
+                            descriptors, internal_need_weighted_exits,\
+                            weighted_middles, weighted_guards, _testing)
                     elif (stream['type'] == 'generic'):
-                        stream_assigned = None                    
-                        # try to use a dirty circuit
-                        for circuit in dirty_exit_circuits:
-                            if circuit_supports_stream(circuit, stream,\
-                                long_lived_ports):
-                                stream_assigned = circuit
-                                if _testing:                                
-                                    print('Assigned stream to port {0} to \
-dirty circuit at {1}'.format(stream['port'],stream['time']))                                    
-                                break        
-                        # next try and use a clean circuit
-                        if (stream_assigned == None):
-                            new_clean_exit_circuits = collections.deque()
-                            while (len(clean_exit_circuits) > 0):
-                                circuit = clean_exit_circuits.popleft()
-                                if (circuit_supports_stream(circuit, stream,\
-                                    long_lived_ports)):
-                                    stream_assigned = circuit
-                                    circuit['dirty_time'] = stream['time']
-                                    dirty_exit_circuits.appendleft(circuit)
-                                    new_clean_exit_circuits.extend(\
-                                        clean_exit_circuits)
-                                    clean_exit_circuits.clear()
-                                    if _testing:                                    
-                                        print('Assigned stream to port {0} to \
-clean circuit at {1}'.format(stream['port'], stream['time']))                                
-                                        
-                                    # reduce cover count for covered port needs
-                                    for port in circuit['covering']:
-                                        if (port in port_needs_covered):
-                                            port_needs_covered[port] -= 1
-                                            if _testing:                                                
-                                                print('Decreased cover count \
-for port {0} to {1}.'.format(port, port_needs_covered[port]))
-                                        else:
-                                            if _testing:                                        
-                                                print('Port {0} not found in \
-port_needs_covered'.format(port))
-                                else:
-                                    new_clean_exit_circuits.append(circuit)
-                            client_state['clean_exit_circuits'] =\
-                                new_clean_exit_circuits
-                            clean_exit_circuits = new_clean_exit_circuits
-                        # if stream still unassigned we must make new circuit
-                        if (stream_assigned == None):
-                            stable = (stream['port'] in long_lived_ports)
-                            new_circ = create_circuit(cons_rel_stats,\
-                                cons_valid_after, cons_fresh_until,\
-                                cons_bw_weights, cons_bwweightscale,\
-                                descriptors, guards, stream['time'], True,\
-                                stable, False, stream['ip'], stream['port'],\
-                                stream_weighted_exits, weighted_middles,\
-                                weighted_guards)
-                            new_circ['dirty_time'] = stream['time']
-                            stream_assigned = new_circ
-                            dirty_exit_circuits.appendleft(new_circ)
-                            if _testing:                            
-                                print('Created circuit at time {0} to cover \
-stream to ip {1} and port {2}.'.format(stream['time'], stream['ip'],\
-stream['port'])) 
+                        stream_assigned = client_assign_generic_stream(\
+                            client_state, stream, cons_rel_stats,\
+                            cons_valid_after, cons_fresh_until,\
+                            cons_bw_weights, cons_bwweightscale,\
+                            descriptors, stream_weighted_exits,\
+                            weighted_middles, weighted_guards,\
+                            long_lived_ports, _testing)
                     else:
                         raise ValueError('Stream type not recognized: {0}'.\
                             format(stream['type']))
@@ -1336,6 +1400,7 @@ out_dir/processed_descriptors-year-month.\n\
 # - check that empty node sets are handled
 # - circuits only recorded as fast/stable/internal if they were chosen to
 #   satisfy that, but they may just by chance. should we check?
+# - check why so few (80) exits to port 80 in 8/2/2012
 
 
 ##### Relevant lines for path selection extracted from Tor specs.
