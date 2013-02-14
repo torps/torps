@@ -187,15 +187,18 @@ def select_weighted_node(weighted_nodes):
 def can_exit_to_port(descriptor, port):
     """Returns if there is *some* ip that relay will exit to on port."""             
     for rule in descriptor.exit_policy:
-        if (port >= rule.min_port) and\
-            (port <= rule.max_port) and\
-            rule.is_accept:
-            return True
-        elif (port >= rule.min_port) and\
-            (port <= rule.max_port) and\
-            (not rule.is_accept) and\
-            rule.is_address_wildcard():
-            return False
+        if (rule.is_accept):
+            if (port >= rule.min_port) and\
+                (port <= rule.max_port):
+                return True
+        else:
+            if (port >= rule.min_port) and\
+                (port <= rule.max_port) and\
+                (rule.is_address_wildcard()):
+                # may not be technically correct if together
+                # the reject rules cover all ips, even though
+                # no one of them does
+                return False
     return True # default accept if no rule matches
     
 def filter_exits(cons_rel_stats, descriptors, fast, stable, internal, ip,\
@@ -282,22 +285,27 @@ def get_weighted_exits(bw_weights, bwweightscale, cons_rel_stats,\
 def in_same_family(descriptors, node1, node2):
     """Takes list of descriptors and two node fingerprints,
     checks if nodes list each other as in the same family."""
-    
+
     desc1 = descriptors[node1]
     desc2 = descriptors[node2]
-    family1 = desc1.family
-    family2 = desc2.family
+    fprint1 = desc1.fingerprint
+    fprint2 = desc1.fingerprint
+    nick1 = desc1.nickname
+    nick2 = desc2.nickname
+
     node1_lists_node2 = False
-    for member in family1:
-        if (member == ('$'+desc2.fingerprint)) or\
-            (member == desc2.nickname):
+    for member in desc1.family:
+        if ((member[0] == '$') and (member[1:] == fprint2)) or\
+            (member == nick2):
             node1_lists_node2 = True
-    node2_lists_node1 = False
-    for member in family2:
-        if (member == ('$'+desc1.fingerprint)) or\
-            (member == desc1.nickname):
-            node2_lists_node1 = True
-    return (node1_lists_node2 and node2_lists_node1)
+
+    if (node1_lists_node2):
+        for member in desc2.family:
+            if ((member[0] == '$') and (member[1:] == fprint1)) or\
+                (member == nick1):
+                return True
+
+    return False
     
 def in_same_16_subnet(address1, address2):
     """Takes IPv4 addresses as strings and checks if the first two bytes
@@ -546,9 +554,9 @@ def get_guards_for_circ(bw_weights, bwweightscale, cons_rel_stats,\
 def circuit_covers_port_need(circuit, descriptors, port, need):
     """Returns if circuit satisfies a port need, ignoring the circuit
     time and need expiration."""
-    return (can_exit_to_port(descriptors[circuit['path'][-1]], port)) and\
-        ((not need['fast']) or (circuit['fast'])) and\
-        ((not need['stable']) or (circuit['stable']))
+    return ((not need['fast']) or (circuit['fast'])) and\
+            ((not need['stable']) or (circuit['stable'])) and\
+            (can_exit_to_port(descriptors[circuit['path'][-1]], port))
         
         
 def print_mapped_stream(client_id, circuit, stream, descriptors):
@@ -954,10 +962,13 @@ time {1}'.format(cur_time,dirty_internal_circuit['dirty_time']))
                             port_need_weighted_exits[port], weighted_middles,
                             weighted_guards)
                         clean_exit_circuits.appendleft(new_circ)
-                        # have new_circ cover all ports it can
+                        # cover this port and any others
+                        port_needs_covered[port] += 1
+                        new_circ['covering'].append(port)
                         for pt, nd in port_needs_global.items():
-                            if (circuit_covers_port_need(new_circ,\
-                                descriptors, pt, nd)):
+                            if (pt != port) and\
+                                (circuit_covers_port_need(new_circ,\
+                                    descriptors, pt, nd)):
                                 port_needs_covered[pt] += 1
                                 new_circ['covering'].append(pt)
                         if _testing:                                
@@ -1323,6 +1334,8 @@ out_dir/processed_descriptors-year-month.\n\
 # - Add in multiple circuits covering the same need
 # - check if exits and middles should be excluding hibernating relays (they currently are)
 # - check that empty node sets are handled
+# - circuits only recorded as fast/stable/internal if they were chosen to
+#   satisfy that, but they may just by chance. should we check?
 
 
 ##### Relevant lines for path selection extracted from Tor specs.
