@@ -1323,15 +1323,17 @@ out_dir/processed_descriptors-year-month.\n\
             month = 1
         process_consensuses(in_dirs)
     elif (command == 'simulate'):
+#simulate \
+#[consensuses] [descriptors] [# samples] [testing]    
         # get lists of consensuses and the related processed-descriptor files 
         if (len(sys.argv) >= 3):
-            relstats_dir = sys.argv[2]
+            consensuses_dir = sys.argv[2]
         else:
-            relstats_dir = 'out/pickled-relstats'
+            consensuses_dir = 'in/consensuses'
         if (len(sys.argv) >= 4):
             descriptor_dir = sys.argv[3]
         else:
-            descriptor_dir = 'out/pickled-descriptors'
+            descriptor_dir = 'out/processed-descriptors'
         if (len(sys.argv) >= 5):
             num_samples = int(sys.argv[4])
         else:
@@ -1341,15 +1343,17 @@ out_dir/processed_descriptors-year-month.\n\
         else:
             _testing = False            
         
-        relstats_files = []
-        for dirpath, dirnames, filenames in os.walk(relstats_dir):
+        consensus_files = []
+        for dirpath, dirnames, filenames in os.walk(consensuses_dir,\
+            followlinks=True):
             for filename in filenames:
                 if (filename[0] != '.'):
-                    relstats_files.append(os.path.join(dirpath,filename))
-        relstats_files.sort()
+                    consensus_files.append(os.path.join(dirpath,filename))
+        consensus_files.sort()
         
         processed_descriptor_files = []
-        for dirpath, dirnames, filenames in os.walk(descriptor_dir):
+        for dirpath, dirnames, filenames in os.walk(descriptor_dir,\
+            followlinks=True):
             for filename in filenames:
                 if (filename[0] != '.'):
                     processed_descriptor_files.append(\
@@ -1358,14 +1362,14 @@ out_dir/processed_descriptors-year-month.\n\
 
         # determine start and end times
         start_time = None
-        with open(relstats_files[0]) as cf:
+        with open(consensus_files[0]) as cf:
             for rel_stat in sd.parse_file(cf, validate=False):
                 if (start_time == None):
                     start_time =\
                         timestamp(rel_stat.document.valid_after)
                     break
         end_time = None
-        with open(relstats_files[-1]) as cf:
+        with open(consensus_files[-1]) as cf:
             for rel_stat in sd.parse_file(cf, validate=False):
                 if (end_time == None):
                     end_time =\
@@ -1381,7 +1385,7 @@ out_dir/processed_descriptors-year-month.\n\
             streams.append({'time':t,'type':'resolve','ip':None,'port':None})
             streams.append({'time':t,'type':'generic','ip':str_ip,'port':80})
             t += http_request_rate
-        create_circuits(relstats_files, processed_descriptor_files, streams,\
+        create_circuits(consensus_files, processed_descriptor_files, streams,\
             num_samples)    
 
 # TODO
