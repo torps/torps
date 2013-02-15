@@ -1278,10 +1278,10 @@ range from start_year and start_month to end_year and end_month. Write the \
 matched descriptors for each consensus to \
 out_dir/processed_descriptors-year-month.\n\
 \tsimulate \
-[consensuses] [descriptors] [# samples] [testing]: Do a\
+[consensuses] [descriptors] [# samples] [# reqs] [testing]: Do a\
  bunch of simulated path selections using consensuses from \
 [consensuses], matching descriptors from [descriptors], taking \
-[# samples] samples, and printing debug info if [testing].'
+[# samples], making [# reqs] web requests per hour, and printing debug info if [testing].'
     if (len(sys.argv) <= 1):
         print(usage)
         sys.exit(1)
@@ -1338,7 +1338,11 @@ out_dir/processed_descriptors-year-month.\n\
             num_samples = int(sys.argv[4])
         else:
             num_samples = 1
-        if (len(sys.argv) >= 6) and (sys.argv[5] == '1'):
+        if (len(sys.argv) >= 6):
+            num_requests = int(sys.argv[5])
+        else:
+            num_requests = 6
+        if (len(sys.argv) >= 7) and (sys.argv[6] == '1'):
             _testing = True
         else:
             _testing = False            
@@ -1377,12 +1381,16 @@ out_dir/processed_descriptors-year-month.\n\
                     break        
 
         # simple user that makes a port 80 request & resolve every x seconds
-        http_request_rate = 5 * 60
+        http_request_rate = int(60 / num_requests) * 60
         str_ip = '74.125.131.105' # www.google.com
         t = start_time
+        last_resolve_time = 0
         streams = []
         while (t < end_time):
-            streams.append({'time':t,'type':'resolve','ip':None,'port':None})
+            if (t - last_resolve_time > 60*60): # make one DNS resolve per hour
+                streams.append(\
+                    {'time':t,'type':'resolve','ip':None,'port':None})
+                last_resolve_time = t
             streams.append({'time':t,'type':'generic','ip':str_ip,'port':80})
             t += http_request_rate
         create_circuits(consensus_files, processed_descriptor_files, streams,\
