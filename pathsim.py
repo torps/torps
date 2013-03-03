@@ -600,7 +600,7 @@ def circuit_supports_stream(circuit, stream, long_lived_ports):
             stream['type']))
             
 
-def timed_client_updates(cur_time, client_state, dirty_circuit_lifetime,\
+def timed_client_updates(cur_time, client_state, max_circuit_dirtiness,\
     port_needs_global, cons_rel_stats, cons_valid_after, cons_fresh_until,\
     cons_bw_weights, cons_bwweightscale, descriptors,\
     port_need_weighted_exits, weighted_middles, weighted_guards,\
@@ -619,14 +619,14 @@ def timed_client_updates(cur_time, client_state, dirty_circuit_lifetime,\
     # kill old dirty circuits
     while (len(dirty_exit_circuits)>0) and\
             (dirty_exit_circuits[-1]['dirty_time'] <=\
-                cur_time - dirty_circuit_lifetime):
+                cur_time - max_circuit_dirtiness):
         if _testing:
             print('Killed exit circuit at time {0} w/ dirty time \
 {1}'.format(cur_time, dirty_exit_circuits[-1]['dirty_time']))
         dirty_exit_circuits.pop()
     if (dirty_internal_circuit != None) and\
         (dirty_internal_circuit['dirty_time'] <=\
-            cur_time - dirty_circuit_lifetime):
+            cur_time - max_circuit_dirtiness):
         if _testing:                        
             print('Killed internal circuit at time {0} w/ dirty \
 time {1}'.format(cur_time,dirty_internal_circuit['dirty_time']))
@@ -637,28 +637,29 @@ time {1}'.format(cur_time,dirty_internal_circuit['dirty_time']))
     # cover uncovered ports
     port_needs_covered = client_state['port_needs_covered']
     for port, need in port_needs_global.items():
-        if (port_needs_covered[port] == 0):
-            # we need to make a new circuit
-            new_circ = create_circuit(cons_rel_stats,\
-                cons_valid_after, cons_fresh_until,\
-                cons_bw_weights, cons_bwweightscale,\
-                descriptors, guards, cur_time, need['fast'],\
-                need['stable'], False, None, port,\
-                port_need_weighted_exits[port], weighted_middles,
-                weighted_guards)
-            clean_exit_circuits.appendleft(new_circ)
-            # cover this port and any others
-            port_needs_covered[port] += 1
-            new_circ['covering'].append(port)
-            for pt, nd in port_needs_global.items():
-                if (pt != port) and\
-                    (circuit_covers_port_need(new_circ,\
-                        descriptors, pt, nd)):
-                    port_needs_covered[pt] += 1
-                    new_circ['covering'].append(pt)
+        if (port_needs_covered[port] < need['cover_num']):
+            # we need to make new circuits
             if _testing:                                
-                print('Created circuit at time {0} to cover port \
-{1}.'.format(cur_time, port))
+                print('Creating {0} circuit(s) at time {1} to cover port \
+{2}.'.format(need['cover_num']-port_needs_covered[port], cur_time, port))
+            while (port_needs_covered[port] < need['cover_num']):
+                new_circ = create_circuit(cons_rel_stats,\
+                    cons_valid_after, cons_fresh_until,\
+                    cons_bw_weights, cons_bwweightscale,\
+                    descriptors, guards, cur_time, need['fast'],\
+                    need['stable'], False, None, port,\
+                    port_need_weighted_exits[port], weighted_middles,
+                    weighted_guards)
+                clean_exit_circuits.appendleft(new_circ)
+                # cover this port and any others
+                port_needs_covered[port] += 1
+                new_circ['covering'].append(port)
+                for pt, nd in port_needs_global.items():
+                    if (pt != port) and\
+                        (circuit_covers_port_need(new_circ,\
+                            descriptors, pt, nd)):
+                        port_needs_covered[pt] += 1
+                        new_circ['covering'].append(pt)
 
     # check for internal circuit
     if (clean_internal_circuit == None):
@@ -928,7 +929,7 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
     
     ### Tor parameters ###
     # max age of a dirty circuit to which new streams can be assigned
-    dirty_circuit_lifetime = 10*60
+    max_circuit_dirtiness = 10*60
     
     # long-lived ports (taken from path-spec.txt)
     long_lived_ports = [21, 22, 706, 1863, 5050, 5190, 5222, 5223, 6667,\
@@ -941,7 +942,9 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
     guard_down_time = 30*24*3600 # time guard can be down until is removed
     
     # needs that apply to all samples
-    port_needs_global = {80:{'expires':None, 'fast':True, 'stable':False}}
+    port_need_cover_num = 2
+    port_needs_global = {80:{'expires':None, 'fast':True, 'stable':False,
+        'cover_num':port_need_cover_num}}
 
     ### Client states for each sample ###
     client_states = []
@@ -951,7 +954,7 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
         # internal_covered_count just ensures a clean internal
         # circuits stored all circuits created
         # live_circuits listed by age, circuit live if it's clean or younger
-        #   than dirty_circuit_lifetime
+        #   than max_circuit_dirtiness
         port_needs_covered = {}
         for port in port_needs_global:
             port_needs_covered[port] = 0
@@ -981,7 +984,6 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
         # read in descriptors and consensus statuses
         if _testing:
             print('Using rel_stats file {0}'.format(r_file))
-        cons_rel_stats = None
         cons_valid_after = None
         cons_fresh_until = None
         cons_bw_weights = None
@@ -1134,7 +1136,7 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
             # do timed client updates
             for client_state in client_states:
                 timed_client_updates(cur_time, client_state,\
-                    dirty_circuit_lifetime, port_needs_global, cons_rel_stats,\
+                    max_circuit_dirtiness, port_needs_global, cons_rel_stats,\
                     cons_valid_after, cons_fresh_until, cons_bw_weights,\
                     cons_bwweightscale, descriptors, port_need_weighted_exits,\
                     weighted_middles, weighted_guards,\
@@ -1166,7 +1168,8 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
                         port_needs_global[port] = {
                             'expires':(stream['time']+port_need_lifetime),
                             'fast':True,
-                            'stable':(port in long_lived_ports)}
+                            'stable':(port in long_lived_ports),
+                            'cover_num':port_need_cover_num}
                         # adjust cover counts for the new port need
                         for client_state in client_states:
                             client_state['port_needs_covered'][port] = 0
@@ -1200,8 +1203,9 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
                         descriptors, True, stable, False, stream['ip'],\
                         stream['port'])                    
                     if _testing:                        
-                        print('# exits for stream to {0}:{1}'.\
-                            format(stream['ip'], stream['port']))
+                        print('# exits for stream to {0} on port {1}: {2}'.\
+                            format(stream['ip'], stream['port'],
+                                len(stream_exits)))
                     stream_exit_weights = get_position_weights(\
                         stream_exits, cons_rel_stats, 'e', cons_bw_weights,\
                         cons_bwweightscale)
@@ -1380,19 +1384,20 @@ out_dir/processed_descriptors-year-month.\n\
                         timestamp(rel_stat.document.fresh_until)
                     break        
 
-        # simple user that makes a port 80 request & resolve every x seconds
-        http_request_rate = int(60 / num_requests) * 60
+        # simple user that makes a port 80 request /resolve every x / y seconds
+        http_request_wait = int(60 / num_requests) * 60
+        resolve_wait = 60*60 # make one DNS resolve per hour
         str_ip = '74.125.131.105' # www.google.com
         t = start_time
         last_resolve_time = 0
         streams = []
         while (t < end_time):
-            if (t - last_resolve_time > 60*60): # make one DNS resolve per hour
+            if (t - last_resolve_time > resolve_wait):
                 streams.append(\
                     {'time':t,'type':'resolve','ip':None,'port':None})
                 last_resolve_time = t
             streams.append({'time':t,'type':'generic','ip':str_ip,'port':80})
-            t += http_request_rate
+            t += http_request_wait
         create_circuits(consensus_files, processed_descriptor_files, streams,\
             num_samples)    
 
@@ -1405,14 +1410,14 @@ out_dir/processed_descriptors-year-month.\n\
 #   those older than 48 hours, which should expire (dir-spec.txt, Sec. 5.2).
 # - Implement (or indicate) fail-back if enough fast/stable nodes not found.
 # - Implement max limit (12 in path-spec.txt) on # circuits.
-# - Figure out if and when clean circuits are torn down.
+# - Figure out if and when clean circuits are torn down
+#   Answer: CircuitIdleTimeout = 1 hour (default)
 # - Implement user non-activity for an hour means _no_ preemptive circuits.
-# - Add in multiple circuits covering the same need
+# - Add multiple circuits covering the same internal need (already done for port needs). Low priority because newest clean circuit will always be used (unlike with exit circuits for which the stream ip might conflict with exit policy), and thus this currently doesn't affect circuit selection. Adding a model of delay and failure would change this, though.
 # - check if exits and middles should be excluding hibernating relays (they currently are)
 # - check that empty node sets are handled
 # - circuits only recorded as fast/stable/internal if they were chosen to
 #   satisfy that, but they may just by chance. should we check?
-# - check why so few (80) exits to port 80 in 8/2/2012
 
 
 ##### Relevant lines for path selection extracted from Tor specs.
