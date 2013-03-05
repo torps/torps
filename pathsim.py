@@ -936,12 +936,15 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
         6697, 8300]
         
     # observed port creates a need active for a limited amount of time
-    port_need_lifetime = 60*60 # need expires after an hour
+    # given with "#define PREDICTED_CIRCS_RELEVANCE_TIME 60*60" in rephist.c
+    # need expires after an hour
+    port_need_lifetime = 60*60 
 
     # time a guard can stay down until it is removed from list    
     guard_down_time = 30*24*3600 # time guard can be down until is removed
     
     # needs that apply to all samples
+    # given with "#define MIN_CIRCUITS_HANDLING_STREAM 2" in or.h
     port_need_cover_num = 2
     port_needs_global = {80:{'expires':None, 'fast':True, 'stable':False,
         'cover_num':port_need_cover_num}}
@@ -1409,7 +1412,8 @@ out_dir/processed_descriptors-year-month.\n\
 # - Check for descriptors that aren't the ones in the consensus, particularly
 #   those older than 48 hours, which should expire (dir-spec.txt, Sec. 5.2).
 # - Implement (or indicate) fail-back if enough fast/stable nodes not found.
-# - Implement max limit (12 in path-spec.txt) on # circuits.
+# - Implement max limit (12 in path-spec.txt,
+#   #define MAX_UNUSED_OPEN_CIRCUITS 14 in circuituse.c) on # circuits.
 # - Figure out if and when clean circuits are torn down
 #   Answer: CircuitIdleTimeout = 1 hour (default)
 # - Implement user non-activity for an hour means _no_ preemptive circuits.
@@ -1418,6 +1422,9 @@ out_dir/processed_descriptors-year-month.\n\
 # - check that empty node sets are handled
 # - circuits only recorded as fast/stable/internal if they were chosen to
 #   satisfy that, but they may just by chance. should we check?
+# - rewrite can_exit_to_port hto be consistent with compare_unknown_tor_addr_to_addr_policy (in policies.c). Tor generally treats ADDR_POLICY_PROBABLY_REJECTED as ADDR_POLICY_REJECTED (exception: when specific exit node is requested).
+# - Verify that DNS resolve circuits (hint: I think will have EXIT_PURPOSE_RESOLVE and also CIRCUIT_PURPOSE_C_GENERAL). Note that in connection_ap_can_use_exit() [connection_edge.c], a circuit for a resolve request appears to not be assigned to circuits that don't end in exit nodes (i.e. any node with node_exit_policy_rejects_all(node)).
+# - Tor maintains preemptive resolve circuits by pretending resolves are a port 80 request for the purpose of maintaining port needs.
 
 
 ##### Relevant lines for path selection extracted from Tor specs.
