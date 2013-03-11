@@ -20,3 +20,4 @@
 18. Are circuits that are created to be internal ever used to exit, if the last relay does happen to support it? Conversely, are streams created to exit ever used for internal connections?
 19. When circuits are created for waiting stream requests, is the Fast flag used at all?
 20. When are clean circuits torn down if ever?
+21. Under what circumstances does SOCKS_RESOLVE_REQUEST occur? SOCKS5 doesn't seem to have a "RESOLVE" command, just CONNECT/BIND/UDP.

@@ -26,8 +26,18 @@ run_scheduled_events() [main.c]
     -> circuit_launch() 
 
 *** Function called when new SOCKS cxn made ***
+[connection_ap_rewrite_and_attach_if_allowed usually used to call connection_ap_handshake_rewrite_and_attach]
 connection_ap_handshake_rewrite_and_attach(entry_connection_t *conn, origin_circuit_t *circ, crypt_path_t *cpath)
   -> rep_hist_note_used_resolve(now) [for SOCKS_COMMAND_RESOLVE]
   -> rep_hist_note_used_port(now, socks->port) [for SOCKS_COMMAND_CONNECT]
   -> rep_hist_note_used_resolve(now) [for SOCKS_COMMAND_RESOLVE_PTR]
   -> connection_ap_handshake_attach_circuit(conn)
+    -> circuit_get_open_circ_or_launch(conn, CIRCUIT_PURPOSE_C_GENERAL, &circ)
+      -> circuit_get_best(conn, 1, desired_circuit_purpose, need_uptime, need_internal) [is a suitable circuit already open?]
+      -> circ = circuit_get_best(conn, 0, desired_circuit_purpose, need_uptime, need_internal) [check for one "on the way"]
+        -> circuit_is_acceptable(origin_circ,conn,must_be_open,purpose, need_uptime,need_internal,now.tv_sec)
+          -> connection_ap_can_use_exit(conn, exitnode)
+            -> compare_tor_addr_to_node_policy(addrp, conn->socks_request->port,exit) [policies.c]
+              -> compare_tor_addr_to_addr_policy(addr, port, node->ri->exit_policy) [policies.c]
+        -> circuit_is_better(origin_circ,best,conn)
+    -> connection_ap_handshake_attach_chosen_circuit(conn, circ, NULL)
