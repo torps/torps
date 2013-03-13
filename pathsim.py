@@ -567,8 +567,8 @@ def circuit_supports_stream(circuit, stream, long_lived_ports):
             
 
 def timed_client_updates(cur_time, client_state, max_circuit_dirtiness,\
-    port_needs_global, cons_rel_stats, cons_valid_after, cons_fresh_until,\
-    cons_bw_weights, cons_bwweightscale, descriptors,\
+    circuit_idle_timeout, port_needs_global, cons_rel_stats, cons_valid_after,\
+    cons_fresh_until, cons_bw_weights, cons_bwweightscale, descriptors,\
     port_need_weighted_exits, weighted_middles, weighted_guards, _testing):
     """Performs updates to client state that occur on a time schedule."""
     
@@ -584,10 +584,19 @@ def timed_client_updates(cur_time, client_state, max_circuit_dirtiness,\
             (dirty_exit_circuits[-1]['dirty_time'] <=\
                 cur_time - max_circuit_dirtiness):
         if _testing:
-            print('Killed exit circuit at time {0} w/ dirty time \
+            print('Killed dirty exit circuit at time {0} w/ dirty time \
 {1}'.format(cur_time, dirty_exit_circuits[-1]['dirty_time']))
         dirty_exit_circuits.pop()
-                    
+        
+    # kill old clean circuits
+    while (len(clean_exit_circuits)>0) and\
+            (clean_exit_circuits[-1]['time'] <=\
+                cur_time - circuit_idle_timeout):
+        if _testing:
+            print('Killed clean exit circuit at time {0} w/ time \
+{1}'.format(cur_time, clean_exit_circuits[-1]['time']))
+        clean_exit_circuits.pop()
+                  
     # cover uncovered ports
     port_needs_covered = client_state['port_needs_covered']
     for port, need in port_needs_global.items():
@@ -721,7 +730,7 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
             'time': (int) seconds from time zero
             'fast': (bool) relays must have Fast flag
             'stable': (bool) relays must have Stable flag
-            'internal': (bool) is for DNS or hidden service
+            'internal': (bool) is internal (e.g. for hidden service)
             'dirty_time': (int) timestamp of time dirtied, None if clean
             'path': (tuple) list in-order fingerprints for path's nodes
             'cons_rel_stats': (dict) relay stats for active consensus
@@ -811,6 +820,10 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
     # set by MaxCircuitDirtiness option in Tor (default: 10 min.)
     max_circuit_dirtiness = 10*60
     
+    # max age of a clean circuit
+    # set by CircuitIdleTimeout in Tor (default: 60 min.)
+    circuit_idle_timeout = 60*60
+    
     # long-lived ports (taken from path-spec.txt)
     long_lived_ports = [21, 22, 706, 1863, 5050, 5190, 5222, 5223, 6667,\
         6697, 8300]
@@ -827,6 +840,7 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
     # needs that apply to all samples
     # min coverage given with "#define MIN_CIRCUITS_HANDLING_STREAM 2" in or.h
     port_need_cover_num = 2
+    
     port_needs_global = {}
 
     ### Client states for each sample ###
@@ -1013,7 +1027,8 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
             # do timed client updates
             for client_state in client_states:
                 timed_client_updates(cur_time, client_state,\
-                    max_circuit_dirtiness, port_needs_global, cons_rel_stats,\
+                    max_circuit_dirtiness, circuit_idle_timeout,\
+                    port_needs_global, cons_rel_stats,\
                     cons_valid_after, cons_fresh_until, cons_bw_weights,\
                     cons_bwweightscale, descriptors, port_need_weighted_exits,\
                     weighted_middles, weighted_guards, _testing)
