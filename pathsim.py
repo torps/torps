@@ -310,27 +310,6 @@ def in_same_family(descriptors, node1, node2):
 def in_same_16_subnet(address1, address2):
     """Takes IPv4 addresses as strings and checks if the first two bytes
     are equal."""
-# changed for speed
-#    address1_list = address1.split('.')
-#    address2_list = address2.split('.')
-    
-    # do some address format checking
-# removed for speed
-#    if (len(address1_list) == 4) and\
-#        (len(address2_list) == 4):
-#        for substr in address1_list:
-#            if (not substr.isdigit()):
-#                raise ValueError(\
-#                    'in_same_16_subset() needs IPv4 address strings')
-#        for substr in address2_list:
-#            if (not substr.isdigit()):
-#                raise ValueError(\
-#                    'in_same_16_subset() needs IPv4 address strings')
-   
-# changed for speed
-#    return (address1_list[0] == address2_list[0]) and\
-#        (address1_list[1] == address2_list[1])
-
     # check first octet
     i = 0
     while (address1[i] != '.'):
@@ -565,46 +544,32 @@ def print_mapped_stream(client_id, circuit, stream, descriptors):
     guard_ip = descriptors[circuit['path'][0]].address
     middle_ip = descriptors[circuit['path'][1]].address
     exit_ip = descriptors[circuit['path'][2]].address
-    dest_ip = None
-    if (stream['ip'] == None):
-        dest_ip = 0
-    else:
-        dest_ip = stream['ip']
+    dest_ip = stream['ip']
     print('{0}\t{1}\t{2}\t{3}\t{4}\t{5}'.format(client_id, stream['time'],\
         guard_ip, middle_ip, exit_ip, dest_ip))
 
 def circuit_supports_stream(circuit, stream, long_lived_ports):
     """Returns if stream can run over circuit (which is assumed live)."""
 
-    if (stream['type'] == 'resolve'):
-        if (circuit['internal']):
-            return True
-        else:
-            return False
-    elif (stream['type'] == 'generic'):
-        if (stream['ip'] == None):
-            raise ValueError('Stream type generic must have ip.')
-        if (stream['port'] == None):
-            raise ValueError('Stream type generic must have port.')
-    
-        desc = circuit['descriptors'][circuit['path'][-1]]
-        if (desc.exit_policy.can_exit_to(stream['ip'], stream['port'])) and\
-            (not circuit['internal']) and\
-            ((circuit['stable']) or\
-                (stream['port'] not in long_lived_ports)):
-            return True
-        else:
-            return False
+    if (stream['ip'] == None):
+        raise ValueError('Stream must have ip.')
+    if (stream['port'] == None):
+        raise ValueError('Stream must have port.')
+
+    desc = circuit['descriptors'][circuit['path'][-1]]
+    if (desc.exit_policy.can_exit_to(stream['ip'], stream['port'])) and\
+        (not circuit['internal']) and\
+        ((circuit['stable']) or\
+            (stream['port'] not in long_lived_ports)):
+        return True
     else:
-        raise ValueError('stream type not recognized: {0}'.format(\
-            stream['type']))
+        return False
             
 
 def timed_client_updates(cur_time, client_state, max_circuit_dirtiness,\
     port_needs_global, cons_rel_stats, cons_valid_after, cons_fresh_until,\
     cons_bw_weights, cons_bwweightscale, descriptors,\
-    port_need_weighted_exits, weighted_middles, weighted_guards,\
-    internal_need_weighted_exits, _testing):
+    port_need_weighted_exits, weighted_middles, weighted_guards, _testing):
     """Performs updates to client state that occur on a time schedule."""
     
     if _testing:
@@ -613,8 +578,6 @@ def timed_client_updates(cur_time, client_state, max_circuit_dirtiness,\
     guards = client_state['guards']
     dirty_exit_circuits = client_state['dirty_exit_circuits']
     clean_exit_circuits = client_state['clean_exit_circuits']
-    dirty_internal_circuit = client_state['dirty_internal_circuit']
-    clean_internal_circuit = client_state['clean_internal_circuit']
             
     # kill old dirty circuits
     while (len(dirty_exit_circuits)>0) and\
@@ -624,21 +587,15 @@ def timed_client_updates(cur_time, client_state, max_circuit_dirtiness,\
             print('Killed exit circuit at time {0} w/ dirty time \
 {1}'.format(cur_time, dirty_exit_circuits[-1]['dirty_time']))
         dirty_exit_circuits.pop()
-    if (dirty_internal_circuit != None) and\
-        (dirty_internal_circuit['dirty_time'] <=\
-            cur_time - max_circuit_dirtiness):
-        if _testing:                        
-            print('Killed internal circuit at time {0} w/ dirty \
-time {1}'.format(cur_time,dirty_internal_circuit['dirty_time']))
-        client_state['dirty_internal_circuit'] = None
-        dirty_internal_circuit =\
-            client_state['dirty_internal_circuit']
                     
     # cover uncovered ports
     port_needs_covered = client_state['port_needs_covered']
     for port, need in port_needs_global.items():
         if (port_needs_covered[port] < need['cover_num']):
             # we need to make new circuits
+            # note we choose circuits specifically to cover all port needs,
+            #  while Tor makes one circuit (per sec) that covers *some* port
+            #  (see circuit_predict_and_launch_new() in circuituse.c)
             if _testing:                                
                 print('Creating {0} circuit(s) at time {1} to cover port \
 {2}.'.format(need['cover_num']-port_needs_covered[port], cur_time, port))
@@ -660,94 +617,19 @@ time {1}'.format(cur_time,dirty_internal_circuit['dirty_time']))
                             descriptors, pt, nd)):
                         port_needs_covered[pt] += 1
                         new_circ['covering'].append(pt)
-
-    # check for internal circuit
-    if (clean_internal_circuit == None):
-        # create new internal circuit
-        client_state['clean_internal_circuit'] =\
-            create_circuit(cons_rel_stats,\
-                cons_valid_after, cons_fresh_until,\
-                cons_bw_weights, cons_bwweightscale, descriptors,\
-                guards, cur_time, True, True, True, None, None,\
-                internal_need_weighted_exits, weighted_middles,
-                weighted_guards)
-        clean_internal_circuit =\
-            client_state['clean_internal_circuit']
-        #circuits.append(new_circ)
-        if _testing:                    
-            print('Created clean internal circuit at time {0}.'.\
-                format(cur_time))  
-                
-                
-def client_assign_resolve_stream(client_state, stream, cons_rel_stats,\
-    cons_valid_after, cons_fresh_until, cons_bw_weights, cons_bwweightscale,\
-    descriptors, internal_need_weighted_exits, weighted_middles,\
-    weighted_guards, _testing):
-    """Assigns a 'resolve' stream to a circuit for a given client."""
-    
-    ### Variables added when code removed from create_circuits() ###
-    guards = client_state['guards']    
-    stream_assigned = None
-    dirty_internal_circuit =\
-        client_state['dirty_internal_circuit']
-    clean_internal_circuit =\
-        client_state['clean_internal_circuit']
-    ### End variables added when code removed from create_circuits() ###        
-
-    if (dirty_internal_circuit != None):
-        # use existing dirty internal circuit
-        stream_assigned = dirty_internal_circuit
-        if _testing:                            
-            print('Assigned stream to dirty internal \
-circuit at {0}'.format(stream['time']))
-    elif (clean_internal_circuit != None):
-        # dirty clean internal circuit
-        clean_internal_circuit['dirty_time'] =\
-            stream['time']
-        client_state['dirty_internal_circuit'] =\
-            clean_internal_circuit
-        dirty_internal_circuit = clean_internal_circuit
-        client_state['clean_internal_circuit'] = None
-        clean_internal_circuit =\
-            client_state['clean_internal_circuit']
-        stream_assigned = dirty_internal_circuit
-        if _testing:                                
-            print('Assigned stream to clean internal \
-circuit at {0}'.format(stream['time']))
-    else:
-        # create new internal circuit
-        client_state['dirty_internal_circuit'] =\
-            create_circuit(cons_rel_stats,\
-                cons_valid_after, cons_fresh_until,\
-                cons_bw_weights, cons_bwweightscale,\
-                descriptors, guards, stream['time'], True,\
-                True, True, None, None,\
-                internal_need_weighted_exits,\
-                weighted_middles, weighted_guards)
-        dirty_internal_circuit =\
-            client_state['dirty_internal_circuit']
-        dirty_internal_circuit['dirty_time'] =\
-            stream['time']
-        stream_assigned = dirty_internal_circuit
-        if _testing:                                
-            print('Created new internal circuit for \                                stream at {0}'.format(stream['time'])) 
-            
-    return stream_assigned         
         
         
-def client_assign_generic_stream(client_state, stream, cons_rel_stats,\
+def client_assign_stream(client_state, stream, cons_rel_stats,\
     cons_valid_after, cons_fresh_until, cons_bw_weights, cons_bwweightscale,\
     descriptors, stream_weighted_exits, weighted_middles, weighted_guards,\
     long_lived_ports, _testing):
-    """Assigns a 'generic' stream to a circuit for a given client."""
+    """Assigns a stream to a circuit for a given client."""
         
-    ### Variables added after code removed from create_circuits() ###
     guards = client_state['guards']
     dirty_exit_circuits = client_state['dirty_exit_circuits']
     clean_exit_circuits = client_state['clean_exit_circuits']
     stream_assigned = None
     port_needs_covered = client_state['port_needs_covered']    
-    ######    
 
     # try to use a dirty circuit
     for circuit in dirty_exit_circuits:
@@ -917,11 +799,8 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
             process_consensuses      
         streams: *ordered* list of streams, where a stream is a dict with keys
             'time': timestamp of when stream request occurs 
-            'type': with value either
-                'resolve' for domain name resolution or
-                'generic' for all other TCP connections
-            'ip': IP address of destination, may be None for 'type':'resolve'
-            'port': desired TCP port, may be None for 'type':'resolve'
+            'ip': IP address of destination
+            'port': desired TCP port
         num_samples: (int) # circuit-creation samples to take for given streams
     Output:
         [Prints circuit and guard selections of clients.]
@@ -929,6 +808,7 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
     
     ### Tor parameters ###
     # max age of a dirty circuit to which new streams can be assigned
+    # set by MaxCircuitDirtiness option in Tor (default: 10 min.)
     max_circuit_dirtiness = 10*60
     
     # long-lived ports (taken from path-spec.txt)
@@ -941,40 +821,34 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
     port_need_lifetime = 60*60 
 
     # time a guard can stay down until it is removed from list    
-    guard_down_time = 30*24*3600 # time guard can be down until is removed
+    # set by #define ENTRY_GUARD_REMOVE_AFTER (30*24*60*60) in entrynodes.c
+    guard_down_time = 30*24*60*60 # time guard can be down until is removed
     
     # needs that apply to all samples
-    # given with "#define MIN_CIRCUITS_HANDLING_STREAM 2" in or.h
+    # min coverage given with "#define MIN_CIRCUITS_HANDLING_STREAM 2" in or.h
     port_need_cover_num = 2
-    port_needs_global = {80:{'expires':None, 'fast':True, 'stable':False,
-        'cover_num':port_need_cover_num}}
+    port_needs_global = {}
 
     ### Client states for each sample ###
     client_states = []
     for i in range(num_samples):
         # guard is fingerprint -> {'expires':exp_time, 'bad_since':bad_since}
         # port_needs are ports that must be covered by existing circuits        
-        # internal_covered_count just ensures a clean internal
-        # circuits stored all circuits created
-        # live_circuits listed by age, circuit live if it's clean or younger
-        #   than max_circuit_dirtiness
+        # circuit vars are ordered by increasing time since create or dirty
         port_needs_covered = {}
-        for port in port_needs_global:
-            port_needs_covered[port] = 0
         client_states.append({'id':i,
                             'guards':{},
                             'circuits':[],
                             'port_needs_covered':port_needs_covered,
                             'clean_exit_circuits':collections.deque(),
-                            'dirty_exit_circuits':collections.deque(),
-                            'clean_internal_circuit':None,
-                            'dirty_internal_circuit':None})
+                            'dirty_exit_circuits':collections.deque()})
     
     ### Simulation variables ###
     cur_period_start = None
     cur_period_end = None
     stream_start = 0
     stream_end = 0
+    init = True
     
     if (not _testing):
         print('Sample\tTimestamp\tGuard IP\tMiddle IP\tExit IP\tDestination\
@@ -1024,6 +898,16 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
                 # Yes, I could have set it initially to this value,
                 # but this way, it doesn't get repeatedly set.
                 cons_bwweightscale = 10000  
+        
+        if (init == True): # first period in simulation
+            # seed port need
+            port_needs_global[80] = \
+                {'expires':(cur_period_start+port_need_lifetime), 'fast':True,\
+                'stable':False, 'cover_num':port_need_cover_num}
+            for client_state in client_states:
+                client_state['port_needs_covered'][80] = 0
+            init = False
+        
                 
         for client_state in client_states:
             if _testing:
@@ -1091,16 +975,6 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
                 cons_bwweightscale)
             port_need_weighted_exits[port] =\
                 get_weighted_nodes(port_need_exits, port_need_exit_weights)
-                
-        # filter exits for internal circuits and compute their weights
-        # do this here to avoid repeating per client
-        internal_need_exits = filter_exits(cons_rel_stats, descriptors,\
-                True, True, True, None, None)
-        internal_need_exit_weights = get_position_weights(\
-                internal_need_exits, cons_rel_stats, 'm', cons_bw_weights,\
-                cons_bwweightscale)
-        internal_need_weighted_exits =\
-            get_weighted_nodes(internal_need_exits, internal_need_exit_weights)
 
         # filter middles and precompute cumulative weights
         potential_middles = filter(lambda x: middle_filter(x, cons_rel_stats,\
@@ -1142,8 +1016,7 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
                     max_circuit_dirtiness, port_needs_global, cons_rel_stats,\
                     cons_valid_after, cons_fresh_until, cons_bw_weights,\
                     cons_bwweightscale, descriptors, port_need_weighted_exits,\
-                    weighted_middles, weighted_guards,\
-                    internal_need_weighted_exits, _testing)
+                    weighted_middles, weighted_guards, _testing)
 
             # collect streams that occur during current period
             while (stream_start < len(streams)) and\
@@ -1159,61 +1032,59 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
                 stream = streams[stream_idx]
                 
                 # add need/extend expiration for ports in streams
-                if (stream['type'] == 'generic'):
-                    port = stream['port']
-                    if (port in port_needs_global):
-                        if (port_needs_global[port]['expires'] != None) and\
-                            (port_needs_global[port]['expires'] <\
-                                stream['time'] + port_need_lifetime):
-                            port_needs_global[port]['expires'] =\
-                                stream['time'] + port_need_lifetime
-                    else:
-                        port_needs_global[port] = {
-                            'expires':(stream['time']+port_need_lifetime),
-                            'fast':True,
-                            'stable':(port in long_lived_ports),
-                            'cover_num':port_need_cover_num}
-                        # adjust cover counts for the new port need
-                        for client_state in client_states:
-                            client_state['port_needs_covered'][port] = 0
-                            for circuit in client_state['clean_exit_circuits']:
-                                if (circuit_covers_port_need(circuit,\
-                                        descriptors, port,\
-                                        port_needs_global[port])):
-                                    client_state['port_needs_covered'][port]\
-                                        += 1
-                                    circuit['covering'].append(port)
-                        # precompute exit list and weights for new port need
-                        port_need_exits = filter_exits(cons_rel_stats,\
-                            descriptors, port_needs_global[port]['fast'],\
-                            port_needs_global[port]['stable'], False,\
-                            None, port)
-                        if _testing:                            
-                            print('# exits for new need at port {0}: {1}'.\
-                                format(len(port_need_exits)))
-                        port_need_exit_weights = get_position_weights(\
-                            port_need_exits, cons_rel_stats, 'e',\
-                            cons_bw_weights, cons_bwweightscale)
-                        port_need_weighted_exits[port] =\
-                            get_weighted_nodes(port_need_exits,\
-                                port_need_exit_weights)
+                port = stream['port']
+                if (port in port_needs_global):
+                    if (port_needs_global[port]['expires'] != None) and\
+                        (port_needs_global[port]['expires'] <\
+                            stream['time'] + port_need_lifetime):
+                        port_needs_global[port]['expires'] =\
+                            stream['time'] + port_need_lifetime
+                else:
+                    port_needs_global[port] = {
+                        'expires':(stream['time']+port_need_lifetime),
+                        'fast':True,
+                        'stable':(port in long_lived_ports),
+                        'cover_num':port_need_cover_num}
+                    # adjust cover counts for the new port need
+                    for client_state in client_states:
+                        client_state['port_needs_covered'][port] = 0
+                        for circuit in client_state['clean_exit_circuits']:
+                            if (circuit_covers_port_need(circuit,\
+                                    descriptors, port,\
+                                    port_needs_global[port])):
+                                client_state['port_needs_covered'][port]\
+                                    += 1
+                                circuit['covering'].append(port)
+                    # precompute exit list and weights for new port need
+                    port_need_exits = filter_exits(cons_rel_stats,\
+                        descriptors, port_needs_global[port]['fast'],\
+                        port_needs_global[port]['stable'], False,\
+                        None, port)
+                    if _testing:                            
+                        print('# exits for new need at port {0}: {1}'.\
+                            format(len(port_need_exits)))
+                    port_need_exit_weights = get_position_weights(\
+                        port_need_exits, cons_rel_stats, 'e',\
+                        cons_bw_weights, cons_bwweightscale)
+                    port_need_weighted_exits[port] =\
+                        get_weighted_nodes(port_need_exits,\
+                            port_need_exit_weights)
 
-                # create weighted exits for this stream if generic
+                # create weighted exits for this stream
                 stream_weighted_exits = None
-                if (stream['type'] == 'generic'):
-                    stable = (stream['port'] in long_lived_ports)
-                    stream_exits = filter_exits(cons_rel_stats,\
-                        descriptors, True, stable, False, stream['ip'],\
-                        stream['port'])                    
-                    if _testing:                        
-                        print('# exits for stream to {0} on port {1}: {2}'.\
-                            format(stream['ip'], stream['port'],
-                                len(stream_exits)))
-                    stream_exit_weights = get_position_weights(\
-                        stream_exits, cons_rel_stats, 'e', cons_bw_weights,\
-                        cons_bwweightscale)
-                    stream_weighted_exits = get_weighted_nodes(\
-                        stream_exits, stream_exit_weights)                
+                stable = (stream['port'] in long_lived_ports)
+                stream_exits = filter_exits(cons_rel_stats,\
+                    descriptors, True, stable, False, stream['ip'],\
+                    stream['port'])                    
+                if _testing:                        
+                    print('# exits for stream to {0} on port {1}: {2}'.\
+                        format(stream['ip'], stream['port'],
+                            len(stream_exits)))
+                stream_exit_weights = get_position_weights(\
+                    stream_exits, cons_rel_stats, 'e', cons_bw_weights,\
+                    cons_bwweightscale)
+                stream_weighted_exits = get_weighted_nodes(\
+                    stream_exits, stream_exit_weights)                
                 
                 # do client stream assignment
                 for client_state in client_states:
@@ -1223,31 +1094,15 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
                     guards = client_state['guards']
                     dirty_exit_circuits = client_state['dirty_exit_circuits']
                     clean_exit_circuits = client_state['clean_exit_circuits']
-                    dirty_internal_circuit =\
-                        client_state['dirty_internal_circuit']
-                    clean_internal_circuit =\
-                        client_state['clean_internal_circuit']
                     port_needs_covered = client_state['port_needs_covered']
                  
-                    stream_assigned = None
-                    if (stream['type'] == 'resolve'):
-                        stream_assigned = client_assign_resolve_stream(\
-                            client_state, stream, cons_rel_stats,\
-                            cons_valid_after, cons_fresh_until,\
-                            cons_bw_weights, cons_bwweightscale,\
-                            descriptors, internal_need_weighted_exits,\
-                            weighted_middles, weighted_guards, _testing)
-                    elif (stream['type'] == 'generic'):
-                        stream_assigned = client_assign_generic_stream(\
-                            client_state, stream, cons_rel_stats,\
-                            cons_valid_after, cons_fresh_until,\
-                            cons_bw_weights, cons_bwweightscale,\
-                            descriptors, stream_weighted_exits,\
-                            weighted_middles, weighted_guards,\
-                            long_lived_ports, _testing)
-                    else:
-                        raise ValueError('Stream type not recognized: {0}'.\
-                            format(stream['type']))
+                    stream_assigned = client_assign_stream(\
+                        client_state, stream, cons_rel_stats,\
+                        cons_valid_after, cons_fresh_until,\
+                        cons_bw_weights, cons_bwweightscale,\
+                        descriptors, stream_weighted_exits,\
+                        weighted_middles, weighted_guards,\
+                        long_lived_ports, _testing)
                     if (not _testing):
                         print_mapped_stream(client_state['id'],\
                             stream_assigned, stream, descriptors)
@@ -1389,17 +1244,11 @@ out_dir/processed_descriptors-year-month.\n\
 
         # simple user that makes a port 80 request /resolve every x / y seconds
         http_request_wait = int(60 / num_requests) * 60
-        resolve_wait = 60*60 # make one DNS resolve per hour
         str_ip = '74.125.131.105' # www.google.com
         t = start_time
-        last_resolve_time = 0
         streams = []
         while (t < end_time):
-            if (t - last_resolve_time > resolve_wait):
-                streams.append(\
-                    {'time':t,'type':'resolve','ip':None,'port':None})
-                last_resolve_time = t
-            streams.append({'time':t,'type':'generic','ip':str_ip,'port':80})
+            streams.append({'time':t,'ip':str_ip,'port':80})
             t += http_request_wait
         create_circuits(consensus_files, processed_descriptor_files, streams,\
             num_samples)    
@@ -1425,6 +1274,7 @@ out_dir/processed_descriptors-year-month.\n\
 # - rewrite can_exit_to_port hto be consistent with compare_unknown_tor_addr_to_addr_policy (in policies.c). Tor generally treats ADDR_POLICY_PROBABLY_REJECTED as ADDR_POLICY_REJECTED (exception: when specific exit node is requested).
 # - Verify that DNS resolve circuits (hint: I think will have EXIT_PURPOSE_RESOLVE and also CIRCUIT_PURPOSE_C_GENERAL). Note that in connection_ap_can_use_exit() [connection_edge.c], a circuit for a resolve request appears to not be assigned to circuits that don't end in exit nodes (i.e. any node with node_exit_policy_rejects_all(node)).
 # - Tor maintains preemptive resolve circuits by pretending resolves are a port 80 request for the purpose of maintaining port needs.
+# - Tor actually seems to build a circuit to cover a port by randomly selecting from exits that cover *some* unhandled port (see choose_good_exit_server_general() in circuitbuild.c). Possibly change procedure for covering ports to act like this.
 
 
 ##### Relevant lines for path selection extracted from Tor specs.
