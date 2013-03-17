@@ -36,3 +36,4 @@
     Answer: After 60 minutes.
 21. Under what circumstances does SOCKS_RESOLVE_REQUEST occur? SOCKS5 doesn't seem to have a "RESOLVE" command, just CONNECT/BIND/UDP.
     Answer: SOCKS_RESOLVE_REQUEST appears to happen either when a RESOLVE command is sent via SOCKS or when the internal Tor DNS server is enabled and receives a requeste for an A record.
+22. If a guard hibernates but still has positive consensus bandwidth, is it possible that it will be chosen for a circuit? Will the resulting circuit failure ever result in the guard's status being set to "down" or otherwise changed to avoid selection? Are other guards possibly added if these failure persist because, for example, all guards suitable for a circuit are hibernating?
