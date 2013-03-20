@@ -205,11 +205,27 @@ def can_exit_to_port(descriptor, port):
                 else:
                     return False
     return True # default accept if no rule matches
+    
+def policy_is_reject_star(exit_policy):
+    """Replicates Tor function of same name in policies.c."""
+    for rule in exit_policy:
+        if rule.is_accept:
+            return False
+        elif (((rule.min_port <= 1) and (rule.max_port == 65535)) or\
+                (rule.is_port_wildcard())) and\
+            ((rule.is_address_wildcard()) or (rule.get_masked_bits == 0)):
+            return True
+    return True
 
     
 def filter_exits(cons_rel_stats, descriptors, fast, stable, internal, ip,\
     port):
-    """Applies exit filter to relays."""
+    """Applies exit filter to relays.
+    If internal, doesn't consider exit policy.
+    If IP and port given, simply applies exit policy.
+    If just port given, uses exit policy to guess.
+    If IP and port not given, check policy for any allowed exiting. This
+      behavior is for SOCKS RESOLVE requests in particular."""
     exits = []
     for fprint in cons_rel_stats:
         rel_stat = cons_rel_stats[fprint] 
@@ -227,12 +243,15 @@ def filter_exits(cons_rel_stats, descriptors, fast, stable, internal, ip,\
                 # In an "internal" circuit final node is chosen just like a
                 # middle node (ignoring its exit policy).
                 exits.append(fprint)
-            else:
-                if (ip != None) and\
-                    (desc.exit_policy.can_exit_to(ip, port)):
-                    exits.append(fprint)
-                elif (can_exit_to_port(desc, port)):
-                    exits.append(fprint)            
+            elif (ip != None) and\
+                    (desc.exit_policy.can_exit_to(ip,\
+                        port)):
+                exits.append(fprint)
+            elif (port != None) and\
+                (can_exit_to_port(desc, port)):
+                exits.append(fprint)
+            elif (not policy_is_reject_star(desc.exit_policy)):
+                exits.append(fprint)
 
     return exits
 
@@ -258,6 +277,8 @@ def get_weighted_nodes(nodes, weights):
     total_weight = 0
     for node in nodes:
         total_weight += weights[node]
+    if (total_weight == 0):
+        raise ValueError('ERROR: Node list has total weight zero.')
     # create cumulative weights
     weighted_nodes = []
     cum_weight = 0
@@ -274,9 +295,6 @@ def get_weighted_exits(bw_weights, bwweightscale, cons_rel_stats,\
     cumulative selection probabilities for use in a circuit with the indicated
     properties.
     """    
-    if (port == None) and (not internal):
-        raise ValueError('get_weighted_exits() needs a port.')            
-        
     # filter exit list
     exits = filter_exits(cons_rel_stats, descriptors, fast,\
         stable, internal, ip, port)
@@ -561,26 +579,44 @@ def print_mapped_stream(client_id, circuit, stream, descriptors):
     guard_ip = descriptors[circuit['path'][0]].address
     middle_ip = descriptors[circuit['path'][1]].address
     exit_ip = descriptors[circuit['path'][2]].address
-    dest_ip = stream['ip']
+    if (stream['type'] == 'connect'):
+        dest_ip = stream['ip']
+    elif (stream['type'] == 'resolve'):
+        dest_ip = 0
+    else:
+        raise ValueError('ERROR: Unrecognized stream in print_mapped_stream: \
+{0}'.format(stream['type']))
     print('{0}\t{1}\t{2}\t{3}\t{4}\t{5}'.format(client_id, stream['time'],\
         guard_ip, middle_ip, exit_ip, dest_ip))
 
 def circuit_supports_stream(circuit, stream, long_lived_ports):
     """Returns if stream can run over circuit (which is assumed live)."""
 
-    if (stream['ip'] == None):
-        raise ValueError('Stream must have ip.')
-    if (stream['port'] == None):
-        raise ValueError('Stream must have port.')
-
-    desc = circuit['descriptors'][circuit['path'][-1]]
-    if (desc.exit_policy.can_exit_to(stream['ip'], stream['port'])) and\
-        (not circuit['internal']) and\
-        ((circuit['stable']) or\
-            (stream['port'] not in long_lived_ports)):
-        return True
+    if (stream['type'] == 'connect'):
+        if (stream['ip'] == None):
+            raise ValueError('Stream must have ip.')
+        if (stream['port'] == None):
+            raise ValueError('Stream must have port.')
+    
+        desc = circuit['descriptors'][circuit['path'][-1]]
+        if (desc.exit_policy.can_exit_to(stream['ip'], stream['port'])) and\
+            (not circuit['internal']) and\
+            ((circuit['stable']) or\
+                (stream['port'] not in long_lived_ports)):
+            return True
+        else:
+            return False
+    elif (stream['type'] == 'resolve'):
+        desc = circuit['descriptors'][circuit['path'][-1]]
+        if (not policy_is_reject_star(desc.exit_policy)) and\
+            (not circuit['internal']):
+            return True
+        else:
+            return False
     else:
-        return False
+        raise ValueError('ERROR: Unrecognized stream in \
+circuit_supports_stream: {0}'.format(stream['type']))
+
         
 def uncover_circuit_ports(circuit, port_needs_covered, _testing):
     """Reduces cover count for ports that circuit indicates it covers."""
@@ -677,8 +713,15 @@ def client_assign_stream(client_state, stream, cons_rel_stats,\
             long_lived_ports):
             stream_assigned = circuit
             if _testing:                                
-                print('Assigned stream to port {0} to \
-dirty circuit at {1}'.format(stream['port'],stream['time']))                                    
+                if (stream['type'] == 'connect'):
+                    print('Assigned CONNECT stream to port {0} to \
+    dirty circuit at {1}'.format(stream['port'], stream['time']))
+                elif (stream['type'] == 'resolve'):
+                    print('Assigned RESOLVE stream to dirty circuit \
+    at {0}'.format(stream['time']))
+                else:
+                    print('Assigned unrecognized stream to dirty circuit \
+    at {0}'.format(stream['time']))                                   
             break        
     # next try and use a clean circuit
     if (stream_assigned == None):
@@ -693,9 +736,16 @@ dirty circuit at {1}'.format(stream['port'],stream['time']))
                 new_clean_exit_circuits.extend(\
                     clean_exit_circuits)
                 clean_exit_circuits.clear()
-                if _testing:                                    
-                    print('Assigned stream to port {0} to \
-clean circuit at {1}'.format(stream['port'], stream['time']))                                
+                if _testing:
+                    if (stream['type'] == 'connect'):
+                        print('Assigned CONNECT stream to port {0} to \
+clean circuit at {1}'.format(stream['port'], stream['time']))
+                    elif (stream['type'] == 'resolve'):
+                        print('Assigned RESOLVE stream to clean circuit \
+at {0}'.format(stream['time']))
+                    else:
+                        print('Assigned unrecognized stream to clean circuit \
+at {0}'.format(stream['time']))
                     
                 # reduce cover count for covered port needs
                 uncover_circuit_ports(circuit, port_needs_covered, _testing)
@@ -706,21 +756,42 @@ clean circuit at {1}'.format(stream['port'], stream['time']))
         clean_exit_circuits = new_clean_exit_circuits
     # if stream still unassigned we must make new circuit
     if (stream_assigned == None):
-        stable = (stream['port'] in long_lived_ports)
-        new_circ = create_circuit(cons_rel_stats,\
-            cons_valid_after, cons_fresh_until,\
-            cons_bw_weights, cons_bwweightscale,\
-            descriptors, guards, stream['time'], True,\
-            stable, False, stream['ip'], stream['port'],\
-            stream_weighted_exits, weighted_middles,\
-            weighted_guards)
+        new_circ = None
+        if (stream['type'] == 'connect'):
+            stable = (stream['port'] in long_lived_ports)
+            new_circ = create_circuit(cons_rel_stats,\
+                cons_valid_after, cons_fresh_until,\
+                cons_bw_weights, cons_bwweightscale,\
+                descriptors, guards, stream['time'], True,\
+                stable, False, stream['ip'], stream['port'],\
+                stream_weighted_exits, weighted_middles,\
+                weighted_guards)
+        elif (stream['type'] == 'resolve'):
+            stable = (stream['port'] in long_lived_ports)
+            new_circ = create_circuit(cons_rel_stats,\
+                cons_valid_after, cons_fresh_until,\
+                cons_bw_weights, cons_bwweightscale,\
+                descriptors, guards, stream['time'], True,\
+                False, False, None, None,\
+                stream_weighted_exits, weighted_middles,\
+                weighted_guards)
+        else:
+            raise ValueError('Unrecognized stream in client_assign_stream(): \
+{0}'.format(stream['type']))        
         new_circ['dirty_time'] = stream['time']
         stream_assigned = new_circ
         dirty_exit_circuits.appendleft(new_circ)
-        if _testing:                            
-            print('Created circuit at time {0} to cover \
+        if _testing: 
+            if (stream['type'] == 'connect'):                           
+                print('Created circuit at time {0} to cover CONNECT \
 stream to ip {1} and port {2}.'.format(stream['time'], stream['ip'],\
 stream['port'])) 
+            elif (stream['type'] == 'resolve'):
+                print('Created circuit at time {0} to cover RESOLVE \
+stream.'.format(stream['time']))
+            else: 
+                print('Created circuit at time {0} to cover unrecognized \
+stream.'.format(stream['time']))
 
     return stream_assigned
 
@@ -790,9 +861,13 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
     # Randomly choose from among those suitable guards.
     # Approximate a hibernating guard being down by not choosing it. We do that
     #  here and allow hibernating guards to possibly be added by
-    #  get_guards_for_circ(), copying Tor's behavior.
+    #  get_guards_for_circ(), simulating Tor's behavior.
     live_circ_guards = filter(lambda x: not descriptors[x].hibernating,\
                                 circ_guards)
+    if (len(live_circ_guards) == 0):
+        raise ValueError('ERROR: All guards for circuit are hibernating.\n\
+Consensus valid after: {0}\nCircuit guards: {1}\nCircuit IP: {2}\nCircuit\
+port: {3}'.format(cons_valid_after, circ_guards, circ_ip, circ_port))
     guard_node = random.choice(live_circ_guards)
     if _testing:
         print('Guard node: {0} [{1}]'.format(
@@ -835,6 +910,7 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
             process_consensuses      
         streams: *ordered* list of streams, where a stream is a dict with keys
             'time': timestamp of when stream request occurs 
+            'type': 'connect' for SOCKS CONNECT, 'resolve' for SOCKS RESOLVE
             'ip': IP address of destination
             'port': desired TCP port
         num_samples: (int) # circuit-creation samples to take for given streams
@@ -1124,7 +1200,12 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
                 stream = streams[stream_idx]
                 
                 # add need/extend expiration for ports in streams
-                port = stream['port']
+                if (stream['type'] == 'resolve'):
+                    # as in Tor, treat RESOLVE requests as port 80 for
+                    #  prediction (see rep_hist_note_used_resolve())
+                    port = 80
+                else:
+                    port = stream['port']
                 if (port in port_needs_global):
                     if (port_needs_global[port]['expires'] != None) and\
                         (port_needs_global[port]['expires'] <\
@@ -1163,15 +1244,25 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
                             port_need_exit_weights)
 
                 # create weighted exits for this stream
-                stream_weighted_exits = None
-                stable = (stream['port'] in long_lived_ports)
-                stream_exits = filter_exits(cons_rel_stats,\
-                    descriptors, True, stable, False, stream['ip'],\
-                    stream['port'])                    
-                if _testing:                        
-                    print('# exits for stream to {0} on port {1}: {2}'.\
-                        format(stream['ip'], stream['port'],
-                            len(stream_exits)))
+                stream_exits = None
+                if (stream['type'] == 'connect'):
+                    stable = (stream['port'] in long_lived_ports)
+                    stream_exits = filter_exits(cons_rel_stats,\
+                        descriptors, True, stable, False, stream['ip'],\
+                        stream['port'])                    
+                    if _testing:                        
+                        print('# exits for stream to {0} on port {1}: {2}'.\
+                            format(stream['ip'], stream['port'],
+                                len(stream_exits)))
+                elif (stream['type'] == 'resolve'):
+                    stream_exits = filter_exits(cons_rel_stats,\
+                        descriptors, True, False, False, None, None)                    
+                    if _testing:                        
+                        print('# exits for RESOLVE stream: {0}'.\
+                            format(len(stream_exits)))
+                else:
+                    raise ValueError('ERROR: Unrecognized stream type: {0}'.\
+                        format(stream['type']))
                 stream_exit_weights = get_position_weights(\
                     stream_exits, cons_rel_stats, 'e', cons_bw_weights,\
                     cons_bwweightscale)
@@ -1200,26 +1291,6 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
                             stream_assigned, stream, descriptors)
             
             cur_time += time_step
-
-    
-        # Specifically, on startup Tor tries to maintain one clean
-        # fast exit circuit that allows connections to port 80, and at least
-        # two fast clean stable internal circuits in case we get a resolve
-        # request...
-        # After that, Tor will adapt the circuits that it preemptively builds
-        # based on the requests it sees from the user: it tries to have two
-        # fast
-        # clean exit circuits available for every port seen within the past
-        # hour
-        # (each circuit can be adequate for many predicted ports -- it doesn't
-        # need two separate circuits for each port), and it tries to have the
-        # above internal circuits available if we've seen resolves or hidden
-        # service activity within the past hour...
-        # Additionally, when a client request exists that no circuit (built or
-        # pending) might support, we create a new circuit to support the
-        # request.
-        # For exit connections, we pick an exit node that will handle the
-        # most pending requests (choosing arbitrarily among ties) 
     
     
 if __name__ == '__main__':
@@ -1277,8 +1348,6 @@ out_dir/processed_descriptors-year-month.\n\
             month = 1
         process_consensuses(in_dirs)
     elif (command == 'simulate'):
-#simulate \
-#[consensuses] [descriptors] [# samples] [testing]    
         # get lists of consensuses and the related processed-descriptor files 
         if (len(sys.argv) >= 3):
             consensuses_dir = sys.argv[2]
@@ -1340,7 +1409,7 @@ out_dir/processed_descriptors-year-month.\n\
         t = start_time
         streams = []
         while (t < end_time):
-            streams.append({'time':t,'ip':str_ip,'port':80})
+            streams.append({'time':t,'type':'connect','ip':str_ip,'port':80})
             t += http_request_wait
         create_circuits(consensus_files, processed_descriptor_files, streams,\
             num_samples)    
@@ -1352,21 +1421,11 @@ out_dir/processed_descriptors-year-month.\n\
 #   switch to the new one, following the process in dir-spec.txt (Sec. 5.1).
 # - Check for descriptors that aren't the ones in the consensus, particularly
 #   those older than 48 hours, which should expire (dir-spec.txt, Sec. 5.2).
-# - Implement (or indicate) fail-back if enough fast/stable nodes not found.
-# - Implement max limit (12 in path-spec.txt,
-#   #define MAX_UNUSED_OPEN_CIRCUITS 14 in circuituse.c) on # circuits.
-# - Figure out if and when clean circuits are torn down
-#   Answer: CircuitIdleTimeout = 1 hour (default)
-# - Implement user non-activity for an hour means _no_ preemptive circuits.
-# - Add multiple circuits covering the same internal need (already done for port needs). Low priority because newest clean circuit will always be used (unlike with exit circuits for which the stream ip might conflict with exit policy), and thus this currently doesn't affect circuit selection. Adding a model of delay and failure would change this, though.
-# - check if exits and middles should be excluding hibernating relays (they currently are)
-# - check that empty node sets are handled
+# - Do something intelligent with empty node sets rather than just raise error.
 # - circuits only recorded as fast/stable/internal if they were chosen to
 #   satisfy that, but they may just by chance. should we check?
-# - rewrite can_exit_to_port hto be consistent with compare_unknown_tor_addr_to_addr_policy (in policies.c). Tor generally treats ADDR_POLICY_PROBABLY_REJECTED as ADDR_POLICY_REJECTED (exception: when specific exit node is requested).
-# - Verify that DNS resolve circuits (hint: I think will have EXIT_PURPOSE_RESOLVE and also CIRCUIT_PURPOSE_C_GENERAL). Note that in connection_ap_can_use_exit() [connection_edge.c], a circuit for a resolve request appears to not be assigned to circuits that don't end in exit nodes (i.e. any node with node_exit_policy_rejects_all(node)).
-# - Tor maintains preemptive resolve circuits by pretending resolves are a port 80 request for the purpose of maintaining port needs.
 # - Tor actually seems to build a circuit to cover a port by randomly selecting from exits that cover *some* unhandled port (see choose_good_exit_server_general() in circuitbuild.c). Possibly change procedure for covering ports to act like this.
+# - Current descriptors are stored with the circuit when it's created. This may have been before the descriptors became persistant between consensuses. They probably should be removed from the circuits and the persistant descriptors structure used instead.
 
 
 ##### Relevant lines for path selection extracted from Tor specs.
