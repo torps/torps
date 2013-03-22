@@ -11,6 +11,30 @@ import collections
 
 _testing = True
 
+Class RelayStatus:
+    def __init__(self):
+        self.foo = None
+
+Class Consensus:
+    def __init__(self):
+        self.blah = None
+    """document.valid_after
+document.fresh_until
+document.bandwidth_weights
+if ('bwweightscale' in rel_stat.document.params):
+    cons_bwweightscale = rel_stat.document.params[\
+        'bwweightscale']
+document.params['bwweightscale']"""
+        
+Class Descriptor:
+    def __init__(self):
+        self.blarg = None
+    """desc.fingerprint
+descriptors[relay].hibernating
+desc.nickname
+desc.family
+desc.address
+descriptor.exit_policy *probably should create own exit policy"""        
 
 def timestamp(t):
     """Returns UNIX timestamp"""
@@ -20,7 +44,7 @@ def timestamp(t):
 
 
 def process_consensuses(in_dirs):
-    """For every input consensus, finds the descriptors published most recently before the descriptor times listed for the relays in that consensus, and pickles dicts containing each rel_stat and its matching descriptor.
+    """For every input consensus, finds the descriptors published most recently before the descriptor times listed for the relays in that consensus, records state changes indicated by descriptors published during the consensus fresh period, and writes out pickled consensus and descriptor objects with the relevant information.
         Inputs:
             in_dirs: list of (consensus in dir, descriptor in dir, \
                 processed descriptor out dir) triples *in order*
@@ -52,7 +76,7 @@ def process_consensuses(in_dirs):
         print('Expired {0} descriptors.'.format(num_expired_descs))
     
         print('Reading descriptors from: {0}'.format(in_descriptors))
-        with sdr.DescriptorReader(in_descriptors, validate=False) as reader:
+        with sdr.DescriptorReader(in_descriptors, validate=True) as reader:
             reader.register_skip_listener(skip_listener)
             for desc in reader:
                 if (num_descriptors % 10000 == 0):
@@ -79,7 +103,7 @@ def process_consensuses(in_dirs):
                     cons_valid_after = None
                     num_not_found = 0
                     num_found = 0
-                    for r_stat in sd.parse_file(cons_f, validate=False):
+                    for r_stat in sd.parse_file(cons_f, validate=True):
                         if (cons_valid_after == None):
                             cons_valid_after = r_stat.document.valid_after
                         if (timestamp(r_stat.document.fresh_until) > \
