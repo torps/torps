@@ -8,33 +8,69 @@ import stem
 import random
 import sys
 import collections
+import cPickle as pickle
 
 _testing = True
 
-Class RelayStatus:
-    def __init__(self):
-        self.foo = None
+class RouterStatusEntry:
+    """
+    Represents a relay entry in a consensus document.
+    Trim version of stem.descriptor.router_status_entry.RouterStatusEntry.
+    """
 
-Class Consensus:
-    def __init__(self):
-        self.blah = None
-    """document.valid_after
-document.fresh_until
-document.bandwidth_weights
-if ('bwweightscale' in rel_stat.document.params):
-    cons_bwweightscale = rel_stat.document.params[\
-        'bwweightscale']
-document.params['bwweightscale']"""
-        
-Class Descriptor:
-    def __init__(self):
-        self.blarg = None
-    """desc.fingerprint
-descriptors[relay].hibernating
-desc.nickname
-desc.family
-desc.address
-descriptor.exit_policy *probably should create own exit policy"""        
+    def __init__(self, fingerprint, nickname, flags, bandwidth):
+        self.fingerprint = fingerprint
+        self.nickname = nickname
+        self.flags = flags
+        self.bandwidth = bandwidth
+    """Observed uses of RelayStatusEntry objects:
+    process_consensuses()
+    r_stat.published
+    r_stat.fingerprint 
+
+    create_circuits()
+    rel_stat.fingerprint
+    cons_rel_stats[guard].flags
+    cons_rel_stats[node].bandwidth
+    cons_rel_stats[new_guard].nickname"""
+    
+    
+class NetworkStatusDocument:
+    """
+    Represents a consensus document.
+    Trim version of stem.descriptor.networkstatus.NetworkStatusDocument.
+    """
+    def __init__(self, valid_after, fresh_until, bandwidth_weights, bwweightscale):
+        self.valid_after = valid_after
+        self.fresh_until = fresh_until
+        self.bandwidth_weights = bandwidth_weights
+        self.bwweightscale = bwweightscale
+    """Observed uses of NetworkStatusDocument objects:
+    document.valid_after
+    document.fresh_until
+    document.bandwidth_weights
+    document.params['bwweightscale']"""
+
+
+class ServerDescriptor:
+    """
+    Represents a server descriptor.
+    Trim version of stem.descriptor.server_descriptor.ServerDescriptor.
+    """
+    def __init__(self, hibernating, nickname, family, address, exit_policy):
+        self.hibernating = hibernating
+        self.nickname = nickname
+        self.family = family
+        self.address = address
+        self.exit_policy = exit_policy
+    """Observed uses of ServerDescriptor objets:
+    desc.fingerprint
+    descriptors[relay].hibernating
+    desc.nickname
+    desc.family
+    desc.address
+    descriptor.exit_policy"""
+
 
 def timestamp(t):
     """Returns UNIX timestamp"""
@@ -89,7 +125,7 @@ def process_consensuses(in_dirs):
         print('#descriptors: {0}; #relays:{1}'.\
             format(num_descriptors,num_relays)) 
 
-        # go through consensuses, output most recent descriptors for relays
+        # output pickled consensuses and dict of most recent descriptors
         num_consensuses = 0
         for dirpath, dirnames, filenames in os.walk(in_consensuses_dir):
             filenames.sort()
@@ -99,17 +135,29 @@ def process_consensuses(in_dirs):
                 
                 print(filename)
                 with open(os.path.join(dirpath,filename), 'rb') as cons_f:
-                    descriptors_out = []
+#                    descriptors_out = [] # replacing with object dict
+                    descriptors_out = {}
                     cons_valid_after = None
+                    cons_fresh_until = None
+                    cons_bw_weights = None
+                    cons_bwweightscale = None
                     num_not_found = 0
                     num_found = 0
                     for r_stat in sd.parse_file(cons_f, validate=True):
                         if (cons_valid_after == None):
                             cons_valid_after = r_stat.document.valid_after
-                        if (timestamp(r_stat.document.fresh_until) > \
-                            newest_fresh_until):
-                            newest_fresh_until = \
-                                timestamp(r_stat.document.fresh_until)
+                        if (cons_fresh_until == None):
+                            cons_fresh_until = r_stat.document.fresh_until
+                        if (cons_bw_weights == None):
+                            cons_bw_weights = r_stat.document.bandwidth_weights
+                        if (cons_bwweightscale == None) and \
+                            ('bwweightscale' in r_stat.document.params):
+                            cons_bwweightscale = r_stat.document.params[\
+                                    'bwweightscale']
+                        if (rel_stat.fingerprint in descriptors):
+                            cons_rel_stats[rel_stat.fingerprint] = rel_stat                            
+                        if (timestamp(cons_fresh_until) > newest_fresh_until):
+                            newest_fresh_until = timestamp(cons_fresh_until)
                         # find most recent descriptor published before the
                         # publication time in the consensus
                         pub_time = timestamp(r_stat.published)
@@ -125,21 +173,44 @@ def process_consensuses(in_dirs):
 #                                r_stat.nickname,r_stat.fingerprint, pub_time))
                             num_not_found += 1
                         else:
-                            descriptors_out.append(\
-                                descriptors[r_stat.fingerprint][desc_time])
+# replacing with object dict                        
+#                            descriptors_out.append(\
+#                                descriptors[r_stat.fingerprint][desc_time])
+                            desc = descriptors[r_stat.fingerprint][desc_time]
+                            descriptors_out[r_stat.fingerprint] = \
+                                ServerDescriptor(desc.hibernating, \
+                                    desc.nickname, desc.family, desc.address, \
+                                    desc.exit_policy)
+                            
                             num_found += 1
-                    # output all discovered descriptors
-                    if (cons_valid_after != None):                        
+                            
+                    # output pickled consensus and discovered descriptors
+                    if (cons_valid_after != None) and\
+                        (cons_fresh_until != None):
+                        # create and output consensus object
+                        consensus = NetworkStatusDocument(cons_valid_after,\
+                            cons_fresh_until, cons_bandwidth_weights,\
+                            cons_bwweightscale)
                         outpath = os.path.join(desc_out_dir,\
                             cons_valid_after.strftime(\
-                                '%Y-%m-%d-%H-%M-%S-descriptors'))
-                        f = open(outpath,'wb')
-                        # annotation needed for stem parser to work correctly
-                        f.write('@type server-descriptor 1.0\n')                    
-                        for desc in descriptors_out:
-                            f.write(unicode(desc).encode('utf8'))
-                            f.write('\n')
+                                '%Y-%m-%d-%H-%M-%S-network_state'))
+                        f = open(outpath, 'wb')
+                        pickle.dump(consensus, f, pickle.HIGHEST_PROTOCOL)
+                        pickle.dump(descriptors_out, f, \
+                            pickle.HIGHEST_PROTOCOL)
                         f.close()
+# old method which just outputted descriptor strings
+#                        outpath = os.path.join(desc_out_dir,\
+#                            cons_valid_after.strftime(\
+#                                '%Y-%m-%d-%H-%M-%S-descriptors'))
+#                        f = open(outpath,'wb')
+#                        # annotation needed for stem parser to work correctly
+#                        f.write('@type server-descriptor 1.0\n')                    
+#                        for desc in descriptors_out:
+#                            f.write(unicode(desc).encode('utf8'))
+#                            f.write('\n')
+#                        f.close()
+
                         print('Wrote descriptors for {0} relays.'.\
                             format(num_found))
                         print('Did not find descriptors for {0} relays\n'.\
