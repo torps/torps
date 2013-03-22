@@ -154,8 +154,6 @@ def process_consensuses(in_dirs):
                             ('bwweightscale' in r_stat.document.params):
                             cons_bwweightscale = r_stat.document.params[\
                                     'bwweightscale']
-                        if (rel_stat.fingerprint in descriptors):
-                            cons_rel_stats[rel_stat.fingerprint] = rel_stat                            
                         if (timestamp(cons_fresh_until) > newest_fresh_until):
                             newest_fresh_until = timestamp(cons_fresh_until)
                         # find most recent descriptor published before the
