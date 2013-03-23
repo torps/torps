@@ -40,11 +40,12 @@ class NetworkStatusDocument:
     Represents a consensus document.
     Trim version of stem.descriptor.networkstatus.NetworkStatusDocument.
     """
-    def __init__(self, valid_after, fresh_until, bandwidth_weights, bwweightscale):
+    def __init__(self, valid_after, fresh_until, bandwidth_weights, bwweightscale, relays):
         self.valid_after = valid_after
         self.fresh_until = fresh_until
         self.bandwidth_weights = bandwidth_weights
         self.bwweightscale = bwweightscale
+        self.relays = relays
     """Observed uses of NetworkStatusDocument objects:
     document.valid_after
     document.fresh_until
@@ -141,6 +142,7 @@ def process_consensuses(in_dirs):
                     cons_fresh_until = None
                     cons_bw_weights = None
                     cons_bwweightscale = None
+                    relays = {}
                     num_not_found = 0
                     num_found = 0
                     for r_stat in sd.parse_file(cons_f, validate=True):
@@ -156,6 +158,9 @@ def process_consensuses(in_dirs):
                                     'bwweightscale']
                         if (timestamp(cons_fresh_until) > newest_fresh_until):
                             newest_fresh_until = timestamp(cons_fresh_until)
+                        relays[r_stat.fingerprint] = RouterStatusEntry(\
+                            r_stat.fingerprint, r_stat.nickname, \
+                            r_stat.flags, r_stat.bandwidth)
                         # find most recent descriptor published before the
                         # publication time in the consensus
                         pub_time = timestamp(r_stat.published)
@@ -187,8 +192,8 @@ def process_consensuses(in_dirs):
                         (cons_fresh_until != None):
                         # create and output consensus object
                         consensus = NetworkStatusDocument(cons_valid_after,\
-                            cons_fresh_until, cons_bandwidth_weights,\
-                            cons_bwweightscale)
+                            cons_fresh_until, cons_bw_weights,\
+                            cons_bwweightscale, relays)
                         outpath = os.path.join(desc_out_dir,\
                             cons_valid_after.strftime(\
                                 '%Y-%m-%d-%H-%M-%S-network_state'))
@@ -989,18 +994,23 @@ port: {3}'.format(cons_valid_after, circ_guards, circ_ip, circ_port))
             'descriptors':descriptors,\
             'covering':[]}
     
-    
-def create_circuits(relstats_files, processed_descriptor_files, streams,\
-    num_samples):
+# Replacing arguments with network_status_files.    
+#def create_circuits(relstats_files, processed_descriptor_files, streams,\
+#    num_samples):
+def create_circuits(network_status_files, streams, num_samples):
     """Takes streams over time and creates circuits by interaction
     with choose_path().
       Input:
+        *** Replaced these with network_status_file arguments. ***
         relstats_files: list of filenames with consensuses
                         *in correct order*, must exactly cover a time period
                         (i.e. no gaps or overlaps)
         processed_descriptor_files: list of filenames with descriptors
             corresponding to relays in relstats_files as produced by
             process_consensuses      
+        ******
+        network_status_files: list of filenames with network statuses
+            as produced by process_consensuses        
         streams: *ordered* list of streams, where a stream is a dict with keys
             'time': timestamp of when stream request occurs 
             'type': 'connect' for SOCKS CONNECT, 'resolve' for SOCKS RESOLVE
@@ -1070,16 +1080,23 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
      # store old descriptors (for entry guards that leave consensus)    
     descriptors = {}
     # run simulation period one pair of consensus/descriptor files at a time
-    for r_file, d_file in zip(relstats_files, processed_descriptor_files):
-        # read in descriptors and consensus statuses
+# Replaced with network_state_files.
+#    for r_file, d_file in zip(relstats_files, processed_descriptor_files):
+    for ns_file in network_state_files:
+# Replaced with network states    
+#        # read in descriptors and consensus statuses
+        # read in network states
         if _testing:
-            print('Using rel_stats file {0}'.format(r_file))
+            print('Using file {0}'.format(r_file))
         cons_valid_after = None
         cons_fresh_until = None
         cons_bw_weights = None
         cons_bwweightscale = None        
         cons_rel_stats = {}
-        with open(d_file, 'r') as df, open(r_file, 'r') as cf:
+# replaced with network_state_files        
+#        with open(d_file, 'r') as df, open(r_file, 'r') as cf:
+        with open(ns_file, 'r') as nsf:
+            """Replaced with network_state_files.
             for desc in sd.parse_file(df, validate=False):
                 descriptors[desc.fingerprint] = desc
             for rel_stat in sd.parse_file(cf, validate=False):
@@ -1110,7 +1127,20 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
                 # set default value
                 # Yes, I could have set it initially to this value,
                 # but this way, it doesn't get repeatedly set.
-                cons_bwweightscale = 10000  
+                cons_bwweightscale = 10000
+            """
+            consensus = ns_file.load(nsf)
+            descriptors.update(ns_file.load(nsf))
+            cons_valid_after = timestamp(consensus.valid_after)
+            cons_fresh_until = timestamp(consensus.fresh_until)
+            cons_bw_weights = consensus.bandwidth_weights
+            if (consensus.bwweightscale == None):
+                cons_bwweightscale = 10000
+            else:
+                cons_bwweightscale = consensus.bwweightscale
+            for relay in consensus.relays:
+                if (relay.fingerprint in descriptors):
+                    cons_rel_stats[relay.fingerprint] = relay
         
         if (init == True): # first period in simulation
             # seed port need
@@ -1175,7 +1205,7 @@ def create_circuits(relstats_files, processed_descriptor_files, streams,\
                     if _testing:
                         print('Expiring guard: {0}'.format(guard))
                     del guards[guard]
-            
+
             # Kill circuits using relays that now appear to be "down", where
             #  down if not in consensus, hibernating, or without Running flag.
             # go through dirty circuit
@@ -1432,7 +1462,7 @@ out_dir/processed_descriptors-year-month.\n\
                     'server-descriptors-{0}-{1}{2}'.\
                     format(year, prepend, month))
                 desc_out_dir = os.path.join(out_dir, \
-                    'processed-descriptors-{0}-{1}{2}'.\
+                    'network-state-{0}-{1}{2}'.\
                     format(year, prepend, month))
                 if (not os.path.exists(desc_out_dir)):
                     os.mkdir(desc_out_dir)
@@ -1463,6 +1493,7 @@ out_dir/processed_descriptors-year-month.\n\
         else:
             _testing = False            
         
+        """Replaced consensus/descriptor files with pickled network state.
         consensus_files = []
         for dirpath, dirnames, filenames in os.walk(consensuses_dir,\
             followlinks=True):
@@ -1479,8 +1510,18 @@ out_dir/processed_descriptors-year-month.\n\
                     processed_descriptor_files.append(\
                         os.path.join(dirpath,filename))
         processed_descriptor_files.sort()
+        """
+        
+        network_state_files = []
+        for dirpath, dirnames, filenames in os.walk(descriptor_dir,\
+            followlinks=True):
+            for filename in filenames:
+                if (filename[0] != '.'):
+                    network_state_files.append(os.path.join(dirpath,filename))
+        network_state_files.sort()
 
         # determine start and end times
+        """Replaced with network state files.
         start_time = None
         with open(consensus_files[0]) as cf:
             for rel_stat in sd.parse_file(cf, validate=False):
@@ -1494,7 +1535,16 @@ out_dir/processed_descriptors-year-month.\n\
                 if (end_time == None):
                     end_time =\
                         timestamp(rel_stat.document.fresh_until)
-                    break        
+                    break
+        """
+        start_time = None
+        with open(network_state_files[0]) as nsf:
+            consensus = pickle.load(nsf)
+            start_time = timestamp(consensus.valid_after)
+        end_time = None
+        with open(network_state_files[-1]) as nsf:
+            consensus = pickle.load(nsf)
+            end_time = timestamp(consensus.fresh_until)
 
         # simple user that makes a port 80 request /resolve every x / y seconds
         http_request_wait = int(60 / num_requests) * 60
@@ -1504,8 +1554,10 @@ out_dir/processed_descriptors-year-month.\n\
         while (t < end_time):
             streams.append({'time':t,'type':'connect','ip':str_ip,'port':80})
             t += http_request_wait
-        create_circuits(consensus_files, processed_descriptor_files, streams,\
-            num_samples)    
+# Replaced call arguments with network_status_files
+#        create_circuits(consensus_files, processed_descriptor_files, streams,\
+#            num_samples)    
+        create_circuits(network_status_files, streams, num_samples)                
 
 # TODO
 # - support IPv6 addresses
