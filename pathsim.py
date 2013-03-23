@@ -58,7 +58,9 @@ class ServerDescriptor:
     Represents a server descriptor.
     Trim version of stem.descriptor.server_descriptor.ServerDescriptor.
     """
-    def __init__(self, hibernating, nickname, family, address, exit_policy):
+    def __init__(self, fingerprint, hibernating, nickname, family, address,\
+        exit_policy):
+        self.fingerprint = fingerprint
         self.hibernating = hibernating
         self.nickname = nickname
         self.family = family
@@ -181,8 +183,9 @@ def process_consensuses(in_dirs):
 #                                descriptors[r_stat.fingerprint][desc_time])
                             desc = descriptors[r_stat.fingerprint][desc_time]
                             descriptors_out[r_stat.fingerprint] = \
-                                ServerDescriptor(desc.hibernating, \
-                                    desc.nickname, desc.family, desc.address, \
+                                ServerDescriptor(desc.fingerprint, \
+                                    desc.hibernating, desc.nickname, \
+                                    desc.family, desc.address, \
                                     desc.exit_policy)
                             
                             num_found += 1
@@ -994,14 +997,14 @@ port: {3}'.format(cons_valid_after, circ_guards, circ_ip, circ_port))
             'descriptors':descriptors,\
             'covering':[]}
     
-# Replacing arguments with network_status_files.    
+# Replacing arguments with network_state_files.    
 #def create_circuits(relstats_files, processed_descriptor_files, streams,\
 #    num_samples):
-def create_circuits(network_status_files, streams, num_samples):
+def create_circuits(network_state_files, streams, num_samples):
     """Takes streams over time and creates circuits by interaction
     with choose_path().
       Input:
-        *** Replaced these with network_status_file arguments. ***
+        *** Replaced these with network_state_file arguments. ***
         relstats_files: list of filenames with consensuses
                         *in correct order*, must exactly cover a time period
                         (i.e. no gaps or overlaps)
@@ -1009,7 +1012,7 @@ def create_circuits(network_status_files, streams, num_samples):
             corresponding to relays in relstats_files as produced by
             process_consensuses      
         ******
-        network_status_files: list of filenames with network statuses
+        network_state_files: list of filenames with network statuses
             as produced by process_consensuses        
         streams: *ordered* list of streams, where a stream is a dict with keys
             'time': timestamp of when stream request occurs 
@@ -1087,7 +1090,7 @@ def create_circuits(network_status_files, streams, num_samples):
 #        # read in descriptors and consensus statuses
         # read in network states
         if _testing:
-            print('Using file {0}'.format(r_file))
+            print('Using file {0}'.format(ns_file))
         cons_valid_after = None
         cons_fresh_until = None
         cons_bw_weights = None
@@ -1129,9 +1132,9 @@ def create_circuits(network_status_files, streams, num_samples):
                 # but this way, it doesn't get repeatedly set.
                 cons_bwweightscale = 10000
             """
-            consensus = ns_file.load(nsf)
-            descriptors.update(ns_file.load(nsf))
-            cons_valid_after = timestamp(consensus.valid_after)
+            consensus = pickle.load(nsf)
+            descriptors.update(pickle.load(nsf))
+            cons_valid_after = timestamp(consensus.valid_after)            
             cons_fresh_until = timestamp(consensus.fresh_until)
             cons_bw_weights = consensus.bandwidth_weights
             if (consensus.bwweightscale == None):
@@ -1139,8 +1142,19 @@ def create_circuits(network_status_files, streams, num_samples):
             else:
                 cons_bwweightscale = consensus.bwweightscale
             for relay in consensus.relays:
-                if (relay.fingerprint in descriptors):
-                    cons_rel_stats[relay.fingerprint] = relay
+                if (relay in descriptors):
+                    cons_rel_stats[relay] = consensus.relays[relay]
+                
+        if (cur_period_start == None):
+            cur_period_start = cons_valid_after
+        elif (cur_period_end == cons_valid_after):
+            cur_period_start = cons_valid_after
+        else:
+            err = 'Gap/overlap in consensus times: {0}:{1}'.\
+                    format(cur_period_end, cons_valid_after)
+            raise ValueError(err)
+        cur_period_end = cons_fresh_until            
+                    
         
         if (init == True): # first period in simulation
             # seed port need
@@ -1554,10 +1568,10 @@ out_dir/processed_descriptors-year-month.\n\
         while (t < end_time):
             streams.append({'time':t,'type':'connect','ip':str_ip,'port':80})
             t += http_request_wait
-# Replaced call arguments with network_status_files
+# Replaced call arguments with network_state_files
 #        create_circuits(consensus_files, processed_descriptor_files, streams,\
 #            num_samples)    
-        create_circuits(network_status_files, streams, num_samples)                
+        create_circuits(network_state_files, streams, num_samples)                
 
 # TODO
 # - support IPv6 addresses
