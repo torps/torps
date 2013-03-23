@@ -17,24 +17,13 @@ class RouterStatusEntry:
     Represents a relay entry in a consensus document.
     Trim version of stem.descriptor.router_status_entry.RouterStatusEntry.
     """
-
     def __init__(self, fingerprint, nickname, flags, bandwidth):
         self.fingerprint = fingerprint
         self.nickname = nickname
         self.flags = flags
         self.bandwidth = bandwidth
-    """Observed uses of RelayStatusEntry objects:
-    process_consensuses()
-    r_stat.published
-    r_stat.fingerprint 
+    
 
-    create_circuits()
-    rel_stat.fingerprint
-    cons_rel_stats[guard].flags
-    cons_rel_stats[node].bandwidth
-    cons_rel_stats[new_guard].nickname"""
-    
-    
 class NetworkStatusDocument:
     """
     Represents a consensus document.
@@ -46,11 +35,6 @@ class NetworkStatusDocument:
         self.bandwidth_weights = bandwidth_weights
         self.bwweightscale = bwweightscale
         self.relays = relays
-    """Observed uses of NetworkStatusDocument objects:
-    document.valid_after
-    document.fresh_until
-    document.bandwidth_weights
-    document.params['bwweightscale']"""
 
 
 class ServerDescriptor:
@@ -66,13 +50,6 @@ class ServerDescriptor:
         self.family = family
         self.address = address
         self.exit_policy = exit_policy
-    """Observed uses of ServerDescriptor objets:
-    desc.fingerprint
-    descriptors[relay].hibernating
-    desc.nickname
-    desc.family
-    desc.address
-    descriptor.exit_policy"""
 
 
 def timestamp(t):
@@ -140,6 +117,7 @@ def process_consensuses(in_dirs):
                 with open(os.path.join(dirpath,filename), 'rb') as cons_f:
 #                    descriptors_out = [] # replacing with object dict
                     descriptors_out = {}
+                    hibernation_changes = [] # (fprint[str],hibernating[bool])
                     cons_valid_after = None
                     cons_fresh_until = None
                     cons_bw_weights = None
@@ -165,38 +143,58 @@ def process_consensuses(in_dirs):
                             r_stat.flags, r_stat.bandwidth)
                         # find most recent descriptor published before the
                         # publication time in the consensus
+                        # and status changes in fresh period (i.e. hibernation)
                         pub_time = timestamp(r_stat.published)
                         desc_time = 0
+                        descs_while_fresh = []
                         # get all descriptors with this fingerprint
                         if (r_stat.fingerprint in descriptors):
-                            for t in descriptors[r_stat.fingerprint].keys():
+                            for t,d in descriptors[r_stat.fingerprint].items():
                                 if (t <= pub_time) and (t >= desc_time):
                                     desc_time = t
+                                if (t >= cons_valid_after) and \
+                                    (t <= cons_fresh_until):
+                                    descs_while_fresh.append((t,d))
                         if (desc_time == 0):
 #                            print(\
 #                            'Descriptor not found for {0}:{1}:{2}'.format(\
 #                                r_stat.nickname,r_stat.fingerprint, pub_time))
                             num_not_found += 1
                         else:
-# replacing with object dict                        
+# replaced with object dict                        
 #                            descriptors_out.append(\
 #                                descriptors[r_stat.fingerprint][desc_time])
+                            # store discovered recent descriptor
                             desc = descriptors[r_stat.fingerprint][desc_time]
                             descriptors_out[r_stat.fingerprint] = \
                                 ServerDescriptor(desc.fingerprint, \
                                     desc.hibernating, desc.nickname, \
                                     desc.family, desc.address, \
                                     desc.exit_policy)
-                            
+                            # store changes in hibernation status
+                            descs_while_fresh.sort(key = lambda x: x[0])
+                            cur_hibernating = desc.hibernating
+                            for (t,d) in descs_while_fresh:
+                                if (d.hibernating != cur_hibernating):
+                                    cur_hibernating = d.hibernating                                   
+                                    hibernation_changes.append(\
+                                        (t, d.fingerprint, cur_hibernating))
+                                    if (cur_hibernating):
+                                        print('{0} started hibernating at {1}'\
+                                            .format(d.nickname, t))
+                                    else:
+                                        print('{0} stopped hibernating at {1}'\
+                                            .format(d.nickname, t))
                             num_found += 1
                             
-                    # output pickled consensus and discovered descriptors
+                    # output pickled consensus, recent descriptors, and
+                    # hibernation status changes
                     if (cons_valid_after != None) and\
                         (cons_fresh_until != None):
-                        # create and output consensus object
                         consensus = NetworkStatusDocument(cons_valid_after,\
                             cons_fresh_until, cons_bw_weights,\
                             cons_bwweightscale, relays)
+                        hibernation_changes.sort(key = lambda x: x[0])
                         outpath = os.path.join(desc_out_dir,\
                             cons_valid_after.strftime(\
                                 '%Y-%m-%d-%H-%M-%S-network_state'))
@@ -204,8 +202,9 @@ def process_consensuses(in_dirs):
                         pickle.dump(consensus, f, pickle.HIGHEST_PROTOCOL)
                         pickle.dump(descriptors_out, f, \
                             pickle.HIGHEST_PROTOCOL)
+                        pickle.dump(hibernation_changes)
                         f.close()
-# old method which just outputted descriptor strings
+# replaced with pickled output
 #                        outpath = os.path.join(desc_out_dir,\
 #                            cons_valid_after.strftime(\
 #                                '%Y-%m-%d-%H-%M-%S-descriptors'))
