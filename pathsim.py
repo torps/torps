@@ -66,10 +66,8 @@ def process_consensuses(in_dirs):
                 processed descriptor out dir) triples *in order*
     """
     descriptors = {}
-    newest_fresh_until = 0
-    # unclear from docs when relay will stop using an old descriptor
-    # going with 5 days
-    descriptor_expiration_time = 5*24*60*60
+    # given by #define ROUTER_MAX_AGE (60*60*48) in or.h
+    router_max_age = 60*60*48
     def skip_listener(path, event):
         print('ERROR [{0}]: {1}'.format(path, event))
         
@@ -78,19 +76,6 @@ def process_consensuses(in_dirs):
         num_descriptors = 0    
         num_relays = 0
 
-        # expire descriptors to save memory
-        print('Expiring old descriptors from {0}.'.format(newest_fresh_until))
-        num_expired_descs = 0
-        for fprint, descriptor_times in descriptors.items():
-            remove_times = []
-            for dtime in descriptor_times:
-                if (newest_fresh_until - dtime >= descriptor_expiration_time):
-                    remove_times.append(dtime)
-                    num_expired_descs += 1
-            for dtime in remove_times:
-                del descriptor_times[dtime]
-        print('Expired {0} descriptors.'.format(num_expired_descs))
-    
         print('Reading descriptors from: {0}'.format(in_descriptors))
         with sdr.DescriptorReader(in_descriptors, validate=True) as reader:
             reader.register_skip_listener(skip_listener)
@@ -105,7 +90,8 @@ def process_consensuses(in_dirs):
         print('#descriptors: {0}; #relays:{1}'.\
             format(num_descriptors,num_relays)) 
 
-        # output pickled consensuses and dict of most recent descriptors
+        # output pickled consensuses, dict of most recent descriptors, and 
+        # list of hibernation status changes
         num_consensuses = 0
         for dirpath, dirnames, filenames in os.walk(in_consensuses_dir):
             filenames.sort()
@@ -113,97 +99,112 @@ def process_consensuses(in_dirs):
                 if (filename[0] == '.'):
                     continue
                 
-                print(filename)
-                with open(os.path.join(dirpath,filename), 'rb') as cons_f:
+                print('Processing consensus file {0}'.format(filename))
+                cons_f = open(os.path.join(dirpath,filename), 'rb')
 #                    descriptors_out = [] # replacing with object dict
-                    descriptors_out = {}
-                    hibernating_changes = [] # (time, fprint, hibernating)
-                    cons_valid_after = None
-                    cons_fresh_until = None
-                    cons_bw_weights = None
-                    cons_bwweightscale = None
-                    relays = {}
-                    num_not_found = 0
-                    num_found = 0
-                    for r_stat in sd.parse_file(cons_f, validate=True):
-                        if (cons_valid_after == None):
-                            cons_valid_after = r_stat.document.valid_after
-                        if (cons_fresh_until == None):
-                            cons_fresh_until = r_stat.document.fresh_until
-                        if (cons_bw_weights == None):
-                            cons_bw_weights = r_stat.document.bandwidth_weights
-                        if (cons_bwweightscale == None) and \
-                            ('bwweightscale' in r_stat.document.params):
-                            cons_bwweightscale = r_stat.document.params[\
-                                    'bwweightscale']
-                        if (timestamp(cons_fresh_until) > newest_fresh_until):
-                            newest_fresh_until = timestamp(cons_fresh_until)
-                        relays[r_stat.fingerprint] = RouterStatusEntry(\
-                            r_stat.fingerprint, r_stat.nickname, \
-                            r_stat.flags, r_stat.bandwidth)
-                        # find most recent descriptor published before the
-                        # publication time in the consensus
-                        # and status changes in fresh period (i.e. hibernation)
-                        pub_time = timestamp(r_stat.published)
-                        desc_time = 0
-                        descs_while_fresh = []
-                        # get all descriptors with this fingerprint
-                        if (r_stat.fingerprint in descriptors):
-                            for t,d in descriptors[r_stat.fingerprint].items():
-                                if (t <= pub_time) and (t >= desc_time):
-                                    desc_time = t
-                                if (t >= cons_valid_after) and \
-                                    (t <= cons_fresh_until):
-                                    descs_while_fresh.append((t,d))
-                        if (desc_time == 0):
+                descriptors_out = {}
+                hibernating_changes = [] # (time, fprint, hibernating)
+                cons_valid_after = None
+                cons_fresh_until = None
+                cons_bw_weights = None
+                cons_bwweightscale = None
+                relays = {}
+                num_not_found = 0
+                num_found = 0
+                num_expired = 0 # num descs expired due to age
+                num_superseded = 0 # num descs superseded by better descriptors
+                for r_stat in sd.parse_file(cons_f, validate=True):
+                    if (cons_valid_after == None):
+                        cons_valid_after = r_stat.document.valid_after
+                    if (cons_fresh_until == None):
+                        cons_fresh_until = r_stat.document.fresh_until
+                    if (cons_bw_weights == None):
+                        cons_bw_weights = r_stat.document.bandwidth_weights
+                    if (cons_bwweightscale == None) and \
+                        ('bwweightscale' in r_stat.document.params):
+                        cons_bwweightscale = r_stat.document.params[\
+                                'bwweightscale']
+                    relays[r_stat.fingerprint] = RouterStatusEntry(\
+                        r_stat.fingerprint, r_stat.nickname, \
+                        r_stat.flags, r_stat.bandwidth)
+                    # find most recent unexpired descriptor published before
+                    # the publication time in the consensus
+                    # and status changes in fresh period (i.e. hibernation)
+                    pub_time = timestamp(r_stat.published)
+                    desc_time = 0
+                    descs_while_fresh = []
+                    remove_times = [] # track descs to expire
+                    # get all descriptors with this fingerprint
+                    if (r_stat.fingerprint in descriptors):
+                        for t,d in descriptors[r_stat.fingerprint].items():
+                            if (cons_valid_after - t >= router_max_age):
+                                # expire old descriptors
+                                remove_times.append(t)
+                                num_expired += 1
+                            elif (t <= pub_time) and (t > desc_time):
+                                if (desc_time > 0):
+                                    # delete superseded descriptors for space
+                                    remove_times.append(desc_time)
+                                    num_superseded += 1
+                                desc_time = t
+                            # store fresh-period descs for hibernation tracking
+                            if (t >= cons_valid_after) and \
+                                (t <= cons_fresh_until):
+                                descs_while_fresh.append((t,d))                                
+                    # store changes in hibernating status
+                    descs_while_fresh.sort(key = lambda x: x[0])
+                    cur_hibernating = desc.hibernating
+                    for (t,d) in descs_while_fresh:
+                        if (d.hibernating != cur_hibernating):
+                            cur_hibernating = d.hibernating                                   
+                            hibernating_changes.append(\
+                                (t, d.fingerprint, cur_hibernating))
+                            if (cur_hibernating):
+                                print('{0} started hibernating at {1}'\
+                                    .format(d.nickname, t))
+                            else:
+                                print('{0} stopped hibernating at {1}'\
+                                    .format(d.nickname, t))                                
+                    # output best descriptor if found
+                    if (desc_time == 0):
 #                            print(\
 #                            'Descriptor not found for {0}:{1}:{2}'.format(\
 #                                r_stat.nickname,r_stat.fingerprint, pub_time))
-                            num_not_found += 1
-                        else:
+                        num_not_found += 1
+                    else:
 # replaced with object dict                        
 #                            descriptors_out.append(\
 #                                descriptors[r_stat.fingerprint][desc_time])
-                            # store discovered recent descriptor
-                            desc = descriptors[r_stat.fingerprint][desc_time]
-                            descriptors_out[r_stat.fingerprint] = \
-                                ServerDescriptor(desc.fingerprint, \
-                                    desc.hibernating, desc.nickname, \
-                                    desc.family, desc.address, \
-                                    desc.exit_policy)
-                            # store changes in hibernating status
-                            descs_while_fresh.sort(key = lambda x: x[0])
-                            cur_hibernating = desc.hibernating
-                            for (t,d) in descs_while_fresh:
-                                if (d.hibernating != cur_hibernating):
-                                    cur_hibernating = d.hibernating                                   
-                                    hibernating_changes.append(\
-                                        (t, d.fingerprint, cur_hibernating))
-                                    if (cur_hibernating):
-                                        print('{0} started hibernating at {1}'\
-                                            .format(d.nickname, t))
-                                    else:
-                                        print('{0} stopped hibernating at {1}'\
-                                            .format(d.nickname, t))
-                            num_found += 1
-                            
-                    # output pickled consensus, recent descriptors, and
-                    # hibernating status changes
-                    if (cons_valid_after != None) and\
-                        (cons_fresh_until != None):
-                        consensus = NetworkStatusDocument(cons_valid_after,\
-                            cons_fresh_until, cons_bw_weights,\
-                            cons_bwweightscale, relays)
-                        hibernating_changes.sort(key = lambda x: x[0])
-                        outpath = os.path.join(desc_out_dir,\
-                            cons_valid_after.strftime(\
-                                '%Y-%m-%d-%H-%M-%S-network_state'))
-                        f = open(outpath, 'wb')
-                        pickle.dump(consensus, f, pickle.HIGHEST_PROTOCOL)
-                        pickle.dump(descriptors_out, f, \
-                            pickle.HIGHEST_PROTOCOL)
-                        pickle.dump(hibernating_changes)
-                        f.close()
+                        # store discovered recent descriptor
+                        desc = descriptors[r_stat.fingerprint][desc_time]
+                        descriptors_out[r_stat.fingerprint] = \
+                            ServerDescriptor(desc.fingerprint, \
+                                desc.hibernating, desc.nickname, \
+                                desc.family, desc.address, \
+                                desc.exit_policy)
+                        num_found += 1
+                    # remove unneeded descriptors
+                    for dtime in remove_times:
+                        del descriptors[r_stat.fingerprint][dtime]
+                        
+                # output pickled consensus, recent descriptors, and
+                # hibernating status changes
+                if (cons_valid_after != None) and\
+                    (cons_fresh_until != None):
+                    consensus = NetworkStatusDocument(cons_valid_after,\
+                        cons_fresh_until, cons_bw_weights,\
+                        cons_bwweightscale, relays)
+                    hibernating_changes.sort(key = lambda x: x[0],\
+                        reverse=True)
+                    outpath = os.path.join(desc_out_dir,\
+                        cons_valid_after.strftime(\
+                            '%Y-%m-%d-%H-%M-%S-network_state'))
+                    f = open(outpath, 'wb')
+                    pickle.dump(consensus, f, pickle.HIGHEST_PROTOCOL)
+                    pickle.dump(descriptors_out, f, \
+                        pickle.HIGHEST_PROTOCOL)
+                    pickle.dump(hibernating_changes)
+                    f.close()
 # replaced with pickled output
 #                        outpath = os.path.join(desc_out_dir,\
 #                            cons_valid_after.strftime(\
@@ -216,13 +217,18 @@ def process_consensuses(in_dirs):
 #                            f.write('\n')
 #                        f.close()
 
-                        print('Wrote descriptors for {0} relays.'.\
-                            format(num_found))
-                        print('Did not find descriptors for {0} relays\n'.\
-                            format(num_not_found))
-                    else:
-                        print('Problem parsing {0}.'.format(filename))             
-                    num_consensuses += 1
+                    print('Wrote descriptors for {0} relays.'.\
+                        format(num_found))
+                    print('Did not find descriptors for {0} relays\n'.\
+                        format(num_not_found))
+                    print('Expired {0} descriptors.'.format(num_expired))
+                    print('{0} descriptors superseded.'.format(num_superseded))
+                else:
+                    print('Problem parsing {0}.'.format(filename))             
+                num_consensuses += 1
+                
+                cons_f.close()
+                
         print('# consensuses: {0}'.format(num_consensuses))
 
 
@@ -1379,7 +1385,6 @@ def create_circuits(network_state_files, streams, num_samples):
             potential_guard_weights)    
        
         # for simplicity, step through time one minute at a time
-        hibernating_changes.reverse() # order to allow popping oldest changes        
         time_step = 60
         cur_time = cur_period_start
         while (cur_time < cur_period_end):    
@@ -1666,14 +1671,13 @@ out_dir/processed_descriptors-year-month.\n\
 # - We do not consider removing stable/fast requirements if a suitable relay can't be found at some point. Tor does this. Rather, we just error.
 # - Instead of immediately using a new consensus, set a random time to
 #   switch to the new one, following the process in dir-spec.txt (Sec. 5.1).
-# - Check for descriptors that aren't the ones in the consensus, particularly
-#   those older than 48 hours, which should expire (dir-spec.txt, Sec. 5.2).
 # - Do something intelligent with empty node sets rather than just raise error.
 # - circuits only recorded as fast/stable/internal if they were chosen to
 #   satisfy that, but they may just by chance. should we check?
 # - Tor actually seems to build a circuit to cover a port by randomly selecting from exits that cover *some* unhandled port (see choose_good_exit_server_general() in circuitbuild.c). Possibly change procedure for covering ports to act like this.
 # - Current descriptors are stored with the circuit when it's created. This may have been before the descriptors became persistant between consensuses. They probably should be removed from the circuits and the persistant descriptors structure used instead.
-# - Create hibernation_changes in reverse order to avoid repeated reversing.
+# - Create hibernating_changes in reverse order to avoid repeated reversing.
+# - We should expire descriptors older than router_max_age on a per-minute basis. I'm not sure exactly how relays in the consensus but without descriptors are treated, especially in terms of putting guards down. As an approximation, we expire descriptors while building consensuses, and thus do so at most an hour off from when a running relay would. Given that router_max_age is 48 hours, that not large relative error for how long a relay may be used. Also, I don't think that in the Tor metrics data a relay ever appears in the consensus but does not have a recent descriptor.
 
 
 ##### Relevant lines for path selection extracted from Tor specs.
