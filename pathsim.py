@@ -137,7 +137,8 @@ def process_consensuses(in_dirs):
                     # get all descriptors with this fingerprint
                     if (r_stat.fingerprint in descriptors):
                         for t,d in descriptors[r_stat.fingerprint].items():
-                            if (cons_valid_after - t >= router_max_age):
+                            if (timestamp(cons_valid_after) - t >=\
+                                router_max_age):
                                 # expire old descriptors
                                 remove_times.append(t)
                                 num_expired += 1
@@ -148,8 +149,8 @@ def process_consensuses(in_dirs):
                                     num_superseded += 1
                                 desc_time = t
                             # store fresh-period descs for hibernation tracking
-                            if (t >= cons_valid_after) and \
-                                (t <= cons_fresh_until):
+                            if (t >= timestamp(cons_valid_after)) and \
+                                (t <= timestamp(cons_fresh_until)):
                                 descs_while_fresh.append((t,d))                                
                     # store changes in hibernating status
                     descs_while_fresh.sort(key = lambda x: x[0])
