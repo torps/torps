@@ -153,7 +153,7 @@ def process_consensuses(in_dirs):
                             (t <= fresh_until_ts):
                             descs_while_fresh.append((t,d))                                
                         # update most recent hibernating stat before fresh time
-                        if (t <= fresh_until_ts) and\
+                        if (t <= valid_after_ts) and\
                             (t > desc_time_fresh):
                             desc_time_fresh = t
                 # output best descriptor if found
@@ -168,14 +168,11 @@ def process_consensuses(in_dirs):
                         ServerDescriptor(desc.fingerprint, \
                             desc.hibernating, desc.nickname, \
                             desc.family, desc.address, \
-                            desc.exit_policy)                    
-                else:
-#                            print(\
-#                            'Descriptor not found for {0}:{1}:{2}'.format(\
-#                                r_stat.nickname,r_stat.fingerprint, pub_time))
-                    num_not_found += 1
-                # store hibernating statuses
-                if (desc_time_fresh != 0):
+                            desc.exit_policy) 
+                            
+                    # store hibernating statuses
+                    if (desc_time_fresh == 0):
+                        raise ValueError('Recent descriptor before fresh period starting {0} not found, but descriptor before published date {1} found. Should not happen.'.format(valid_after_ts, pub_time))
                     descs_while_fresh.sort(key = lambda x: x[0])
                     desc = descriptors[r_stat.fingerprint][desc_time_fresh]
                     cur_hibernating = desc.hibernating
@@ -194,7 +191,12 @@ def process_consensuses(in_dirs):
                                     .format(d.nickname, d.fingerprint, t))
                             else:
                                 print('{0}:{1} stopped hibernating at {1}'\
-                                    .format(d.nickname, d.fingerprint, t))
+                                    .format(d.nickname, d.fingerprint, t))                   
+                else:
+#                            print(\
+#                            'Descriptor not found for {0}:{1}:{2}'.format(\
+#                                r_stat.nickname,r_stat.fingerprint, pub_time))
+                    num_not_found += 1
                     
             # output pickled consensus, recent descriptors, and
             # hibernating status changes
