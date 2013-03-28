@@ -1280,8 +1280,8 @@ def create_circuits(network_state_files, streams, num_samples):
             hibernating_status[hs[1]] = hs[2]
             if _testing:
                 if (hs[2]):
-                    print('{0} was hibernating at start of consenuss period.'.\
-                        format(cons_rel_stats[hs[2]].nickname))
+                    print('{0} was hibernating at start of consensus period.'.\
+                        format(cons_rel_stats[hs[1]].nickname))
         
         if (init == True): # first period in simulation
             # seed port need
