@@ -183,18 +183,18 @@ def process_consensuses(in_dirs):
                         desc.fingerprint, cur_hibernating))
                     if _testing:
                         if (cur_hibernating):
-                            print('{0} was hibernating at consenses period start'.format(desc.nickname))
+                            print('{0}:{1} was hibernating at consenses period start'.format(desc.nickname, desc.fingerprint))
                     for (t,d) in descs_while_fresh:
                         if (d.hibernating != cur_hibernating):
                             cur_hibernating = d.hibernating                                   
                             hibernating_statuses.append(\
                                 (t, d.fingerprint, cur_hibernating))
                             if (cur_hibernating):
-                                print('{0} started hibernating at {1}'\
-                                    .format(d.nickname, t))
+                                print('{0}:{1} started hibernating at {1}'\
+                                    .format(d.nickname, d.fingerprint t))
                             else:
-                                print('{0} stopped hibernating at {1}'\
-                                    .format(d.nickname, t))                                
+                                print('{0}:{1} stopped hibernating at {1}'\
+                                    .format(d.nickname, d.fingerprint, t))
                     
             # output pickled consensus, recent descriptors, and
             # hibernating status changes
