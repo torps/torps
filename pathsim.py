@@ -191,7 +191,7 @@ def process_consensuses(in_dirs):
                                 (t, d.fingerprint, cur_hibernating))
                             if (cur_hibernating):
                                 print('{0}:{1} started hibernating at {1}'\
-                                    .format(d.nickname, d.fingerprint t))
+                                    .format(d.nickname, d.fingerprint, t))
                             else:
                                 print('{0}:{1} stopped hibernating at {1}'\
                                     .format(d.nickname, d.fingerprint, t))
