@@ -107,7 +107,7 @@ def process_consensuses(in_dirs):
             cons_f = open(pathname, 'rb')
 #                    descriptors_out = [] # replacing with object dict
             descriptors_out = {}
-            hibernating_changes = [] # (time, fprint, hibernating)
+            hibernating_statuses = [] # (time, fprint, hibernating)
             cons_valid_after = None
             cons_fresh_until = None
             cons_bw_weights = None
@@ -174,15 +174,20 @@ def process_consensuses(in_dirs):
 #                            'Descriptor not found for {0}:{1}:{2}'.format(\
 #                                r_stat.nickname,r_stat.fingerprint, pub_time))
                     num_not_found += 1
-                # store changes in hibernating status
+                # store hibernating statuses
                 if (desc_time_fresh != 0):
                     descs_while_fresh.sort(key = lambda x: x[0])
                     desc = descriptors[r_stat.fingerprint][desc_time_fresh]
                     cur_hibernating = desc.hibernating
+                    hibernating_statuses.append((desc_time_fresh,\
+                        desc.fingerprint, cur_hibernating))
+                    if _testing:
+                        if (cur_hibernating):
+                            print('{0} was hibernating at consenses period start'.format(desc.fingerprint))
                     for (t,d) in descs_while_fresh:
                         if (d.hibernating != cur_hibernating):
                             cur_hibernating = d.hibernating                                   
-                            hibernating_changes.append(\
+                            hibernating_statuses.append(\
                                 (t, d.fingerprint, cur_hibernating))
                             if (cur_hibernating):
                                 print('{0} started hibernating at {1}'\
@@ -198,7 +203,7 @@ def process_consensuses(in_dirs):
                 consensus = NetworkStatusDocument(cons_valid_after,\
                     cons_fresh_until, cons_bw_weights,\
                     cons_bwweightscale, relays)
-                hibernating_changes.sort(key = lambda x: x[0],\
+                hibernating_statuses.sort(key = lambda x: x[0],\
                     reverse=True)
                 outpath = os.path.join(desc_out_dir,\
                     cons_valid_after.strftime(\
@@ -206,7 +211,7 @@ def process_consensuses(in_dirs):
                 f = open(outpath, 'wb')
                 pickle.dump(consensus, f, pickle.HIGHEST_PROTOCOL)
                 pickle.dump(descriptors_out,f,pickle.HIGHEST_PROTOCOL)
-                pickle.dump(hibernating_changes,f,pickle.HIGHEST_PROTOCOL)
+                pickle.dump(hibernating_statuses,f,pickle.HIGHEST_PROTOCOL)
                 f.close()
 # replaced with pickled output
 #                        outpath = os.path.join(desc_out_dir,\
@@ -1206,7 +1211,7 @@ def create_circuits(network_state_files, streams, num_samples):
         cons_bw_weights = None
         cons_bwweightscale = None        
         cons_rel_stats = {}
-        hibernating_changes = None
+        hibernating_statuses = None
         hibernating_status = {}
 # replaced with network_state_files        
 #        with open(d_file, 'r') as df, open(r_file, 'r') as cf:
@@ -1246,7 +1251,7 @@ def create_circuits(network_state_files, streams, num_samples):
             """
             consensus = pickle.load(nsf)
             descriptors.update(pickle.load(nsf))
-            hibernating_changes = pickle.load(nsf) #[(time,fprint,hibernating)]
+            hibernating_statuses = pickle.load(nsf) #[(time,fprint,hibernating)]
             
             # set variables from consensus
             cons_valid_after = timestamp(consensus.valid_after)            
@@ -1398,8 +1403,9 @@ def create_circuits(network_state_files, streams, num_samples):
                         del client_state['port_needs_covered'][port]
                         
             # update hibernating status
-            while (hibernating_changes[-1][0] <= cur_time):
-                hibernating_change = hibernating_changes.pop()
+            while (hibernating_statuses) and\
+                (hibernating_statuses[-1][0] <= cur_time):
+                hibernating_change = hibernating_statuses.pop()
                 hibernating_status[hibernating_change[1]] = \
                     hibernating_change[2]
             
@@ -1678,7 +1684,6 @@ out_dir/processed_descriptors-year-month.\n\
 #   satisfy that, but they may just by chance. should we check?
 # - Tor actually seems to build a circuit to cover a port by randomly selecting from exits that cover *some* unhandled port (see choose_good_exit_server_general() in circuitbuild.c). Possibly change procedure for covering ports to act like this.
 # - Current descriptors are stored with the circuit when it's created. This may have been before the descriptors became persistant between consensuses. They probably should be removed from the circuits and the persistant descriptors structure used instead.
-# - Create hibernating_changes in reverse order to avoid repeated reversing.
 # - We should expire descriptors older than router_max_age on a per-minute basis. I'm not sure exactly how relays in the consensus but without descriptors are treated, especially in terms of putting guards down. As an approximation, we expire descriptors while building consensuses, and thus do so at most an hour off from when a running relay would. Given that router_max_age is 48 hours, that not large relative error for how long a relay may be used. Also, I don't think that in the Tor metrics data a relay ever appears in the consensus but does not have a recent descriptor.
 
 
