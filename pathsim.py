@@ -1042,9 +1042,9 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
         # get first <= num_guards guards suitable for circuit
         circ_guards = get_guards_for_circ(cons_bw_weights,\
             cons_bwweightscale, cons_rel_stats, descriptors,\
-            hibernating_status, circ_fast, circ_stable, guards, num_guards,\
+            circ_fast, circ_stable, guards, num_guards,\
             min_num_guards, exit_node, guard_expiration_min,\
-            guard_expiration_max, circ_time, weighted_guards)    
+            guard_expiration_max, circ_time, weighted_guards)   
         guard_node = random.choice(circ_guards)
         if (hibernating_status[guard_node]):
             if (not guards[guard_node]['made_contact']):
