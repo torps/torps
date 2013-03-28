@@ -183,7 +183,7 @@ def process_consensuses(in_dirs):
                         desc.fingerprint, cur_hibernating))
                     if _testing:
                         if (cur_hibernating):
-                            print('{0} was hibernating at consenses period start'.format(desc.fingerprint))
+                            print('{0} was hibernating at consenses period start'.format(desc.nickname))
                     for (t,d) in descs_while_fresh:
                         if (d.hibernating != cur_hibernating):
                             cur_hibernating = d.hibernating                                   
@@ -1018,9 +1018,6 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
         raise ValueError('consensus not fresh for circ_time in create_circuit')
  
     # select exit node
-    # The hibernating status is checked here to mirror that in Tor
-    # the exit would be selected, the circuit would fail, path selection
-    # would happen again, and a circuit creation attempted again.
     if (weighted_exits == None):
         weighted_exits = get_weighted_exits(cons_bw_weights, 
             cons_bwweightscale, cons_rel_stats, descriptors, circ_fast,
@@ -1251,7 +1248,7 @@ def create_circuits(network_state_files, streams, num_samples):
             """
             consensus = pickle.load(nsf)
             descriptors.update(pickle.load(nsf))
-            hibernating_statuses = pickle.load(nsf) #[(time,fprint,hibernating)]
+            hibernating_statuses = pickle.load(nsf)
             
             # set variables from consensus
             cons_valid_after = timestamp(consensus.valid_after)            
