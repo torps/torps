@@ -118,8 +118,12 @@ def process_consensuses(in_dirs):
             for r_stat in sd.parse_file(cons_f, validate=True):
                 if (cons_valid_after == None):
                     cons_valid_after = r_stat.document.valid_after
+                    # compute timestamp version once here
+                    valid_after_ts = timestamp(cons_valid_after)
                 if (cons_fresh_until == None):
                     cons_fresh_until = r_stat.document.fresh_until
+                    # compute timestamp version once here
+                    fresh_until_ts = timestamp(cons_fresh_until)
                 if (cons_bw_weights == None):
                     cons_bw_weights = r_stat.document.bandwidth_weights
                 if (cons_bwweightscale == None) and \
@@ -135,49 +139,57 @@ def process_consensuses(in_dirs):
                 pub_time = timestamp(r_stat.published)
                 desc_time = 0
                 descs_while_fresh = []
+                desc_time_fresh = 0
                 # get all descriptors with this fingerprint
                 if (r_stat.fingerprint in descriptors):
                     for t,d in descriptors[r_stat.fingerprint].items():
-                        if (timestamp(cons_valid_after)-t <\
+                        # update most recent desc seen before cons pubtime
+                        if (valid_after_ts-t <\
                             router_max_age) and\
                             (t <= pub_time) and (t > desc_time):
                             desc_time = t
                         # store fresh-period descs for hibernation tracking
-                        if (t >= timestamp(cons_valid_after)) and \
-                            (t <= timestamp(cons_fresh_until)):
+                        if (t >= valid_after_ts) and \
+                            (t <= fresh_until_ts):
                             descs_while_fresh.append((t,d))                                
-                # store changes in hibernating status
-                descs_while_fresh.sort(key = lambda x: x[0])
-                cur_hibernating = desc.hibernating
-                for (t,d) in descs_while_fresh:
-                    if (d.hibernating != cur_hibernating):
-                        cur_hibernating = d.hibernating                                   
-                        hibernating_changes.append(\
-                            (t, d.fingerprint, cur_hibernating))
-                        if (cur_hibernating):
-                            print('{0} started hibernating at {1}'\
-                                .format(d.nickname, t))
-                        else:
-                            print('{0} stopped hibernating at {1}'\
-                                .format(d.nickname, t))                                
+                        # update most recent hibernating stat before fresh time
+                        if (t <= fresh_until_ts) and\
+                            (t > desc_time_fresh):
+                            desc_time_fresh = t
                 # output best descriptor if found
-                if (desc_time == 0):
-#                            print(\
-#                            'Descriptor not found for {0}:{1}:{2}'.format(\
-#                                r_stat.nickname,r_stat.fingerprint, pub_time))
-                    num_not_found += 1
-                else:
+                if (desc_time != 0):
 # replaced with object dict                        
 #                            descriptors_out.append(\
 #                                descriptors[r_stat.fingerprint][desc_time])
+                    num_found += 1
                     # store discovered recent descriptor
                     desc = descriptors[r_stat.fingerprint][desc_time]
                     descriptors_out[r_stat.fingerprint] = \
                         ServerDescriptor(desc.fingerprint, \
                             desc.hibernating, desc.nickname, \
                             desc.family, desc.address, \
-                            desc.exit_policy)
-                    num_found += 1
+                            desc.exit_policy)                    
+                else:
+#                            print(\
+#                            'Descriptor not found for {0}:{1}:{2}'.format(\
+#                                r_stat.nickname,r_stat.fingerprint, pub_time))
+                    num_not_found += 1
+                # store changes in hibernating status
+                if (desc_time_fresh != 0):
+                    descs_while_fresh.sort(key = lambda x: x[0])
+                    desc = descriptors[r_stat.fingerprint][desc_time_fresh]
+                    cur_hibernating = desc.hibernating
+                    for (t,d) in descs_while_fresh:
+                        if (d.hibernating != cur_hibernating):
+                            cur_hibernating = d.hibernating                                   
+                            hibernating_changes.append(\
+                                (t, d.fingerprint, cur_hibernating))
+                            if (cur_hibernating):
+                                print('{0} started hibernating at {1}'\
+                                    .format(d.nickname, t))
+                            else:
+                                print('{0} stopped hibernating at {1}'\
+                                    .format(d.nickname, t))                                
                     
             # output pickled consensus, recent descriptors, and
             # hibernating status changes
@@ -1547,7 +1559,8 @@ out_dir/processed_descriptors-year-month.\n\
         in_dirs = []
         month = start_month
         for year in range(start_year, end_year+1):
-            while (year < end_year) or (month <= end_month):
+            while ((year < end_year) and (month <= 12)) or \
+                (month <= end_month):
                 if (month <= 9):
                     prepend = '0'
                 else:
