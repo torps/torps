@@ -1261,11 +1261,6 @@ def create_circuits(network_state_files, streams, num_samples):
             for relay in consensus.relays:
                 if (relay in descriptors):
                     cons_rel_stats[relay] = consensus.relays[relay]
-                    
-        # set initial hibernating status
-        for rel_stat in cons_rel_stats:
-            hibernating_status[rel_stat] = \
-                descriptors[rel_stat].hibernating
 
         # update simulation period                
         if (cur_period_start == None):
@@ -1276,8 +1271,17 @@ def create_circuits(network_state_files, streams, num_samples):
             err = 'Gap/overlap in consensus times: {0}:{1}'.\
                     format(cur_period_end, cons_valid_after)
             raise ValueError(err)
-        cur_period_end = cons_fresh_until            
-                    
+        cur_period_end = cons_fresh_until  
+
+        # set initial hibernating status
+        while (hibernating_statuses) and\
+            (hibernating_statuses[-1][0] <= cur_period_start):
+            hs = hibernating_statuses.pop()
+            hibernating_status[hs[1]] = hs[2]
+            if _testing:
+                if (hs[2]):
+                    print('{0} was hibernating at start of consenuss period.'.\
+                        format(cons_rel_stats[hs[2]].nickname))
         
         if (init == True): # first period in simulation
             # seed port need
