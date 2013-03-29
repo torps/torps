@@ -158,7 +158,8 @@ def process_consensuses(in_dirs):
                         if (desc_time_fresh == None):
                             desc_time_fresh = t
                         elif (desc_time_fresh < valid_after_ts):
-                            if (t > desc_time_fresh):
+                            if (t > desc_time_fresh) and\
+                                (t <= valid_after_ts):
                                 desc_time_fresh = t
                         else:
                             if (t < desc_time_fresh):
@@ -180,7 +181,6 @@ def process_consensuses(in_dirs):
                             
                     # store hibernating statuses
                     if (desc_time_fresh == None):
-                        # use descriptor time
                         raise ValueError('Descriptor error for {0}:{1}.\n Found  descriptor before published date {2}: {3}\nDid not find descriptor for initial hibernation status for fresh period starting {4}.'.format(r_stat.nickname, r_stat.fingerprint, pub_time, desc_time, valid_after_ts))
                     descs_while_fresh.sort(key = lambda x: x[0])
                     desc = descriptors[r_stat.fingerprint][desc_time_fresh]
