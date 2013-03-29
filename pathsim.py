@@ -172,7 +172,7 @@ def process_consensuses(in_dirs):
                             
                     # store hibernating statuses
                     if (desc_time_fresh == 0):
-                        raise ValueError('Descriptor error for {0}:{1}.\n Found  descriptor before published date {2}: {3}\nDid not find recent descriptor before fresh period starting {4}.'.format(r_stat.nickname, r_stat.fingerprint, valid_after_ts, desc_time, pub_time))
+                        raise ValueError('Descriptor error for {0}:{1}.\n Found  descriptor before published date {2}: {3}\nDid not find recent descriptor before fresh period starting {4}.'.format(r_stat.nickname, r_stat.fingerprint, pub_time, desc_time, valid_after_ts))
                     descs_while_fresh.sort(key = lambda x: x[0])
                     desc = descriptors[r_stat.fingerprint][desc_time_fresh]
                     cur_hibernating = desc.hibernating
