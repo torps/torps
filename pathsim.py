@@ -139,7 +139,7 @@ def process_consensuses(in_dirs):
                 pub_time = timestamp(r_stat.published)
                 desc_time = 0
                 descs_while_fresh = []
-                desc_time_fresh = 0
+                desc_time_fresh = None
                 # get all descriptors with this fingerprint
                 if (r_stat.fingerprint in descriptors):
                     for t,d in descriptors[r_stat.fingerprint].items():
@@ -152,10 +152,18 @@ def process_consensuses(in_dirs):
                         if (t >= valid_after_ts) and \
                             (t <= fresh_until_ts):
                             descs_while_fresh.append((t,d))                                
-                        # update most recent hibernating stat before fresh time
-                        if (t <= valid_after_ts) and\
-                            (t > desc_time_fresh):
+                        # find most recent hibernating stat before fresh period
+                        # prefer most-recent descriptor before fresh period
+                        # but use oldest after valid_after if necessary
+                        if (desc_time_fresh == None):
                             desc_time_fresh = t
+                        elif (desc_time_fresh < valid_after_ts):
+                            if (t > desc_time_fresh):
+                                desc_time_fresh = t
+                        else:
+                            if (t < desc_time_fresh):
+                                desc_time_fresh = t
+
                 # output best descriptor if found
                 if (desc_time != 0):
 # replaced with object dict                        
@@ -171,8 +179,9 @@ def process_consensuses(in_dirs):
                             desc.exit_policy) 
                             
                     # store hibernating statuses
-                    if (desc_time_fresh == 0):
-                        raise ValueError('Descriptor error for {0}:{1}.\n Found  descriptor before published date {2}: {3}\nDid not find recent descriptor before fresh period starting {4}.'.format(r_stat.nickname, r_stat.fingerprint, pub_time, desc_time, valid_after_ts))
+                    if (desc_time_fresh == None):
+                        # use descriptor time
+                        raise ValueError('Descriptor error for {0}:{1}.\n Found  descriptor before published date {2}: {3}\nDid not find descriptor for initial hibernation status for fresh period starting {4}.'.format(r_stat.nickname, r_stat.fingerprint, pub_time, desc_time, valid_after_ts))
                     descs_while_fresh.sort(key = lambda x: x[0])
                     desc = descriptors[r_stat.fingerprint][desc_time_fresh]
                     cur_hibernating = desc.hibernating
