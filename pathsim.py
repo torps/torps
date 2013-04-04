@@ -527,6 +527,25 @@ def select_middle_node(bw_weights, bwweightscale, cons_rel_stats, descriptors,\
     return middle_node
 
 
+def guard_is_time_to_retry(guard, time):
+    """Tests if enough time has passed to retry an unreachable
+    (i.e. hibernating) guard. Derived from entry_is_time_to_retry() in 
+    entrynodes.c."""
+    
+    if (guard['last_attempted'] < guard['unreachable_since']):
+        return True
+    
+    diff = time - guard['unreachable_since']
+    if (diff < 6*60*60):
+        return (time > (guard['last_attempted'] + 60*60))
+    elif (diff < 3*24*60*60):
+        return (time > (guard['last_attempted'] + 4*60*60))
+    elif (diff < 7*24*60*60):
+        return (time > (guard['last_attempted'] + 18*60*60))
+    else:
+        return (time > (guard['last_attempted'] + 36*60*60));
+
+
 def guard_filter_for_circ(guard, cons_rel_stats, descriptors, fast,\
     stable, exit, circ_time, guards):
     """Returns if guard is usable for circuit."""
@@ -573,25 +592,6 @@ def filter_guards(cons_rel_stats, descriptors):
     
     return guards
     
-    
-def guard_is_time_to_retry(guard, time):
-    """Tests if enough time has passed to retry an unreachable
-    (i.e. hibernating) guard. Derived from entry_is_time_to_retry() in 
-    entrynodes.c."""
-    
-    if (guard['last_attempted'] < guard['unreachable_since']):
-        return True
-    
-    diff = time - guard['unreachable_since']
-    if (diff < 6*60*60):
-        return (now > (guard['last_attempted'] + 60*60))
-    elif (diff < 3*24*60*60):
-        return (now > (guard['last_attempted'] + 4*60*60))
-    elif (diff < 7*24*60*60):
-        return (now > (guard['last_attempted'] + 18*60*60))
-    else:
-        return (now > (guard['last_attempted'] + 36*60*60));
-
 
 def get_new_guard(bw_weights, bwweightscale, cons_rel_stats, descriptors,\
     client_guards, weighted_guards=None):
