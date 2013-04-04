@@ -144,9 +144,11 @@ def process_consensuses(in_dirs):
                 if (r_stat.fingerprint in descriptors):
                     for t,d in descriptors[r_stat.fingerprint].items():
                         # update most recent desc seen before cons pubtime
+                        # allow pubtime after valid_after but not fresh_until
                         if (valid_after_ts-t <\
                             router_max_age) and\
-                            (t <= pub_time) and (t > desc_time):
+                            (t <= pub_time) and (t > desc_time) and\
+                            (t <= fresh_until_ts):
                             desc_time = t
                         # store fresh-period descs for hibernation tracking
                         if (t >= valid_after_ts) and \
@@ -182,7 +184,6 @@ def process_consensuses(in_dirs):
                     # store hibernating statuses
                     if (desc_time_fresh == None):
                         raise ValueError('Descriptor error for {0}:{1}.\n Found  descriptor before published date {2}: {3}\nDid not find descriptor for initial hibernation status for fresh period starting {4}.'.format(r_stat.nickname, r_stat.fingerprint, pub_time, desc_time, valid_after_ts))
-                    descs_while_fresh.sort(key = lambda x: x[0])
                     desc = descriptors[r_stat.fingerprint][desc_time_fresh]
                     cur_hibernating = desc.hibernating
                     hibernating_statuses.append((desc_time_fresh,\
@@ -190,6 +191,7 @@ def process_consensuses(in_dirs):
                     if _testing:
                         if (cur_hibernating):
                             print('{0}:{1} was hibernating at consenses period start'.format(desc.nickname, desc.fingerprint))
+                    descs_while_fresh.sort(key = lambda x: x[0])
                     for (t,d) in descs_while_fresh:
                         if (d.hibernating != cur_hibernating):
                             cur_hibernating = d.hibernating                                   
