@@ -186,7 +186,9 @@ def process_consensuses(in_dirs):
                         raise ValueError('Descriptor error for {0}:{1}.\n Found  descriptor before published date {2}: {3}\nDid not find descriptor for initial hibernation status for fresh period starting {4}.'.format(r_stat.nickname, r_stat.fingerprint, pub_time, desc_time, valid_after_ts))
                     desc = descriptors[r_stat.fingerprint][desc_time_fresh]
                     cur_hibernating = desc.hibernating
-                    hibernating_statuses.append((desc_time_fresh,\
+                    # setting initial status - set time at least at valid_after
+                    hibernating_statuses.append((\
+                        min(desc_time_fresh,valid_after_ts),\
                         desc.fingerprint, cur_hibernating))
                     if _testing:
                         if (cur_hibernating):
@@ -1430,13 +1432,13 @@ def create_circuits(network_state_files, streams, num_samples):
                     port_need_weighted_exits, weighted_middles,\
                     weighted_guards, _testing)
                     
-            # TMP
-            for client_state in client_states:
-                print('Client {0} circuits:'.format(client_state['id']))
-                print('len(client_state[\'dirty_exit_circuits\']): {0}'.\
-                    format(len(client_state['dirty_exit_circuits'])))
-                print('len(client_state[\'clean_exit_circuits\']): {0}'.\
-                    format(len(client_state['clean_exit_circuits'])))
+            if _testing:
+                for client_state in client_states:
+                    print('Client {0} circuits:'.format(client_state['id']))
+                    print('len(client_state[\'dirty_exit_circuits\']): {0}'.\
+                        format(len(client_state['dirty_exit_circuits'])))
+                    print('len(client_state[\'clean_exit_circuits\']): {0}'.\
+                        format(len(client_state['clean_exit_circuits'])))
 
             # collect streams that occur during current period
             while (stream_start < len(streams)) and\
