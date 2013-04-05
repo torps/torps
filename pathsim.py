@@ -728,7 +728,7 @@ def print_mapped_stream(client_id, circuit, stream, descriptors):
     print('{0}\t{1}\t{2}\t{3}\t{4}\t{5}'.format(client_id, stream['time'],\
         guard_ip, middle_ip, exit_ip, dest_ip))
 
-def circuit_supports_stream(circuit, stream, long_lived_ports):
+def circuit_supports_stream(circuit, stream, long_lived_ports, descriptors):
     """Returns if stream can run over circuit (which is assumed live)."""
 
     if (stream['type'] == 'connect'):
@@ -737,7 +737,7 @@ def circuit_supports_stream(circuit, stream, long_lived_ports):
         if (stream['port'] == None):
             raise ValueError('Stream must have port.')
     
-        desc = circuit['descriptors'][circuit['path'][-1]]
+        desc = descriptors[circuit['path'][-1]]
         if (desc.exit_policy.can_exit_to(stream['ip'], stream['port'])) and\
             (not circuit['internal']) and\
             ((circuit['stable']) or\
@@ -746,7 +746,7 @@ def circuit_supports_stream(circuit, stream, long_lived_ports):
         else:
             return False
     elif (stream['type'] == 'resolve'):
-        desc = circuit['descriptors'][circuit['path'][-1]]
+        desc = descriptors[circuit['path'][-1]]
         if (not policy_is_reject_star(desc.exit_policy)) and\
             (not circuit['internal']):
             return True
@@ -773,10 +773,9 @@ format(port, port_needs_covered[port]))
 def kill_circuits_by_relay(client_state, relay_down_fn, _testing):
     """Kill circuits with a relay that is down as judged by relay_down_fn."""    
     # go through dirty circuits
-    dirty_exit_circuits = client_state['dirty_exit_circuits']
     new_dirty_exit_circuits = collections.deque()
-    while(len(dirty_exit_circuits) > 0):
-        circuit = dirty_exit_circuits.popleft()
+    while(len(client_state['dirty_exit_circuits']) > 0):
+        circuit = client_state['dirty_exit_circuits'].popleft()
         circuit_live = True
         for i in range(len(circuit['path'])):
             relay = circuit['path'][i]
@@ -790,11 +789,9 @@ def kill_circuits_by_relay(client_state, relay_down_fn, _testing):
                 print('Killing dirty circuit because a relay is down.')
     client_state['dirty_exit_circuits'] = new_dirty_exit_circuits
     # go through clean circuits
-    clean_exit_circuits = client_state['clean_exit_circuits']
     new_clean_exit_circuits = collections.deque()
-    port_needs_covered = client_state['port_needs_covered']
-    while(len(clean_exit_circuits) > 0):
-        circuit = clean_exit_circuits.popleft()
+    while(len(client_state['clean_exit_circuits']) > 0):
+        circuit = client_state['clean_exit_circuits'].popleft()
         circuit_live = True
         for i in range(len(circuit['path'])):
             relay = circuit['path'][i]
@@ -806,7 +803,7 @@ def kill_circuits_by_relay(client_state, relay_down_fn, _testing):
         else:
             if (_testing):
                 print('Killing clean circuit because a relay is down')
-            uncover_circuit_ports(circuit, port_needs_covered,\
+            uncover_circuit_ports(circuit, client_state['port_needs_covered'],\
                 _testing)
     client_state['clean_exit_circuits'] = new_clean_exit_circuits
 
@@ -825,44 +822,46 @@ def timed_client_updates(cur_time, client_state, num_guards, min_num_guards,\
         print('Client {0} timed update.'.\
             format(client_state['id']))
     guards = client_state['guards']
-    dirty_exit_circuits = client_state['dirty_exit_circuits']
-    clean_exit_circuits = client_state['clean_exit_circuits']
             
     # kill old dirty circuits
-    while (len(dirty_exit_circuits)>0) and\
-            (dirty_exit_circuits[-1]['dirty_time'] <=\
+    while (len(client_state['dirty_exit_circuits'])>0) and\
+            (client_state['dirty_exit_circuits'][-1]['dirty_time'] <=\
                 cur_time - max_circuit_dirtiness):
         if _testing:
             print('Killed dirty exit circuit at time {0} w/ dirty time \
-{1}'.format(cur_time, dirty_exit_circuits[-1]['dirty_time']))
-        dirty_exit_circuits.pop()
+{1}'.format(cur_time, client_state['dirty_exit_circuits'][-1]['dirty_time']))
+        client_state['dirty_exit_circuits'].pop()
         
     # kill old clean circuits
-    while (len(clean_exit_circuits)>0) and\
-            (clean_exit_circuits[-1]['time'] <=\
+    while (len(client_state['clean_exit_circuits'])>0) and\
+            (client_state['clean_exit_circuits'][-1]['time'] <=\
                 cur_time - circuit_idle_timeout):
         if _testing:
             print('Killed clean exit circuit at time {0} w/ time \
-{1}'.format(cur_time, clean_exit_circuits[-1]['time']))
-        clean_exit_circuits.pop()
+{1}'.format(cur_time, client_state['clean_exit_circuits'][-1]['time']))
+        uncover_circuit_ports(client_state['clean_exit_circuits'][-1],\
+            client_state['port_needs_covered'], _testing)
+        client_state['clean_exit_circuits'].pop()
         
     # kill circuits with relays that have gone into hibernation
     kill_circuits_by_relay(client_state, \
         lambda r: hibernating_status[r], _testing)
                   
     # cover uncovered ports while fewer than max_unused_open_circuits clean
-    port_needs_covered = client_state['port_needs_covered']
     for port, need in port_needs_global.items():
-        if (port_needs_covered[port] < need['cover_num']):
+        if (client_state['port_needs_covered'][port] < need['cover_num']):
             # we need to make new circuits
             # note we choose circuits specifically to cover all port needs,
             #  while Tor makes one circuit (per sec) that covers *some* port
             #  (see circuit_predict_and_launch_new() in circuituse.c)
             if _testing:                                
                 print('Creating {0} circuit(s) at time {1} to cover port \
-{2}.'.format(need['cover_num']-port_needs_covered[port], cur_time, port))
-            while (port_needs_covered[port] < need['cover_num']) and\
-                (len(clean_exit_circuits) < max_unused_open_circuits):
+{2}.'.format(need['cover_num']-client_state['port_needs_covered'][port],\
+ cur_time, port))
+            while (client_state['port_needs_covered'][port] <\
+                    need['cover_num']) and\
+                (len(client_state['clean_exit_circuits']) < \
+                    max_unused_open_circuits):
                 new_circ = create_circuit(cons_rel_stats,\
                     cons_valid_after, cons_fresh_until,\
                     cons_bw_weights, cons_bwweightscale,\
@@ -870,16 +869,17 @@ def timed_client_updates(cur_time, client_state, num_guards, min_num_guards,\
                     need['fast'], need['stable'], False, None, port,\
                     num_guards, min_num_guards, guard_expiration_min,\
                     guard_expiration_max, port_need_weighted_exits[port],\
-                    weighted_middles, weighted_guards)
-                clean_exit_circuits.appendleft(new_circ)
+                    weighted_middles, weighted_guards)                    
+                client_state['clean_exit_circuits'].appendleft(new_circ)
+                
                 # cover this port and any others
-                port_needs_covered[port] += 1
+                client_state['port_needs_covered'][port] += 1
                 new_circ['covering'].append(port)
                 for pt, nd in port_needs_global.items():
                     if (pt != port) and\
                         (circuit_covers_port_need(new_circ,\
                             descriptors, pt, nd)):
-                        port_needs_covered[pt] += 1
+                        client_state['port_needs_covered'][pt] += 1
                         new_circ['covering'].append(pt)
         
         
@@ -891,15 +891,12 @@ def client_assign_stream(client_state, stream, cons_rel_stats,\
     """Assigns a stream to a circuit for a given client."""
         
     guards = client_state['guards']
-    dirty_exit_circuits = client_state['dirty_exit_circuits']
-    clean_exit_circuits = client_state['clean_exit_circuits']
     stream_assigned = None
-    port_needs_covered = client_state['port_needs_covered']    
 
     # try to use a dirty circuit
-    for circuit in dirty_exit_circuits:
+    for circuit in client_state['dirty_exit_circuits']:
         if circuit_supports_stream(circuit, stream,\
-            long_lived_ports):
+            long_lived_ports, descriptors):
             stream_assigned = circuit
             if _testing:                                
                 if (stream['type'] == 'connect'):
@@ -915,16 +912,16 @@ def client_assign_stream(client_state, stream, cons_rel_stats,\
     # next try and use a clean circuit
     if (stream_assigned == None):
         new_clean_exit_circuits = collections.deque()
-        while (len(clean_exit_circuits) > 0):
-            circuit = clean_exit_circuits.popleft()
+        while (len(client_state['clean_exit_circuits']) > 0):
+            circuit = client_state['clean_exit_circuits'].popleft()
             if (circuit_supports_stream(circuit, stream,\
-                long_lived_ports)):
+                long_lived_ports, descriptors)):
                 stream_assigned = circuit
                 circuit['dirty_time'] = stream['time']
-                dirty_exit_circuits.appendleft(circuit)
+                client_state['dirty_exit_circuits'].appendleft(circuit)
                 new_clean_exit_circuits.extend(\
-                    clean_exit_circuits)
-                clean_exit_circuits.clear()
+                    client_state['clean_exit_circuits'])
+                client_state['clean_exit_circuits'].clear()
                 if _testing:
                     if (stream['type'] == 'connect'):
                         print('Assigned CONNECT stream to port {0} to \
@@ -937,12 +934,12 @@ at {0}'.format(stream['time']))
 at {0}'.format(stream['time']))
                     
                 # reduce cover count for covered port needs
-                uncover_circuit_ports(circuit, port_needs_covered, _testing)
+                uncover_circuit_ports(circuit,\
+                    client_state['port_needs_covered'], _testing)
             else:
                 new_clean_exit_circuits.append(circuit)
         client_state['clean_exit_circuits'] =\
             new_clean_exit_circuits
-        clean_exit_circuits = new_clean_exit_circuits
     # if stream still unassigned we must make new circuit
     if (stream_assigned == None):
         new_circ = None
@@ -971,7 +968,7 @@ at {0}'.format(stream['time']))
 {0}'.format(stream['type']))        
         new_circ['dirty_time'] = stream['time']
         stream_assigned = new_circ
-        dirty_exit_circuits.appendleft(new_circ)
+        client_state['dirty_exit_circuits'].appendleft(new_circ)
         if _testing: 
             if (stream['type'] == 'connect'):                           
                 print('Created circuit at time {0} to cover CONNECT \
@@ -1022,7 +1019,6 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
             'dirty_time': (int) timestamp of time dirtied, None if clean
             'path': (tuple) list in-order fingerprints for path's nodes
             'cons_rel_stats': (dict) relay stats for active consensus
-            'descriptors': (dict) descriptors active during this period
             'covering': (list) ports with needs covered by circuit        
     """
     
@@ -1113,7 +1109,6 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
             'dirty_time':None,\
             'path':(guard_node, middle_node, exit_node),\
             'cons_rel_stats':cons_rel_stats,\
-            'descriptors':descriptors,\
             'covering':[]}
     
 # Replaced arguments with network_state_files.    
@@ -1434,6 +1429,14 @@ def create_circuits(network_state_files, streams, num_samples):
                     cons_bwweightscale, descriptors, hibernating_status,\
                     port_need_weighted_exits, weighted_middles,\
                     weighted_guards, _testing)
+                    
+            # TMP
+            for client_state in client_states:
+                print('Client {0} circuits:'.format(client_state['id']))
+                print('len(client_state[\'dirty_exit_circuits\']): {0}'.\
+                    format(len(client_state['dirty_exit_circuits'])))
+                print('len(client_state[\'clean_exit_circuits\']): {0}'.\
+                    format(len(client_state['clean_exit_circuits'])))
 
             # collect streams that occur during current period
             while (stream_start < len(streams)) and\
@@ -1524,9 +1527,6 @@ def create_circuits(network_state_files, streams, num_samples):
                         print('Client {0} stream assignment.'.\
                             format(client_state['id']))
                     guards = client_state['guards']
-                    dirty_exit_circuits = client_state['dirty_exit_circuits']
-                    clean_exit_circuits = client_state['clean_exit_circuits']
-                    port_needs_covered = client_state['port_needs_covered']
                  
                     stream_assigned = client_assign_stream(\
                         client_state, stream, cons_rel_stats,\
@@ -1554,7 +1554,7 @@ range from start_year and start_month to end_year and end_month. Write the \
 matched descriptors for each consensus to \
 out_dir/processed_descriptors-year-month.\n\
 \tsimulate \
-[consensuses] [descriptors] [# samples] [# reqs] [testing]: Do a\
+[descriptors] [# samples] [# reqs] [testing]: Do a\
  bunch of simulated path selections using consensuses from \
 [consensuses], matching descriptors from [descriptors], taking \
 [# samples], making [# reqs] web requests per hour, and printing debug info if [testing].'
@@ -1602,22 +1602,18 @@ out_dir/processed_descriptors-year-month.\n\
     elif (command == 'simulate'):
         # get lists of consensuses and the related processed-descriptor files 
         if (len(sys.argv) >= 3):
-            consensuses_dir = sys.argv[2]
-        else:
-            consensuses_dir = 'in/consensuses'
-        if (len(sys.argv) >= 4):
-            descriptor_dir = sys.argv[3]
+            descriptor_dir = sys.argv[2]
         else:
             descriptor_dir = 'out/processed-descriptors'
-        if (len(sys.argv) >= 5):
-            num_samples = int(sys.argv[4])
+        if (len(sys.argv) >= 4):
+            num_samples = int(sys.argv[3])
         else:
             num_samples = 1
-        if (len(sys.argv) >= 6):
-            num_requests = int(sys.argv[5])
+        if (len(sys.argv) >= 5):
+            num_requests = int(sys.argv[4])
         else:
             num_requests = 6
-        if (len(sys.argv) >= 7) and (sys.argv[6] == '1'):
+        if (len(sys.argv) >= 6) and (sys.argv[5] == '1'):
             _testing = True
         else:
             _testing = False            
@@ -1697,7 +1693,6 @@ out_dir/processed_descriptors-year-month.\n\
 # - circuits only recorded as fast/stable/internal if they were chosen to
 #   satisfy that, but they may just by chance. should we check?
 # - Tor actually seems to build a circuit to cover a port by randomly selecting from exits that cover *some* unhandled port (see choose_good_exit_server_general() in circuitbuild.c). Possibly change procedure for covering ports to act like this.
-# - Current descriptors are stored with the circuit when it's created. This may have been before the descriptors became persistant between consensuses. They probably should be removed from the circuits and the persistant descriptors structure used instead.
 # - We should expire descriptors older than router_max_age on a per-minute basis. I'm not sure exactly how relays in the consensus but without descriptors are treated, especially in terms of putting guards down. As an approximation, we expire descriptors while building consensuses, and thus do so at most an hour off from when a running relay would. Given that router_max_age is 48 hours, that not large relative error for how long a relay may be used. Also, I don't think that in the Tor metrics data a relay ever appears in the consensus but does not have a recent descriptor.
 
 
