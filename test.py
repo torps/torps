@@ -72,9 +72,9 @@ print('#descriptors: {0}; #relays:{1}'.\
 ######
 
 #### go through hibernate statuses for a given relay in all_descriptors ###
-fprint = '5B32F49F4878C812754A55417093062F68A40402' # nuitblanche
+fprint = 'BC77196F4730442A96E36E1A13B3FF8DC14151EB' # RememberJobs
 descs = all_descriptors[fprint]
 desc_times = sorted(descs.keys())
 for t in desc_times:
-    print('{0}: {1}'.format(descs[t].published.strftime('%Y-%m-%d %H:%M:%S'),descs[t].hibernating))
+    print('{0} ({1}): {2}'.format(descs[t].published.strftime('%Y-%m-%d %H:%M:%S'), t, descs[t].hibernating))
 ######

@@ -366,15 +366,15 @@ def filter_exits(cons_rel_stats, descriptors, fast, stable, internal, ip,\
                 # In an "internal" circuit final node is chosen just like a
                 # middle node (ignoring its exit policy).
                 exits.append(fprint)
-            elif (ip != None) and\
-                    (desc.exit_policy.can_exit_to(ip,\
-                        port)):
-                exits.append(fprint)
-            elif (port != None) and\
-                (can_exit_to_port(desc, port)):
-                exits.append(fprint)
-            elif (not policy_is_reject_star(desc.exit_policy)):
-                exits.append(fprint)
+            elif (ip != None):
+                if (desc.exit_policy.can_exit_to(ip, port)):
+                    exits.append(fprint)
+            elif (port != None):
+                if (can_exit_to_port(desc, port)):
+                    exits.append(fprint)
+            else:
+                if (not policy_is_reject_star(desc.exit_policy)):
+                    exits.append(fprint)
 
     return exits
 
@@ -871,7 +871,12 @@ def timed_client_updates(cur_time, client_state, num_guards, min_num_guards,\
                     need['fast'], need['stable'], False, None, port,\
                     num_guards, min_num_guards, guard_expiration_min,\
                     guard_expiration_max, port_need_weighted_exits[port],\
-                    weighted_middles, weighted_guards)                    
+                    weighted_middles, weighted_guards)
+                # TMP
+                chosen_exit = new_circ['path'][-1]
+                if (not can_exit_to_port(descriptors[chosen_exit],port)):
+                    raise ValueError('exit: {0}; port: {1}'.format(\
+                        chosen_exit, port))
                 client_state['clean_exit_circuits'].appendleft(new_circ)
                 
                 # cover this port and any others
@@ -1287,6 +1292,13 @@ def create_circuits(network_state_files, streams, num_samples):
         while (hibernating_statuses) and\
             (hibernating_statuses[-1][0] <= cur_period_start):
             hs = hibernating_statuses.pop()
+            if (hs[1] in hibernating_statuses) and _testing:
+                if (hs[2]):
+                    print('Reset hibernating of {0}:{1} to True.'.format(\
+                        cons_rel_stats[hs[1]].nickname, hs[1]))
+                else:
+                    print('Reset hibernating of {0}:{1} to False.'.format(\
+                        cons_rel_stats[hs[1]].nickname, hs[1]))
             hibernating_status[hs[1]] = hs[2]
             if _testing:
                 if (hs[2]):
@@ -1370,6 +1382,10 @@ def create_circuits(network_state_files, streams, num_samples):
         for port, need in port_needs_global.items():
             port_need_exits = filter_exits(cons_rel_stats, descriptors,\
                 need['fast'], need['stable'], False, None, port)
+            # TMP
+            non_http_exit = '6330CCF8FEED2EF9B12FCF6688E2577C65522BA4'
+            if (port == 80) and (non_http_exit in port_need_exits):
+                raise ValueError('Problem with filter_exits.')
             if _testing:
                 print('# exits for port {0}: {1}'.\
                     format(port, len(port_need_exits)))
@@ -1416,9 +1432,8 @@ def create_circuits(network_state_files, streams, num_samples):
             # update hibernating status
             while (hibernating_statuses) and\
                 (hibernating_statuses[-1][0] <= cur_time):
-                hibernating_change = hibernating_statuses.pop()
-                hibernating_status[hibernating_change[1]] = \
-                    hibernating_change[2]
+                hs = hibernating_statuses.pop()
+                hibernating_status[hs[1]] = hs[2]
             
             # do timed client updates
             for client_state in client_states:
@@ -1434,11 +1449,13 @@ def create_circuits(network_state_files, streams, num_samples):
                     
             if _testing:
                 for client_state in client_states:
-                    print('Client {0} circuits:'.format(client_state['id']))
+                    print('Client {0}'.format(client_state['id']))
                     print('len(client_state[\'dirty_exit_circuits\']): {0}'.\
                         format(len(client_state['dirty_exit_circuits'])))
                     print('len(client_state[\'clean_exit_circuits\']): {0}'.\
                         format(len(client_state['clean_exit_circuits'])))
+                    for pt, ct in client_state['port_needs_covered'].items():
+                        print('port_needs_covered[{0}]: {1}'.format(pt,ct))
 
             # collect streams that occur during current period
             while (stream_start < len(streams)) and\
