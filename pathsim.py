@@ -186,10 +186,9 @@ def process_consensuses(in_dirs):
                         raise ValueError('Descriptor error for {0}:{1}.\n Found  descriptor before published date {2}: {3}\nDid not find descriptor for initial hibernation status for fresh period starting {4}.'.format(r_stat.nickname, r_stat.fingerprint, pub_time, desc_time, valid_after_ts))
                     desc = descriptors[r_stat.fingerprint][desc_time_fresh]
                     cur_hibernating = desc.hibernating
-                    # setting initial status - set time at least at valid_after
-                    hibernating_statuses.append((\
-                        min(desc_time_fresh,valid_after_ts),\
-                        desc.fingerprint, cur_hibernating))
+                    # setting initial status
+                    hibernating_statuses.append((0, desc.fingerprint,\
+                        cur_hibernating))
                     if _testing:
                         if (cur_hibernating):
                             print('{0}:{1} was hibernating at consenses period start'.format(desc.nickname, desc.fingerprint))
