@@ -487,7 +487,6 @@ def middle_filter(node, cons_rel_stats, descriptors, fast=None,\
     # Note that we intentionally allow non-Valid routers for middle
     # as per path-spec.txt default config    
     rel_stat = cons_rel_stats[node]
-    desc = descriptors[node]
     return (stem.Flag.RUNNING in rel_stat.flags) and\
             ((fast==None) or (not fast) or\
                 (stem.Flag.FAST in rel_stat.flags)) and\
@@ -871,11 +870,6 @@ def timed_client_updates(cur_time, client_state, num_guards, min_num_guards,\
                     num_guards, min_num_guards, guard_expiration_min,\
                     guard_expiration_max, port_need_weighted_exits[port],\
                     weighted_middles, weighted_guards)
-                # TMP
-                chosen_exit = new_circ['path'][-1]
-                if (not can_exit_to_port(descriptors[chosen_exit],port)):
-                    raise ValueError('exit: {0}; port: {1}'.format(\
-                        chosen_exit, port))
                 client_state['clean_exit_circuits'].appendleft(new_circ)
                 
                 # cover this port and any others
@@ -1261,7 +1255,7 @@ def create_circuits(network_state_files, streams, num_samples):
                 cons_bwweightscale = 10000
             """
             consensus = pickle.load(nsf)
-            descriptors.update(pickle.load(nsf))
+            new_descriptors = pickle.load(nsf)
             hibernating_statuses = pickle.load(nsf)
             
             # set variables from consensus
@@ -1273,8 +1267,11 @@ def create_circuits(network_state_files, streams, num_samples):
             else:
                 cons_bwweightscale = consensus.bwweightscale
             for relay in consensus.relays:
-                if (relay in descriptors):
+                if (relay in new_descriptors):
                     cons_rel_stats[relay] = consensus.relays[relay]
+                    
+            # update descriptors
+            descriptors.update(new_descriptors)
 
         # update simulation period                
         if (cur_period_start == None):
@@ -1303,6 +1300,18 @@ def create_circuits(network_state_files, streams, num_samples):
                 if (hs[2]):
                     print('{0} was hibernating at start of consensus period.'.\
                         format(cons_rel_stats[hs[1]].nickname))
+        # TMP
+        # check that all relays in cons_rel_stats have a hibernating status
+        for relay in cons_rel_stats:
+            if (relay not in hibernating_status):
+                hstat = None
+                for hs in hibernating_statuses:
+                    if (hs[1] == relay):
+                        hstat = hs
+                        break
+                raise ValueError('Problem with {0}.\n In cons_rel_stats: {1}\n\
+In descriptors: {2}\n In hibernating_status: {3}\nLeft in hibernating_statuses: {4}'.format(relay, relay in cons_rel_stats, relay in descriptors, \
+relay in hibernating_status, hstat))
         
         if (init == True): # first period in simulation
             # seed port need
@@ -1381,10 +1390,6 @@ def create_circuits(network_state_files, streams, num_samples):
         for port, need in port_needs_global.items():
             port_need_exits = filter_exits(cons_rel_stats, descriptors,\
                 need['fast'], need['stable'], False, None, port)
-            # TMP
-            non_http_exit = '6330CCF8FEED2EF9B12FCF6688E2577C65522BA4'
-            if (port == 80) and (non_http_exit in port_need_exits):
-                raise ValueError('Problem with filter_exits.')
             if _testing:
                 print('# exits for port {0}: {1}'.\
                     format(port, len(port_need_exits)))

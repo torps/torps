@@ -78,3 +78,10 @@ desc_times = sorted(descs.keys())
 for t in desc_times:
     print('{0} ({1}): {2}'.format(descs[t].published.strftime('%Y-%m-%d %H:%M:%S'), t, descs[t].hibernating))
 ######
+
+###### look for hibernating statuses of a given relay ######
+fprint = 'FD688C0692D87AC0D04D42FF4C606FF1AB420C9E'
+for hs in hibernating_statuses:
+    if (hs[1] == fprint):
+        print(hs)
+######
