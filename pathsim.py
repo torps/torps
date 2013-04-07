@@ -1594,13 +1594,13 @@ out_dir/processed_descriptors-year-month.\n\
             new_nsf_date = datetime.datetime(f_datenums[0], f_datenums[1], f_datenums[2], f_datenums[3], f_datenums[4], f_datenums[5])
             if (nsf_date != None):
                 td = new_nsf_date - nsf_date
-                if (td.total_seconds() != 3600):
-                    if (td.total_seconds() % 3600 != 0):
+                if (int(td.total_seconds()) != 3600):
+                    if (int(td.total_seconds()) % 3600 != 0):
                         raise ValueError('Gap between {0} and {1} not some number of hours.'.format(nsf_date, new_nsf_date))
                     if _testing:
                         print('Missing consensuses between {0} and {1}'.\
                             format(nsf_date, new_nsf_date))
-                    num_missing_hours = td.total_seconds()/3600 - 1
+                    num_missing_hours = int(td.total_seconds()/3600) - 1
                     for i in range(num_missing_hours):
                         network_state_files_padded.append(None)
                     network_state_files_padded.append(nsf)
