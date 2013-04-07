@@ -1595,7 +1595,7 @@ out_dir/processed_descriptors-year-month.\n\
             if (nsf_date != None):
                 td = new_nsf_date - nsf_date
                 if (td.total_seconds() != 3600):
-                    if (td.total_seconds % 3600 != 0):
+                    if (td.total_seconds() % 3600 != 0):
                         raise ValueError('Gap between {0} and {1} not some number of hours.'.format(nsf_date, new_nsf_date))
                     if _testing:
                         print('Missing consensuses between {0} and {1}'.\
