@@ -69,7 +69,8 @@ def process_consensuses(in_dirs):
     # given by #define ROUTER_MAX_AGE (60*60*48) in or.h
     router_max_age = 60*60*48
     def skip_listener(path, event):
-        print('ERROR [{0}]: {1}'.format(path, event))
+#        print('ERROR [{0}]: {1}'.format(path, event))
+        print('ERROR somewhere'.format(path, event))
         
     # read all descriptors into memory        
     for in_consensuses_dir, in_descriptors, desc_out_dir in in_dirs:
