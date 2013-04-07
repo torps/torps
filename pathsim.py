@@ -1590,8 +1590,8 @@ out_dir/processed_descriptors-year-month.\n\
         network_state_files_padded = []
         while network_state_files:
             nsf = network_state_files.pop()
-            f_split = os.path.basename(nsf).split('-')
-            new_nsf_date = datetime.datetime(f_split[0], f_split[1], f_split[2], f_split[3], f_split[4], f_split[5])
+            f_datenums = map(int, os.path.basename(nsf).split('-')[:-1])
+            new_nsf_date = datetime.datetime(f_datenums[0], f_datenums[1], f_datenums[2], f_datenums[3], f_datenums[4], f_datenums[5])
             if (nsf_date != None):
                 td = new_nsf_date - nsf_date
                 if (td.total_seconds() != 3600):
@@ -1611,7 +1611,8 @@ out_dir/processed_descriptors-year-month.\n\
             nsf_date = new_nsf_date                                    
         network_state_files = network_state_files_padded
         # TMP
-        print(network_state_files)
+        for nsf in network_state_files:
+            print(nsf)
         
         # determine start and end times
         start_time = None
