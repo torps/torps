@@ -68,9 +68,9 @@ def process_consensuses(in_dirs):
     descriptors = {}
     # given by #define ROUTER_MAX_AGE (60*60*48) in or.h
     router_max_age = 60*60*48
-    def skip_listener(path, event):
-#        print('ERROR [{0}]: {1}'.format(path, event))
-        print('ERROR somewhere'.format(path, event))
+    def skip_listener(path, exception):
+        print('ERROR [{0}]: {1}'.format(path.encode('ascii', 'ignore'), exception))
+#        print('ERROR somewhere'.format(path, exception))
         
     # read all descriptors into memory        
     for in_consensuses_dir, in_descriptors, desc_out_dir in in_dirs:
@@ -1606,7 +1606,8 @@ out_dir/processed_descriptors-year-month.\n\
                     network_state_files.append(os.path.join(dirpath,filename))
 
         # insert gaps for missing time periods
-        network_state_files.sort(reverse=True)        
+        network_state_files.sort(key = lambda x: os.path.basename(x),\
+            reverse=True)        
         nsf_date = None
         network_state_files_padded = []
         while network_state_files:
