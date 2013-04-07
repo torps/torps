@@ -1301,7 +1301,7 @@ def create_circuits(network_state_files, streams, num_samples):
                     print('{0} was hibernating at start of consensus period.'.\
                         format(cons_rel_stats[hs[1]].nickname))
         # TMP
-        # check that all relays in cons_rel_stats have a hibernating status
+        # quick check: relays in cons_rel_stats should have hibernating status
         for relay in cons_rel_stats:
             if (relay not in hibernating_status):
                 hstat = None
