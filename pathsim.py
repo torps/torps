@@ -1384,6 +1384,15 @@ relay in hibernating_status, hstat))
             while (hibernating_statuses) and\
                 (hibernating_statuses[-1][0] <= cur_time):
                 hs = hibernating_statuses.pop()
+                if _testing:
+                    if (hs[1] in cons_rel_stats):
+                        if hs[2]:
+                            print('{0}:{1} started hibernating.'.\
+                                format(cons_rel_stats[hs[1]].nickname, hs[1]))
+                        else:
+                            print('{0}:{1} stopped hibernating.'.\
+                                format(cons_rel_stats[hs[1]].nickname, hs[1]))
+                    
                 hibernating_status[hs[1]] = hs[2]
             
             # do timed client updates
