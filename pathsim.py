@@ -1179,35 +1179,46 @@ def create_circuits(network_state_files, streams, num_samples):
     descriptors = {}
     # run simulation period one pair of consensus/descriptor files at a time
     for ns_file in network_state_files:
-        # read in network states
-        if _testing:
-            print('Using file {0}'.format(ns_file))
-        cons_valid_after = None
-        cons_fresh_until = None
-        cons_bw_weights = None
-        cons_bwweightscale = None        
-        cons_rel_stats = {}
-        hibernating_statuses = None
-        hibernating_status = {}
-        with open(ns_file, 'r') as nsf:
-            consensus = pickle.load(nsf)
-            new_descriptors = pickle.load(nsf)
-            hibernating_statuses = pickle.load(nsf)
+        # read in network states            
+        if (ns_file != None):
+            if _testing:
+                print('Using file {0}'.format(ns_file))
+        
+            cons_valid_after = None
+            cons_fresh_until = None
+            cons_bw_weights = None
+            cons_bwweightscale = None        
+            cons_rel_stats = {}
+            hibernating_statuses = None
+            hibernating_status = {}
+            with open(ns_file, 'r') as nsf:
+                consensus = pickle.load(nsf)
+                new_descriptors = pickle.load(nsf)
+                hibernating_statuses = pickle.load(nsf)
+                
+                # set variables from consensus
+                cons_valid_after = timestamp(consensus.valid_after)            
+                cons_fresh_until = timestamp(consensus.fresh_until)
+                cons_bw_weights = consensus.bandwidth_weights
+                if (consensus.bwweightscale == None):
+                    cons_bwweightscale = 10000
+                else:
+                    cons_bwweightscale = consensus.bwweightscale
+                for relay in consensus.relays:
+                    if (relay in new_descriptors):
+                        cons_rel_stats[relay] = consensus.relays[relay]
+                        
+                # update descriptors
+                descriptors.update(new_descriptors)
+        else:
+            # gap in consensuses, just advance an hour, keeping network state            
+            cons_valid_after += 3600
+            cons_fresh_until += 3600
+            # set empty statuses, even though previous should have been emptied
+            hibernating_statuses = []            
             
-            # set variables from consensus
-            cons_valid_after = timestamp(consensus.valid_after)            
-            cons_fresh_until = timestamp(consensus.fresh_until)
-            cons_bw_weights = consensus.bandwidth_weights
-            if (consensus.bwweightscale == None):
-                cons_bwweightscale = 10000
-            else:
-                cons_bwweightscale = consensus.bwweightscale
-            for relay in consensus.relays:
-                if (relay in new_descriptors):
-                    cons_rel_stats[relay] = consensus.relays[relay]
-                    
-            # update descriptors
-            descriptors.update(new_descriptors)
+            if _testing:
+                print('Filling in consensus gap from {0} to {1}'.format(cons_valid_after, cons_fresh_until))            
 
         # update simulation period                
         if (cur_period_start == None):
@@ -1610,9 +1621,6 @@ out_dir/processed_descriptors-year-month.\n\
                 network_state_files_padded.append(nsf)
             nsf_date = new_nsf_date                                    
         network_state_files = network_state_files_padded
-        # TMP
-        for nsf in network_state_files:
-            print(nsf)
         
         # determine start and end times
         start_time = None
@@ -1632,7 +1640,7 @@ out_dir/processed_descriptors-year-month.\n\
         while (t < end_time):
             streams.append({'time':t,'type':'connect','ip':str_ip,'port':80})
             t += http_request_wait
-        #create_circuits(network_state_files, streams, num_samples)                
+        create_circuits(network_state_files, streams, num_samples)                
 
 # TODO
 # - support IPv6 addresses
