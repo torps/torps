@@ -1318,6 +1318,7 @@ relay in hibernating_status, hstat))
                             print('Guard down too long, removing: {0}'.\
                                 format(guard))
                         del guards[guard]
+                        continue
                 # expire old guards
                 if (guard_props['expires'] <= cons_valid_after):
                     if _testing:
