@@ -186,9 +186,8 @@ def process_consensuses(in_dirs):
                     # setting initial status
                     hibernating_statuses.append((0, desc.fingerprint,\
                         cur_hibernating))
-                    if _testing:
-                        if (cur_hibernating):
-                            print('{0}:{1} was hibernating at consenses period start'.format(desc.nickname, desc.fingerprint))
+                    if (cur_hibernating):
+                        print('{0}:{1} was hibernating at consenses period start'.format(desc.nickname, desc.fingerprint))
                     descs_while_fresh.sort(key = lambda x: x[0])
                     for (t,d) in descs_while_fresh:
                         if (d.hibernating != cur_hibernating):
@@ -743,7 +742,7 @@ def circuit_supports_stream(circuit, stream, long_lived_ports, descriptors):
 circuit_supports_stream: {0}'.format(stream['type']))
 
         
-def uncover_circuit_ports(circuit, port_needs_covered, _testing):
+def uncover_circuit_ports(circuit, port_needs_covered):
     """Reduces cover count for ports that circuit indicates it covers."""
     for port in circuit['covering']:
         if (port in port_needs_covered):
@@ -756,7 +755,7 @@ format(port, port_needs_covered[port]))
                 print('Port {0} not found in port_needs_covered'.format(port))
     
     
-def kill_circuits_by_relay(client_state, relay_down_fn, _testing):
+def kill_circuits_by_relay(client_state, relay_down_fn):
     """Kill circuits with a relay that is down as judged by relay_down_fn."""    
     # go through dirty circuits
     new_dirty_exit_circuits = collections.deque()
@@ -789,8 +788,7 @@ def kill_circuits_by_relay(client_state, relay_down_fn, _testing):
         else:
             if (_testing):
                 print('Killing clean circuit because a relay is down')
-            uncover_circuit_ports(circuit, client_state['port_needs_covered'],\
-                _testing)
+            uncover_circuit_ports(circuit, client_state['port_needs_covered'])
     client_state['clean_exit_circuits'] = new_clean_exit_circuits
 
             
@@ -801,12 +799,11 @@ def timed_client_updates(cur_time, client_state, num_guards, min_num_guards,\
     cons_rel_stats, cons_valid_after,\
     cons_fresh_until, cons_bw_weights, cons_bwweightscale, descriptors,\
     hibernating_status, port_need_weighted_exits, weighted_middles,\
-    weighted_guards, _testing):
+    weighted_guards):
     """Performs updates to client state that occur on a time schedule."""
     
     if _testing:
-        print('Client {0} timed update.'.\
-            format(client_state['id']))
+        print('Client {0} timed update.'.format(client_state['id']))
     guards = client_state['guards']
             
     # kill old dirty circuits
@@ -826,12 +823,12 @@ def timed_client_updates(cur_time, client_state, num_guards, min_num_guards,\
             print('Killed clean exit circuit at time {0} w/ time \
 {1}'.format(cur_time, client_state['clean_exit_circuits'][-1]['time']))
         uncover_circuit_ports(client_state['clean_exit_circuits'][-1],\
-            client_state['port_needs_covered'], _testing)
+            client_state['port_needs_covered'])
         client_state['clean_exit_circuits'].pop()
         
     # kill circuits with relays that have gone into hibernation
     kill_circuits_by_relay(client_state, \
-        lambda r: hibernating_status[r], _testing)
+        lambda r: hibernating_status[r])
                   
     # cover uncovered ports while fewer than max_unused_open_circuits clean
     for port, need in port_needs_global.items():
@@ -873,7 +870,7 @@ def client_assign_stream(client_state, stream, cons_rel_stats,\
     cons_valid_after, cons_fresh_until, cons_bw_weights, cons_bwweightscale,\
     descriptors, hibernating_status, num_guards, min_num_guards,\
     guard_expiration_min, guard_expiration_max, stream_weighted_exits,\
-    weighted_middles, weighted_guards, long_lived_ports, _testing):
+    weighted_middles, weighted_guards, long_lived_ports):
     """Assigns a stream to a circuit for a given client."""
         
     guards = client_state['guards']
@@ -921,7 +918,7 @@ at {0}'.format(stream['time']))
                     
                 # reduce cover count for covered port needs
                 uncover_circuit_ports(circuit,\
-                    client_state['port_needs_covered'], _testing)
+                    client_state['port_needs_covered'])
             else:
                 new_clean_exit_circuits.append(circuit)
         client_state['clean_exit_circuits'] =\
@@ -1329,8 +1326,7 @@ relay in hibernating_status, hstat))
             #  down is not in consensus or without Running flag.            
             kill_circuits_by_relay(client_state, \
                 lambda r: (r not in cons_rel_stats) or \
-                    (stem.Flag.RUNNING not in cons_rel_stats[r].flags), \
-                _testing)
+                    (stem.Flag.RUNNING not in cons_rel_stats[r].flags))
                               
         # filter exits for port needs and compute their weights
         # do this here to avoid repeating per client
@@ -1406,7 +1402,7 @@ relay in hibernating_status, hstat))
                     cons_valid_after, cons_fresh_until, cons_bw_weights,\
                     cons_bwweightscale, descriptors, hibernating_status,\
                     port_need_weighted_exits, weighted_middles,\
-                    weighted_guards, _testing)
+                    weighted_guards)
                     
             if _testing:
                 for client_state in client_states:
@@ -1515,8 +1511,7 @@ relay in hibernating_status, hstat))
                         descriptors, hibernating_status, num_guards,\
                         min_num_guards, guard_expiration_min,\
                         guard_expiration_max, stream_weighted_exits,\
-                        weighted_middles, weighted_guards, long_lived_ports,\
-                        _testing)
+                        weighted_middles, weighted_guards, long_lived_ports)
                     if (not _testing):
                         print_mapped_stream(client_state['id'],\
                             stream_assigned, stream, descriptors)
