@@ -59,6 +59,34 @@ def timestamp(t):
     return ts
 
 
+def pad_network_state_files(network_state_files):
+    """Add hour-long gaps into files list where gaps exist in file times."""
+    nsf_date = None
+    network_state_files_padded = []
+    for nsf in network_state_files:
+        f_datenums = map(int, os.path.basename(nsf).split('-')[:-1])
+        new_nsf_date = datetime.datetime(f_datenums[0], f_datenums[1], f_datenums[2], f_datenums[3], f_datenums[4], f_datenums[5])
+        if (nsf_date != None):
+            td = new_nsf_date - nsf_date
+            if (int(td.total_seconds()) != 3600):
+                if (int(td.total_seconds()) % 3600 != 0):
+                    raise ValueError('Gap between {0} and {1} not some number of hours.'.format(nsf_date, new_nsf_date))
+                if _testing:
+                    print('Missing consensuses between {0} and {1}'.\
+                        format(nsf_date, new_nsf_date))
+                num_missing_hours = int(td.total_seconds()/3600) - 1
+                for i in range(num_missing_hours):
+                    network_state_files_padded.append(None)
+                network_state_files_padded.append(nsf)
+            else:
+                network_state_files_padded.append(nsf)
+        else:
+            network_state_files_padded.append(nsf)
+        nsf_date = new_nsf_date                                    
+    return network_state_files_padded
+
+
+
 def process_consensuses(in_dirs):
     """For every input consensus, finds the descriptors published most recently before the descriptor times listed for the relays in that consensus, records state changes indicated by descriptors published during the consensus fresh period, and writes out pickled consensus and descriptor objects with the relevant information.
         Inputs:
@@ -1599,32 +1627,10 @@ out_dir/processed_descriptors-year-month.\n\
                     network_state_files.append(os.path.join(dirpath,filename))
 
         # insert gaps for missing time periods
-        network_state_files.sort(key = lambda x: os.path.basename(x),\
-            reverse=True)        
-        nsf_date = None
-        network_state_files_padded = []
-        while network_state_files:
-            nsf = network_state_files.pop()
-            f_datenums = map(int, os.path.basename(nsf).split('-')[:-1])
-            new_nsf_date = datetime.datetime(f_datenums[0], f_datenums[1], f_datenums[2], f_datenums[3], f_datenums[4], f_datenums[5])
-            if (nsf_date != None):
-                td = new_nsf_date - nsf_date
-                if (int(td.total_seconds()) != 3600):
-                    if (int(td.total_seconds()) % 3600 != 0):
-                        raise ValueError('Gap between {0} and {1} not some number of hours.'.format(nsf_date, new_nsf_date))
-                    if _testing:
-                        print('Missing consensuses between {0} and {1}'.\
-                            format(nsf_date, new_nsf_date))
-                    num_missing_hours = int(td.total_seconds()/3600) - 1
-                    for i in range(num_missing_hours):
-                        network_state_files_padded.append(None)
-                    network_state_files_padded.append(nsf)
-                else:
-                    network_state_files_padded.append(nsf)
-            else:
-                network_state_files_padded.append(nsf)
-            nsf_date = new_nsf_date                                    
-        network_state_files = network_state_files_padded
+        network_state_files.sort(key = lambda x: os.path.basename(x))
+        network_state_files = pad_network_state_files(network_state_files)
+        for nsf in network_state_files:
+            print(nsf)
         
         # determine start and end times
         start_time = None
@@ -1644,7 +1650,7 @@ out_dir/processed_descriptors-year-month.\n\
         while (t < end_time):
             streams.append({'time':t,'type':'connect','ip':str_ip,'port':80})
             t += http_request_wait
-        create_circuits(network_state_files, streams, num_samples)                
+        #create_circuits(network_state_files, streams, num_samples)                
 
 # TODO
 # - support IPv6 addresses
