@@ -105,7 +105,6 @@ def process_consensuses(in_dirs):
             
             print('Processing consensus file {0}'.format(filename))
             cons_f = open(pathname, 'rb')
-#                    descriptors_out = [] # replacing with object dict
             descriptors_out = {}
             hibernating_statuses = [] # (time, fprint, hibernating)
             cons_valid_after = None
@@ -582,8 +581,7 @@ def filter_guards(cons_rel_stats, descriptors):
 
 def get_new_guard(bw_weights, bwweightscale, cons_rel_stats, descriptors,\
     client_guards, weighted_guards=None):
-    """Selects a new guard that doesn't conflict with the existing list.
-    Note: will raise ValueError if no suitable guard is found."""
+    """Selects a new guard that doesn't conflict with the existing list."""
     # - doesn't conflict with current guards
     # - running
     # - valid
