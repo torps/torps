@@ -1,3 +1,6 @@
-Rough version of a path simulator for Tor.
-- pathsim.py: Path simulator code. Needs Tor's stem library, consensuses, and descriptors.
+Rough guide:
+- pathsim.py: Path simulator code (aka Torps). Needs Tor's stem library, consensuses, and descriptors.
+- pathsim_analysis.py: Some code for analyzing Torps output.
 - stem comments.txt: Running observations on stem for Damian.
+- path spec notes.txt: Errors or omissions in Tor's path-spec.txt that need to be fixed.
+- test.py: Unorganized useful test code for Torps.
