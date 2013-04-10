@@ -104,7 +104,7 @@ def network_analysis(network_state_files):
     print('Top initial guards comprising 50% total selection probability')
     print('#\tProb.\tFingerprint\t\t\t\t\tNickname')
     for guard in initial_guards:
-        if (cum_prob >= 0.2):
+        if (cum_prob >= 0.5):
             break
         rel_stat = guard[0]
         print('{0}\t{1:.4f}\t{2}\t{3}'.format(i, guard[1], \
@@ -119,7 +119,7 @@ def network_analysis(network_state_files):
     print('Top 50 exits to {0}:{1} by probability-weighted uptime'.\
         format(ip, port))
     print('#\ttot_bw\tmax_pr\tmin_pr\tFingerprint\t\t\t\t\tNickname')
-    for fprint, bw_dict in exits_tot_bw_sorted[0:20]:
+    for fprint, bw_dict in exits_tot_bw_sorted[0:50]:
         print('{0}\t{1:.4f}\t{2:.4f}\t{3:.4f}\t{4}\t{5}'.\
             format(i, bw_dict['tot_bw'], bw_dict['max_prob'],\
                 bw_dict['min_prob'], fprint, bw_dict['nickname']))
