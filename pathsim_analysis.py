@@ -57,8 +57,8 @@ def network_analysis(network_state_files):
             hibernating_statuses = []
             
         # don't maintain or use hibernating statuses for now
-        # just add initial entry guards sorted by probability
-        # and add probability to relays that exit to our dummy dest ip and port
+        
+        # get initial entry guards with selection probability
         if init:
             init = False
             guards = filter_guards(cons_rel_stats, descriptors)
@@ -75,37 +75,55 @@ def network_analysis(network_state_files):
                    ((not need_stable) or (stem.Flag.STABLE in rel_stat.flags)):
                    initial_guards.append((rel_stat, cum_weight-cum_weight_old))
                 cum_weight_old = cum_weight
-        """
+
+        # get relays that exit to our dummy dest ip and port
+        # with sum of weighted selection probabilities
         weighted_exits = get_weighted_exits(cons_bw_weights,\
             cons_bwweightscale, cons_rel_stats, descriptors, need_fast, \
             need_stable, need_internal, ip, port)
         cum_weight_old = 0
         for fprint, cum_weight in weighted_exits:
             if fprint not in exits_tot_bw:
-                exits_tot_bw[fprint] = 0
-            exits_tot_bw[fprint] += cum_weight - cum_weight_old
+                exits_tot_bw[fprint] =\
+                    {'tot_bw':0,\
+                    'nickname':cons_rel_stats[fprint].nickname,
+                    'max_prob':0,
+                    'min_prob':1}
+            prob = cum_weight - cum_weight_old
+            exits_tot_bw[fprint]['tot_bw'] += prob
+            exits_tot_bw[fprint]['max_prob'] = \
+                max(exits_tot_bw[fprint]['max_prob'], prob)
+            exits_tot_bw[fprint]['min_prob'] = \
+                min(exits_tot_bw[fprint]['min_prob'], prob)                
             cum_weight_old = cum_weight
-        """
 
     # print out top initial guards comprising 20% total selection prob.
     initial_guards.sort(key = lambda x: x[1], reverse=True)
     cum_prob = 0
-    print('Top initial guards comprising 20% total selection probability')
+    i = 1    
+    print('Top initial guards comprising 50% total selection probability')
+    print('#\tProb.\tFingerprint\t\t\t\t\tNickname')
     for guard in initial_guards:
         if (cum_prob >= 0.2):
             break
         rel_stat = guard[0]
-        print('{0} [{1}]: {2}'.format(guard[0].nickname, guard[0].fingerprint,\
-            guard[1]))
+        print('{0}\t{1:.4f}\t{2}\t{3}'.format(i, guard[1], \
+        guard[0].fingerprint, guard[0].nickname))
         cum_prob += guard[1]
+        i += 1
 
     # print out top exits by total probability-weighted uptime
-    exits_tot_bw_sorted = exits_tot_bw.items().sort(key = lambda x: x[1])
-    print('Top 20 exits to {0}:{1} by probability-weighted uptime'.\
+    exits_tot_bw_sorted = exits_tot_bw.items()
+    exits_tot_bw_sorted.sort(key = lambda x: x[1]['tot_bw'], reverse=True)
+    i = 1
+    print('Top 50 exits to {0}:{1} by probability-weighted uptime'.\
         format(ip, port))
-    for fprint, bw in exits_tot_bw_sorted:
-        rel_stat = cons_rel_stats[fprint]
-        print('{0} [{1}]: {2}'.format(rel_stat.nickname, fprint, bw))
+    print('#\ttot_bw\tmax_pr\tmin_pr\tFingerprint\t\t\t\t\tNickname')
+    for fprint, bw_dict in exits_tot_bw_sorted[0:20]:
+        print('{0}\t{1:.4f}\t{2:.4f}\t{3:.4f}\t{4}\t{5}'.\
+            format(i, bw_dict['tot_bw'], bw_dict['max_prob'],\
+                bw_dict['min_prob'], fprint, bw_dict['nickname']))
+        i += 1
 
 if __name__ == '__main__':
     usage = 'Usage: pathsim_analysis.py [command]\nCommands:\n\
