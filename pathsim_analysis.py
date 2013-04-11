@@ -9,7 +9,7 @@ def network_analysis(network_state_files):
     files."""
     
     network_state_files = pad_network_state_files(network_state_files)
-    initial_guards = []
+    initial_guards = {}
     exits_tot_bw = {} # rel_stat -> sum of hours active weighted by exit prob.
     
     need_fast = True
@@ -50,15 +50,17 @@ def network_analysis(network_state_files):
         else:
             if (cons_valid_after == None) or (cons_fresh_until == None):
                 raise ValueError('Network status files begin with "None".')
-            # gap in consensuses, just advance an hour, keeping network state            
+            # gap in consensuses, just advance an hour, keeping network state  
             cons_valid_after += 3600
             cons_fresh_until += 3600
+            print('Filling in gap from {0} to {1}'.format(cons_valid_after,\
+                cons_fresh_until))
             # set empty statuses, even though previous should have been emptied
             hibernating_statuses = []
             
         # don't maintain or use hibernating statuses for now
         
-        # get initial entry guards with selection probability
+        # get initial entry guards with selection probability and their uptime
         if init:
             init = False
             guards = filter_guards(cons_rel_stats, descriptors)
@@ -73,8 +75,18 @@ def network_analysis(network_state_files):
                 rel_stat = cons_rel_stats[fprint]
                 if ((not need_fast) or (stem.Flag.FAST in rel_stat.flags)) and\
                    ((not need_stable) or (stem.Flag.STABLE in rel_stat.flags)):
-                   initial_guards.append((rel_stat, cum_weight-cum_weight_old))
+                   initial_guards[fprint] = {\
+                    'rel_stat':relstat,\
+                    'prob':cum_weight-cum_weight_old,\
+                    'uptime':0}
                 cum_weight_old = cum_weight
+        else:
+            # apply criteria used in setting bad_since
+            for guard in initial_guards:
+                if (guard in cons_rel_stats) and\
+                    (stem.Flag.RUNNING in cons_rel_stats[guard].flags) and\
+                    (stem.Flag.GUARD in cons_rel_stats[guard].flags):
+                    guard['uptime'] += 1
 
         # get relays that exit to our dummy dest ip and port
         # with sum of weighted selection probabilities
@@ -97,19 +109,19 @@ def network_analysis(network_state_files):
                 min(exits_tot_bw[fprint]['min_prob'], prob)                
             cum_weight_old = cum_weight
 
-    # print out top initial guards comprising 20% total selection prob.
-    initial_guards.sort(key = lambda x: x[1], reverse=True)
+    # print out top initial guards comprising some total selection prob.
+    initial_guards_items = initial_guards.items()
+    initial_guards_items.sort(key = lambda x: x[1]['prob'], reverse=True)
     cum_prob = 0
     i = 1    
     print('Top initial guards comprising 50% total selection probability')
-    print('#\tProb.\tFingerprint\t\t\t\t\tNickname')
-    for guard in initial_guards:
+    print('#\tProb.\tUptime\tFingerprint\t\t\t\t\tNickname')
+    for fp, guard in initial_guards_items:
         if (cum_prob >= 0.5):
             break
-        rel_stat = guard[0]
-        print('{0}\t{1:.4f}\t{2}\t{3}'.format(i, guard[1], \
-        guard[0].fingerprint, guard[0].nickname))
-        cum_prob += guard[1]
+        print('{0}\t{1:.4f}\t{2}\t{3}\t{4}'.format(i, guard['prob'], \
+            guard['uptime'], fp, guard['rel_stat'].nickname))
+        cum_prob += guard['prob']]
         i += 1
 
     # print out top exits by total probability-weighted uptime
@@ -124,6 +136,56 @@ def network_analysis(network_state_files):
             format(i, bw_dict['tot_bw'], bw_dict['max_prob'],\
                 bw_dict['min_prob'], fprint, bw_dict['nickname']))
         i += 1
+        
+        
+def simulation_analysis(log_files):
+    """Prints large guards and exits in consensuses over the time period covered by the input \
+    files."""
+    
+    malicious_ips = {}
+    all_times_to_first_compromise = []
+    all_compromise_counts = []
+    for log_file in log_files:
+        compromise_times = []
+        compromise_counts = []        
+        
+        with open(log_file, 'r') as lf:
+            lf.readline() # read header line
+            for line in lf:
+                line = line[0:-1] # cut off final newline
+                line_fields = line.split('\t')
+                id = int(line_fields[0])
+                time = int(line_fields[1])
+                guard_ip = line_fields[2]
+                exit_ip = line_fields[4]
+                
+                # add extra empty stats slots if needed
+                if (len(compromise_times) <= id):
+                    compromise_times[len(compromise_times):] = \
+                        [None]*(id+1 - len(compromise_times))
+                if (len(compromise_counts) <= id):
+                    for i in range(id+1 - len(compromise_counts)):
+                        compromise_counts.append(\
+                            {'entry_only_bad':0,\
+                            'guard_only_bad':0,\
+                            'entry_and_guard_bad':0,\
+                            'good':0})
+                            
+                if (guard_ip in malicious_ips) and (exit_ip in malicious_ips):
+                    compromise_counts[id]['entry_and_guard_bad'] += 1
+                    if (compromise_times[id] == None):
+                        compromise_times[id] = time
+                    else:
+                        compromise_times[id] = min(time, compromise_times[id])
+                elif (guard_ip in malicious_ips):
+                    compromise_counts[id]['entry_only_bad'] += 1
+                elif (exit_ip in malicious_ips):
+                    compromise_counts[id]['guard_only_bad'] += 1
+                else:
+                    compromise_counts[id]['good'] += 1
+        all_times_to_first_compromise.extend(compromise_times)
+        all_compromise_counts.extend(compromise_counts)       
+    return (all_times_to_first_compromise, all_compromise_counts)#START
 
 if __name__ == '__main__':
     usage = 'Usage: pathsim_analysis.py [command]\nCommands:\n\
@@ -155,3 +217,11 @@ if __name__ == '__main__':
             print(usage)
             sys.exit(1)
         in_dir = sys.argv[2]
+        log_files = []
+        for dirpath, dirnames, filenames in os.walk(in_dir, followlinks=True):
+            for filename in filenames:
+                if (filename[0] != '.'):
+                    log_files.append(os.path.join(dirpath,filename))
+        network_state_files.sort(key = lambda x: os.path.basename(x))
+        simulation_analysis(log_files)
+        

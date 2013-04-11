@@ -1650,7 +1650,7 @@ out_dir/processed_descriptors-year-month.\n\
         while (t < end_time):
             streams.append({'time':t,'type':'connect','ip':str_ip,'port':80})
             t += http_request_wait
-        #create_circuits(network_state_files, streams, num_samples)                
+        create_circuits(network_state_files, streams, num_samples)                
 
 # TODO
 # - support IPv6 addresses
