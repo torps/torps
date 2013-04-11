@@ -230,6 +230,9 @@ if __name__ == '__main__':
                     log_files.append(os.path.join(dirpath,filename))
         log_files.sort(key = lambda x: os.path.basename(x))
         
+        # get time of first circuit creation for each sample
+        period_start_times(log_files)#START
+        
         # set malicious ips (top guards/exits, determined manually)
         # 1        BigBoy              38.229.79.2
         # 2        ph3x                86.59.119.83
