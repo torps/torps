@@ -115,7 +115,7 @@ def network_analysis(network_state_files):
     cum_prob = 0
     i = 1    
     print('Top initial guards comprising 50% total selection probability')
-    print('#\tProb.\tUptime\tFingerprint\t\t\t\t\tNickname')
+    print('#\tProb.\tUptime\tFingerprint\t\t\t\t\t\t\tNickname')
     for fp, guard in initial_guards_items:
         if (cum_prob >= 0.5):
             break
@@ -130,7 +130,7 @@ def network_analysis(network_state_files):
     i = 1
     print('Top 50 exits to {0}:{1} by probability-weighted uptime'.\
         format(ip, port))
-    print('#\ttot_bw\tmax_pr\tmin_pr\tFingerprint\t\t\t\t\tNickname')
+    print('#\ttot_bw\tmax_pr\tmin_pr\tFingerprint\t\t\t\t\t\t\tNickname')
     for fprint, bw_dict in exits_tot_bw_sorted[0:50]:
         print('{0}\t{1:.4f}\t{2:.4f}\t{3:.4f}\t{4}\t{5}'.\
             format(i, bw_dict['tot_bw'], bw_dict['max_prob'],\
@@ -139,10 +139,12 @@ def network_analysis(network_state_files):
         
         
 def simulation_analysis(log_files):
-    """Prints large guards and exits in consensuses over the time period covered by the input \
-    files."""
+    """Returns times to first to compromise and compromise counts for all samples."""
     
-    malicious_ips = {}
+    # chosen somewhat arbitrarily from simulate.2012-08-02--08.1000-samples.out
+    malicious_ips = {'84.19.178.6', '84.19.178.7', '93.182.129.86',\
+        '93.182.129.84'}
+    
     all_times_to_first_compromise = []
     all_compromise_counts = []
     for log_file in log_files:
@@ -166,26 +168,26 @@ def simulation_analysis(log_files):
                 if (len(compromise_counts) <= id):
                     for i in range(id+1 - len(compromise_counts)):
                         compromise_counts.append(\
-                            {'entry_only_bad':0,\
-                            'guard_only_bad':0,\
-                            'entry_and_guard_bad':0,\
+                            {'guard_only_bad':0,\
+                            'exit_only_bad':0,\
+                            'guard_and_exit_bad':0,\
                             'good':0})
                             
                 if (guard_ip in malicious_ips) and (exit_ip in malicious_ips):
-                    compromise_counts[id]['entry_and_guard_bad'] += 1
+                    compromise_counts[id]['guard_and_exit_bad'] += 1
                     if (compromise_times[id] == None):
                         compromise_times[id] = time
                     else:
                         compromise_times[id] = min(time, compromise_times[id])
                 elif (guard_ip in malicious_ips):
-                    compromise_counts[id]['entry_only_bad'] += 1
-                elif (exit_ip in malicious_ips):
                     compromise_counts[id]['guard_only_bad'] += 1
+                elif (exit_ip in malicious_ips):
+                    compromise_counts[id]['exit_only_bad'] += 1
                 else:
                     compromise_counts[id]['good'] += 1
         all_times_to_first_compromise.extend(compromise_times)
         all_compromise_counts.extend(compromise_counts)       
-    return (all_times_to_first_compromise, all_compromise_counts)#START
+    return (all_times_to_first_compromise, all_compromise_counts)
 
 if __name__ == '__main__':
     usage = 'Usage: pathsim_analysis.py [command]\nCommands:\n\
@@ -222,6 +224,6 @@ if __name__ == '__main__':
             for filename in filenames:
                 if (filename[0] != '.'):
                     log_files.append(os.path.join(dirpath,filename))
-        network_state_files.sort(key = lambda x: os.path.basename(x))
+        log_files.sort(key = lambda x: os.path.basename(x))
         simulation_analysis(log_files)
         

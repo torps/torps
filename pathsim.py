@@ -736,8 +736,9 @@ def print_mapped_stream(client_id, circuit, stream, descriptors):
     else:
         raise ValueError('ERROR: Unrecognized stream in print_mapped_stream: \
 {0}'.format(stream['type']))
-    print('{0}\t{1}\t{2}\t{3}\t{4}\t{5}'.format(client_id, stream['time'],\
-        guard_ip, middle_ip, exit_ip, dest_ip))
+    print('{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}'.format(client_id,\
+        stream['time'], guard_ip, middle_ip, exit_ip, dest_ip,\
+        circuit['path'][0], circuit['path'][1], circuit['path'][2]))
 
 def circuit_supports_stream(circuit, stream, long_lived_ports, descriptors):
     """Returns if stream can run over circuit (which is assumed live)."""
@@ -1196,7 +1197,7 @@ def create_circuits(network_state_files, streams, num_samples):
     
     if (not _testing):
         print('Sample\tTimestamp\tGuard IP\tMiddle IP\tExit IP\tDestination\
- IP')
+ IP\tGuard Fingerprint\tMiddle Fingerprint\tExit Fingerprint')
 
      # store old descriptors (for entry guards that leave consensus)    
     descriptors = {}

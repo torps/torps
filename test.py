@@ -85,3 +85,43 @@ for hs in hibernating_statuses:
     if (hs[1] == fprint):
         print(hs)
 ######
+
+##### Find IPs belonging to fingerprint among input consensuses #####
+# find all ips used by a fingerprint in a series of consensuses
+
+# Top 3/12-4/12
+##	Prob.	Uptime	Fingerprint					Nickname
+#1	0.0462	1439	9F89491CAB7B03685DEABD358E193FFA74D8D836	BigBoy
+
+# Top in 8/12
+##	Prob.	Uptime	Fingerprint					Nickname
+#1	0.0339	23	6557396CF0EE5B72563A22BCAA0FF26E77FA3D08	KromyonWH3
+
+top_guard = '9F89491CAB7B03685DEABD358E193FFA74D8D836'
+in_consensuses_dir = 'in/cons-2012-03--04'
+ip_addresses = {}
+pathnames = []
+for dirpath, dirnames, fnames in os.walk(in_consensuses_dir, followlinks=True):
+    for fname in fnames:
+        pathnames.append(os.path.join(dirpath,fname))
+pathnames.sort()
+for pathname in pathnames:
+    filename = os.path.basename(pathname)
+    if (filename[0] == '.'):
+        continue
+    
+    print('Processing consensus file {0}'.format(filename))
+    cons_valid_after = None
+    cons_f = open(pathname, 'rb')
+    for r_stat in sd.parse_file(cons_f, validate=False):
+        if (cons_valid_after == None):
+            cons_valid_after = r_stat.document.valid_after
+            # compute timestamp version once here
+            valid_after_ts = timestamp(cons_valid_after)
+    
+        if (r_stat.fingerprint == top_guard):
+            if (r_stat.address not in ip_addresses):
+                ip_addresses[r_stat.address] = [valid_after_ts]
+            else:
+                ip_addresses[r_stat.address].append(valid_after_ts)
+##########
