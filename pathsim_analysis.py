@@ -193,8 +193,8 @@ def simulation_analysis(log_files, malicious_ips):
 
 if __name__ == '__main__':
     usage = 'Usage: pathsim_analysis.py [command]\nCommands:\n\
-\tnetwork [in_dir]:  Do some analysis on the network status files in in_dir.\n\
-\tsimulation [in_dir]: Do some analysis on the simulation logs in in_dir.'
+\tnetwork [in_dir]:  Analyze the network status files in in_dir.\n\
+\tsimulation [in_dir] [out_dir]: Analyze the simulation logs in in_dir, write statistics to files in out_dir.'
     if (len(sys.argv) <= 1):
         print(usage)
         sys.exit(1)
@@ -217,12 +217,13 @@ if __name__ == '__main__':
         network_state_files.sort(key = lambda x: os.path.basename(x))
         network_analysis(network_state_files)
     elif (command == 'simulation'):
-        if (len(sys.argv) < 3):
+        if (len(sys.argv) < 4):
             print(usage)
             sys.exit(1)
             
         # get list of log files
         in_dir = sys.argv[2]
+        out_dir = sys.argv[3]
         log_files = []
         for dirpath, dirnames, filenames in os.walk(in_dir, followlinks=True):
             for filename in filenames:
@@ -258,7 +259,27 @@ if __name__ == '__main__':
         top_exit_ips = ['178.217.184.147', '77.247.181.164', '96.44.163.77',\
             '146.185.23.179', '173.254.192.36', '77.247.181.162',\
             '96.44.163.75', '109.163.233.200', '146.185.23.180', '31.172.30.1']
-        malicious_ips = top_guard_ips[0:4]
-        malicious_ips.extend(top_exit_ips[0:4])
-        simulation_analysis(log_files, malicious_ips)
-        
+        num_bad_guards = 4
+        num_bad_exits = 4
+        malicious_ips = top_guard_ips[0:num_bad_guards]
+        malicious_ips.extend(top_exit_ips[0:num_bad_exits])
+        (times_to_first_compromise, compromise_counts) = \
+            simulation_analysis(log_files, malicious_ips)
+        compromise_times_file = os.path.join(out_dir,\
+            'analyze.XX--XX.compromise-times.{0}-{1}.out'.\
+                format(num_bad_guards, num_bad_exits))
+        compromise_counts_file = os.path.join(out_dir,\
+            'analyze.XX--XX.compromise-counts.{0}-{1}.out'.\
+                format(num_bad_guards, num_bad_exits))
+        with open(compromise_times_file, 'w') as f:
+            f.write('#\tTime of first compromise\n')
+            for i, t in enumerate(times_to_first_compromise):
+                if (t == None):
+                    t = -1
+                f.write('{0}\t{1}\n'.format(i,t))
+        with open(compromise_counts_file, 'w') as f:
+            f.write('#\tbad guard&exit\tbad guard\tbad exit\tgood\n')
+            for i, cts in enumerate(compromise_counts):
+                f.write('{0}\t{1}\t\t{2}\t\t{3}\t\t{4}\n'.format(i,\
+                    cts['guard_and_exit_bad'], cts['guard_only_bod'],\
+                    cts['exit_only_bad'], cts['good']))
