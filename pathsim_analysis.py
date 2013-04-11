@@ -140,7 +140,7 @@ def network_analysis(network_state_files):
         
 def simulation_analysis(log_files, malicious_ips):
     """Returns times to first to compromise and compromise counts for all samples."""
-    
+    print('test')
     all_times_to_first_compromise = []
     all_compromise_counts = []
     for log_file in log_files:
@@ -154,7 +154,8 @@ def simulation_analysis(log_files, malicious_ips):
             for line in lf:
                 if (i % 100000 == 0):
                     print('Read {0} lines.'.format(i))
-                i += 1
+                i = i+1
+
                 line = line[0:-1] # cut off final newline
                 line_fields = line.split('\t')
                 id = int(line_fields[0])
@@ -167,7 +168,7 @@ def simulation_analysis(log_files, malicious_ips):
                     compromise_times[len(compromise_times):] = \
                         [None]*(id+1 - len(compromise_times))
                 if (len(compromise_counts) <= id):
-                    for i in range(id+1 - len(compromise_counts)):
+                    for j in range(id+1 - len(compromise_counts)):
                         compromise_counts.append(\
                             {'guard_only_bad':0,\
                             'exit_only_bad':0,\
@@ -189,7 +190,6 @@ def simulation_analysis(log_files, malicious_ips):
         all_times_to_first_compromise.extend(compromise_times)
         all_compromise_counts.extend(compromise_counts)       
     return (all_times_to_first_compromise, all_compromise_counts)
-
 
 if __name__ == '__main__':
     usage = 'Usage: pathsim_analysis.py [command]\nCommands:\n\
