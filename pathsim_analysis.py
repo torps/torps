@@ -154,6 +154,7 @@ def simulation_analysis(log_files, malicious_ips):
             for line in lf:
                 if (i % 10000 == 0):
                     print('Read {0} lines.'.format(i))
+                i += 1
                 line = line[0:-1] # cut off final newline
                 line_fields = line.split('\t')
                 id = int(line_fields[0])
