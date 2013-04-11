@@ -199,8 +199,8 @@ def plot_compromise_rates(comp_cts):
     for cc in comp_cts:
         tot_ct = cc['guard_and_exit_bad']+cc['guard_only_bad']+\
             cc['exit_only_bad']+cc['good']
-            frac_both_bad.append(\
-                float(cc['guard_and_exit_bad']) / float(tot_ct))
+        frac_both_bad.append(\
+            float(cc['guard_and_exit_bad']) / float(tot_ct))
     print('fraction both bad: {0}'.format(frac_both_bad))
     fig = matplotlib.pyplot.figure()
     ax = fig.add_subplot(111)
