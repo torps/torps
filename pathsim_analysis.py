@@ -141,12 +141,8 @@ def network_analysis(network_state_files):
         i += 1
         
         
-def simulation_analysis(log_files):
+def simulation_analysis(log_files, malicious_ips):
     """Returns times to first to compromise and compromise counts for all samples."""
-    
-    # chosen somewhat arbitrarily from simulate.2012-08-02--08.1000-samples.out
-    malicious_ips = {'84.19.178.6', '84.19.178.7', '93.182.129.86',\
-        '93.182.129.84'}
     
     all_times_to_first_compromise = []
     all_compromise_counts = []
@@ -244,6 +240,8 @@ if __name__ == '__main__':
         if (len(sys.argv) < 3):
             print(usage)
             sys.exit(1)
+            
+        # get list of log files
         in_dir = sys.argv[2]
         log_files = []
         for dirpath, dirnames, filenames in os.walk(in_dir, followlinks=True):
@@ -251,5 +249,36 @@ if __name__ == '__main__':
                 if (filename[0] != '.'):
                     log_files.append(os.path.join(dirpath,filename))
         log_files.sort(key = lambda x: os.path.basename(x))
-        simulation_analysis(log_files)
+        
+        # set malicious ips (top guards/exits, determined manually)
+        # 1        BigBoy              38.229.79.2
+        # 2        ph3x                86.59.119.83
+        # 3        TORy2               137.56.163.46
+        # 4        TORy3               137.56.163.46  ## DUP!
+        # 5        PPrivCom016         46.165.196.73
+        # 6        oilsrv1             62.220.136.253
+        # 7        OldPlanetExpress    85.214.75.110
+        # 8        OnionsAndAtoms      18.85.8.71
+        # 9        IDXFdotcomMinz      85.17.122.34
+        # 10        TORy1               137.56.163.64
+        top_guard_ips = ['38.229.79.2', '86.59.119.83', '137.56.163.46',\
+            '46.165.196.73', '62.220.136.253', '85.214.75.110', '18.85.8.71',\
+            '85.17.122.34', '137.56.163.64']
+        # Top exits 3/12-4/12
+        # 1        ZhangPoland1        178.217.184.147
+        # 2        rainbowwarrior      77.247.181.164
+        # 3        hazare              96.44.163.77
+        # 4        TorLand1            146.185.23.179
+        # 5        manning             173.254.192.36
+        # 6        chomsky             77.247.181.162
+        # 7        saeed               96.44.163.75
+        # 8        wau                 109.163.233.200
+        # 9        TorLand2            146.185.23.180
+        # 10        chaoscomputerclub18 31.172.30.1
+        top_exit_ips = ['178.217.184.147', '77.247.181.164', '96.44.163.77',\
+            '146.185.23.179', '173.254.192.36', '77.247.181.162',\
+            '96.44.163.75', '109.163.233.200', '146.185.23.180', '31.172.30.1']
+        malicious_ips = top_guard_ips[0:4]
+        malicious_ips.extend(top_exit_ips[0:4])
+        simulation_analysis(log_files, malicious_ips)
         
