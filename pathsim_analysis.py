@@ -148,6 +148,7 @@ def simulation_analysis(log_files, malicious_ips):
         compromise_counts = []        
         
         with open(log_file, 'r') as lf:
+            print('Processing file {0}.'.format(os.path.basename(log_file)))
             lf.readline() # read header line
             for line in lf:
                 line = line[0:-1] # cut off final newline
