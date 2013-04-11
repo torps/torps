@@ -76,7 +76,7 @@ def network_analysis(network_state_files):
                 if ((not need_fast) or (stem.Flag.FAST in rel_stat.flags)) and\
                    ((not need_stable) or (stem.Flag.STABLE in rel_stat.flags)):
                    initial_guards[fprint] = {\
-                    'rel_stat':relstat,\
+                    'rel_stat':rel_stat,\
                     'prob':cum_weight-cum_weight_old,\
                     'uptime':0}
                 cum_weight_old = cum_weight
@@ -86,7 +86,7 @@ def network_analysis(network_state_files):
                 if (guard in cons_rel_stats) and\
                     (stem.Flag.RUNNING in cons_rel_stats[guard].flags) and\
                     (stem.Flag.GUARD in cons_rel_stats[guard].flags):
-                    guard['uptime'] += 1
+                    initial_guards[guard]['uptime'] += 1
 
         # get relays that exit to our dummy dest ip and port
         # with sum of weighted selection probabilities
@@ -121,7 +121,7 @@ def network_analysis(network_state_files):
             break
         print('{0}\t{1:.4f}\t{2}\t{3}\t{4}'.format(i, guard['prob'], \
             guard['uptime'], fp, guard['rel_stat'].nickname))
-        cum_prob += guard['prob']]
+        cum_prob += guard['prob']
         i += 1
 
     # print out top exits by total probability-weighted uptime
