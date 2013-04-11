@@ -3,6 +3,9 @@ import os
 import stem
 import cPickle as pickle
 from pathsim import *
+import numpy
+import matplotlib.pyplot
+import matplotlib.mlab
 
 def network_analysis(network_state_files):
     """Prints large guards and exits in consensuses over the time period covered by the input \
@@ -188,6 +191,29 @@ def simulation_analysis(log_files):
         all_times_to_first_compromise.extend(compromise_times)
         all_compromise_counts.extend(compromise_counts)       
     return (all_times_to_first_compromise, all_compromise_counts)
+
+
+def plot_compromise_rates(comp_cts):
+    """Plots a histogram of compromise counts as fractions.
+    Input: comp_cts: array of dicts with keys
+        'guard_and_exit_bad', 'guard_only_bad', 'exit_only_bad', and 'good'.
+    """
+    # fraction of connection with bad guard and exit
+    frac_both_bad = []
+    for cc in comp_cts:
+        tot_ct = cc['guard_and_exit_bad']+cc['guard_only_bad']+\
+            cc['exit_only_bad']+cc['good']
+            frac_both_bad.append(\
+                float(cc['guard_and_exit_bad']) / float(tot_ct))
+    print('fraction both bad: {0}'.format(frac_both_bad))
+    fig = matplotlib.pyplot.figure()
+    ax = fig.add_subplot(111)
+    ax.hist(frac_both_bad, bins=50)
+    ax.set_xlabel('Fraction of compromised paths')
+    ax.set_ylabel('Number of clients')
+    matplotlib.pyplot.show()
+    #matplotlib.pyplot.hist(frac_both_bad)
+
 
 if __name__ == '__main__':
     usage = 'Usage: pathsim_analysis.py [command]\nCommands:\n\
