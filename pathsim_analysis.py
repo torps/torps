@@ -152,7 +152,7 @@ def simulation_analysis(log_files, malicious_ips):
             lf.readline() # read header line
             i = 0
             for line in lf:
-                if (i % 10000 == 0):
+                if (i % 100000 == 0):
                     print('Read {0} lines.'.format(i))
                 i += 1
                 line = line[0:-1] # cut off final newline
