@@ -195,7 +195,7 @@ if __name__ == '__main__':
     usage = 'Usage: pathsim_analysis.py [command]\nCommands:\n\
 \tnetwork [in_dir]:  Analyze the network status files in in_dir.\n\
 \tsimulation [in_dir] [out_dir]: Analyze the simulation logs in in_dir, write statistics to files in out_dir.'
-    if (len(sys.argv) <= 1):
+    if (len(sys.argv) < 2):
         print(usage)
         sys.exit(1)
         
