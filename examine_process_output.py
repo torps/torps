@@ -55,6 +55,9 @@ if __name__ == '__main__':
     # min relays with descriptors
     # Wrote descriptors for 2885 relays.
     cons_relays_re = re.compile('Wrote descriptors for ([0-9]*) relays')
+    
+    # missing descriptors
+    missing_desc_re = re.compile('Did not find descriptors for ([0-9]*) relays')
 
     num_descriptors = []
     num_relays = []
@@ -64,6 +67,8 @@ if __name__ == '__main__':
     num_hibern_stop = []
     num_relays_cons = []
     num_relay_cons_after_first_day = []
+    num_missing_descriptors = []
+    num_missing_descriptors_after_first_month = []
     
     num_was_hibern_cons = 0
     num_hibern_start_cons = 0
@@ -151,6 +156,13 @@ if __name__ == '__main__':
                 if (month != start_month) or (day != 1):
                     num_relay_cons_after_first_day.append(int(match.group(1)))
                 continue
+            match = missing_desc_re.search(line)
+            if match:
+                nmd = int(match.group(1))
+                num_missing_descriptors.append(nmd)
+                if (month != start_month):
+                    num_missing_descriptors_after_first_month.append(nmd)
+                continue
     print('descriptors in desc archive: {0}'.format(num_descriptors))
     print('relays in desc archive: {0}'.format(num_relays))
     print('consensuses in month: {0}'.format(num_cons))
@@ -159,3 +171,5 @@ if __name__ == '__main__':
     print('max "stopped hibernating": {0}'.format(max(num_hibern_stop)))
     print('min relays w/ desc in cons: {0}'.format(min(num_relays_cons)))
     print('min relays w/ desc in cons after first day: {0}'.format(min(num_relay_cons_after_first_day)))
+    print('max num missing descriptiors: {0}'.format(max(num_missing_descriptors)))
+    print('max num missing descriptiors after first month: {0}'.format(max(num_missing_descriptors_after_first_month)))
