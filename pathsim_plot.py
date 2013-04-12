@@ -1,9 +1,11 @@
 import sys
 import numpy
+import matplotlib
+matplotlib.use('PDF')
 import matplotlib.pyplot
 import matplotlib.mlab
 
-def plot_compromise_rates(comp_cts):
+def plot_compromise_rates(comp_cts, fname):
     """
     Plots a histogram of compromise counts as fractions.
     Input: comp_cts: array of dicts with keys
@@ -18,13 +20,14 @@ def plot_compromise_rates(comp_cts):
             float(cc['guard_and_exit_bad']) / float(tot_ct))
     fig = matplotlib.pyplot.figure()
     ax = fig.add_subplot(111)
-    ax.hist(frac_both_bad, bins=50)
+    ax.hist(frac_both_bad, bins=30, normed=True)
     ax.set_xlabel('Fraction of compromised paths')
-    ax.set_ylabel('Number of clients')
-    matplotlib.pyplot.show()
+    ax.set_ylabel('Probability')
+    matplotlib.pyplot.savefig(fname)
+    #matplotlib.pyplot.show()
     #matplotlib.pyplot.hist(frac_both_bad)
 
-def plot_time_to_compromise(comp_times, period_start, period_end):
+def plot_time_to_compromise(comp_times, period_start, period_end, fname):
     """
     Plots a histogram of times to first compromise.
     Input: comp_times: array of compromise timestamp or None
@@ -40,10 +43,11 @@ def plot_time_to_compromise(comp_times, period_start, period_end):
             time_to_comp.append(time_len)
     fig = matplotlib.pyplot.figure()
     ax = fig.add_subplot(111)
-    ax.hist(time_to_comp, bins=50)
+    ax.hist(time_to_comp, bins=30, normed=True)
     ax.set_xlabel('Time to first compromise (hours)')
-    ax.set_ylabel('Number of clients')
-    matplotlib.pyplot.show()
+    ax.set_ylabel('Probability')
+    matplotlib.pyplot.savefig(fname)
+    #matplotlib.pyplot.show()
     #matplotlib.pyplot.hist(frac_both_bad)
 
 
@@ -77,7 +81,8 @@ if __name__ == '__main__':
                 comp_times.append(time)
             else:
                 comp_times.append(None)
-    plot_time_to_compromise(comp_times, period_start, period_end)
+    plot_time_to_compromise(comp_times, period_start, period_end,\
+        times_in_file + '.pdf')
     
 # '#\tbad guard&exit\tbad guard\tbad exit\tgood\n'
     comp_cts = []
@@ -91,4 +96,4 @@ if __name__ == '__main__':
                'guard_only_bad':int(cts[3]),\
                'exit_only_bad':int(cts[5]),\
                'good':int(cts[7])})               
-    plot_compromise_rates(comp_cts)
+    plot_compromise_rates(comp_cts, counts_in_file + '.pdf')
