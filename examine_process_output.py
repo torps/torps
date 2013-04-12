@@ -27,7 +27,7 @@ if __name__ == '__main__':
         sys.exit(1)
         
     filename = sys.argv[1]
-    start_month = int(sys.argv[2]
+    start_month = int(sys.argv[2])
     
     # per descriptor archive
         # min descriptors read
