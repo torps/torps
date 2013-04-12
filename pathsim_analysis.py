@@ -281,5 +281,5 @@ if __name__ == '__main__':
             f.write('#\tbad guard&exit\tbad guard\tbad exit\tgood\n')
             for i, cts in enumerate(compromise_counts):
                 f.write('{0}\t{1}\t\t{2}\t\t{3}\t\t{4}\n'.format(i,\
-                    cts['guard_and_exit_bad'], cts['guard_only_bod'],\
+                    cts['guard_and_exit_bad'], cts['guard_only_bad'],\
                     cts['exit_only_bad'], cts['good']))
