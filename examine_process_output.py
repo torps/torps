@@ -68,7 +68,7 @@ if __name__ == '__main__':
     num_relays_cons = []
     num_relay_cons_after_first_day = []
     num_missing_descriptors = []
-    num_missing_descriptors_after_first_month = []
+    num_missing_descriptors_after_first_day = []
     
     num_was_hibern_cons = 0
     num_hibern_start_cons = 0
@@ -160,8 +160,8 @@ if __name__ == '__main__':
             if match:
                 nmd = int(match.group(1))
                 num_missing_descriptors.append(nmd)
-                if (month != start_month):
-                    num_missing_descriptors_after_first_month.append(nmd)
+                if (month != start_month) or (day != 1):
+                    num_missing_descriptors_after_first_day.append(nmd)
                 continue
     print('descriptors in desc archive: {0}'.format(num_descriptors))
     print('relays in desc archive: {0}'.format(num_relays))
@@ -172,4 +172,4 @@ if __name__ == '__main__':
     print('min relays w/ desc in cons: {0}'.format(min(num_relays_cons)))
     print('min relays w/ desc in cons after first day: {0}'.format(min(num_relay_cons_after_first_day)))
     print('max num missing descriptiors: {0}'.format(max(num_missing_descriptors)))
-    print('max num missing descriptiors after first month: {0}'.format(max(num_missing_descriptors_after_first_month)))
+    print('max num missing descriptiors after first day: {0}'.format(max(num_missing_descriptors_after_first_day)))
