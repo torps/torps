@@ -266,10 +266,10 @@ if __name__ == '__main__':
         (times_to_first_compromise, compromise_counts) = \
             simulation_analysis(log_files, malicious_ips)
         compromise_times_file = os.path.join(out_dir,\
-            'analyze.XX--XX.compromise-times.{0}-{1}.out'.\
+            'analyze.simulation.XX--XX.compromise-times.{0}-{1}.out'.\
                 format(num_bad_guards, num_bad_exits))
         compromise_counts_file = os.path.join(out_dir,\
-            'analyze.XX--XX.compromise-counts.{0}-{1}.out'.\
+            'analyze.simulation.XX--XX.compromise-counts.{0}-{1}.out'.\
                 format(num_bad_guards, num_bad_exits))
         with open(compromise_times_file, 'w') as f:
             f.write('#\tTime of first compromise\n')
