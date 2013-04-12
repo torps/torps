@@ -194,7 +194,7 @@ def simulation_analysis(log_files, malicious_ips):
 if __name__ == '__main__':
     usage = 'Usage: pathsim_analysis.py [command]\nCommands:\n\
 \tnetwork [in_dir]:  Analyze the network status files in in_dir.\n\
-\tsimulation [in_dir] [out_dir]: Analyze the simulation logs in in_dir, write statistics to files in out_dir.'
+\tsimulation [in_dir] [out_dir] [num_bad_guards] [num_bad_exits]: Analyze the simulation logs in in_dir against adversary controlling num_bad_guards guards and num_bad_exits exits, and write statistics to files in out_dir.'
     if (len(sys.argv) < 2):
         print(usage)
         sys.exit(1)
@@ -217,22 +217,21 @@ if __name__ == '__main__':
         network_state_files.sort(key = lambda x: os.path.basename(x))
         network_analysis(network_state_files)
     elif (command == 'simulation'):
-        if (len(sys.argv) < 4):
+        if (len(sys.argv) < 6):
             print(usage)
             sys.exit(1)
             
         # get list of log files
         in_dir = sys.argv[2]
         out_dir = sys.argv[3]
+        num_bad_guards = int(sys.argv[4])
+        num_bad_exits = int(sys.argv[5])
         log_files = []
         for dirpath, dirnames, filenames in os.walk(in_dir, followlinks=True):
             for filename in filenames:
                 if (filename[0] != '.'):
                     log_files.append(os.path.join(dirpath,filename))
         log_files.sort(key = lambda x: os.path.basename(x))
-        
-        # get time of first circuit creation for each sample
-        period_start_times(log_files)#START
         
         # set malicious ips (top guards/exits, determined manually)
         # 1        BigBoy              38.229.79.2
@@ -262,8 +261,6 @@ if __name__ == '__main__':
         top_exit_ips = ['178.217.184.147', '77.247.181.164', '96.44.163.77',\
             '146.185.23.179', '173.254.192.36', '77.247.181.162',\
             '96.44.163.75', '109.163.233.200', '146.185.23.180', '31.172.30.1']
-        num_bad_guards = 4
-        num_bad_exits = 4
         malicious_ips = top_guard_ips[0:num_bad_guards]
         malicious_ips.extend(top_exit_ips[0:num_bad_exits])
         (times_to_first_compromise, compromise_counts) = \
