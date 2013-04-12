@@ -21,12 +21,13 @@ def expect_month_advance(line, hour, day, month, new_hour, new_day, new_month):
 
 
 if __name__ == '__main__':
-    usage = 'Usage: examine_process_output.py [filename]'
-    if (len(sys.argv) <= 1):
+    usage = 'Usage: examine_process_output.py [filename] [start_month]'
+    if (len(sys.argv) < 3):
         print(usage)
         sys.exit(1)
         
     filename = sys.argv[1]
+    start_month = int(sys.argv[2]
     
     # per descriptor archive
         # min descriptors read
@@ -147,7 +148,7 @@ if __name__ == '__main__':
             match = cons_relays_re.search(line)
             if match:
                 num_relays_cons.append(int(match.group(1)))
-                if (month != 3) or (day != 1):
+                if (month != start_month) or (day != 1):
                     num_relay_cons_after_first_day.append(int(match.group(1)))
                 continue
     print('descriptors in desc archive: {0}'.format(num_descriptors))
