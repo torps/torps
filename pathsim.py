@@ -782,39 +782,41 @@ format(port, port_needs_covered[port]))
                 print('Port {0} not found in port_needs_covered'.format(port))
     
     
-def kill_circuits_by_relay(client_state, relay_down_fn):
+def kill_circuits_by_relay(client_state, relay_down_fn, msg):
     """Kill circuits with a relay that is down as judged by relay_down_fn."""    
     # go through dirty circuits
     new_dirty_exit_circuits = collections.deque()
     while(len(client_state['dirty_exit_circuits']) > 0):
         circuit = client_state['dirty_exit_circuits'].popleft()
-        circuit_live = True
+        rel_down = None
         for i in range(len(circuit['path'])):
             relay = circuit['path'][i]
             if relay_down_fn(relay):
-                circuit_live = False
+                rel_down = relay
                 break
-        if (circuit_live):
+        if (rel_down == None):
             new_dirty_exit_circuits.append(circuit)
         else:
             if (_testing):
-                print('Killing dirty circuit because a relay is down.')
+                print('Killing dirty circuit because {0} {1}.'.\
+                    format(rel_down, msg))
     client_state['dirty_exit_circuits'] = new_dirty_exit_circuits
     # go through clean circuits
     new_clean_exit_circuits = collections.deque()
     while(len(client_state['clean_exit_circuits']) > 0):
         circuit = client_state['clean_exit_circuits'].popleft()
-        circuit_live = True
+        rel_down = None
         for i in range(len(circuit['path'])):
             relay = circuit['path'][i]
             if relay_down_fn(relay):
-                circuit_live = False
+                rel_down = relay
                 break
-        if (circuit_live):
+        if (rel_down == None):
             new_clean_exit_circuits.append(circuit)
         else:
             if (_testing):
-                print('Killing clean circuit because a relay is down')
+                print('Killing clean circuit because {0} {1}.'.\
+                    format(rel_down, msg))
             uncover_circuit_ports(circuit, client_state['port_needs_covered'])
     client_state['clean_exit_circuits'] = new_clean_exit_circuits
 
@@ -855,7 +857,7 @@ def timed_client_updates(cur_time, client_state, num_guards, min_num_guards,\
         
     # kill circuits with relays that have gone into hibernation
     kill_circuits_by_relay(client_state, \
-        lambda r: hibernating_status[r])
+        lambda r: hibernating_status[r], 'is hibernating')
                   
     # cover uncovered ports while fewer than max_unused_open_circuits clean
     for port, need in port_needs_global.items():
@@ -1123,7 +1125,7 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
     
 def create_circuits(network_state_files, streams, num_samples):
     """Takes streams over time and creates circuits by interaction
-    with choose_path().
+    with create_circuit().
       Input:
         network_state_files: list of filenames with network statuses
             as produced by process_consensuses        
@@ -1353,7 +1355,8 @@ relay in hibernating_status, hstat))
             #  down is not in consensus or without Running flag.            
             kill_circuits_by_relay(client_state, \
                 lambda r: (r not in cons_rel_stats) or \
-                    (stem.Flag.RUNNING not in cons_rel_stats[r].flags))
+                    (stem.Flag.RUNNING not in cons_rel_stats[r].flags),\
+                    'is down')
                               
         # filter exits for port needs and compute their weights
         # do this here to avoid repeating per client

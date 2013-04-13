@@ -408,8 +408,12 @@ DA29C7BD34640D749392DFA7919AB1E9AEADC311:       173.254.192.35
 
 ##### Aggregate relays that appear in consensus with descriptor 3/12-3/13 #####
 import json
+import pickle
+from pathsim import *
 in_dir = 'out/network-state-2012-03--2013-03'
-out_file = 'relays.2012-03--2013--03.json'
+#in_dir = 'network-state-2012-03--04'
+out_file = 'out/relays.2012-03--2013--03.json'
+#out_file = 'relays.2012-03--04.json'
 network_state_files = []
 for dirpath, dirnames, filenames in os.walk(in_dir, followlinks=True):
     for filename in filenames:
@@ -433,8 +437,8 @@ for ns_file in network_state_files:
                     num_addresses += 1                    
             else:
                 relays[relay] = {\
-                    'n':relay.nickname,\
-                    'f':relay.fingerprint,\
+                    'n':consensus.relays[relay].nickname,\
+                    'f':consensus.relays[relay].fingerprint,\
                     'a':[descriptors[relay].address],\
                     'r':True}
                 num_addresses += 1
@@ -443,11 +447,11 @@ print('Num addresses: {0}'.format(num_addresses))
 
 # turn relays dict into {'relays':[relay dict]} and write to disk
 relays_list = []
-for rel_fp, rel_dict in relays:
+for rel_fp, rel_dict in relays.items():
     relays_list.append(rel_dict)
 relays_out = {'relays':relays_list}
-with open(out_file, 'w'):
-    json.dump(relays_out)
+with open(out_file, 'w') as f:
+    json.dump(relays_out, f, indent=4)
 # {"relays":[
 # {"n":"PelmenTorRelay","f":"3CE26C7E299224F958BBC6BF76101CD2AF42CEDE","a":["2.93.158.149"],"r":false},
 # {"n":"darwinfish","f":"9DD5F90D641D835C4FCA7153148B156E6FD49CEE","a":["46.4.106.18"],"r":true}
