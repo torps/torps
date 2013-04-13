@@ -1559,10 +1559,10 @@ range from start_year and start_month to end_year and end_month. Write the \
 matched descriptors for each consensus to \
 out_dir/processed_descriptors-year-month.\n\
 \tsimulate \
-[descriptors] [# samples] [# reqs] [testing]: Do a\
- bunch of simulated path selections using consensuses from \
-[consensuses], matching descriptors from [descriptors], taking \
-[# samples], making [# reqs] web requests per hour, and printing debug info if [testing].'
+[nsf dir] [# samples] [# reqs] [testing]: Do a \
+bunch of simulated path selections using network state files \
+(produced by process_consensuses()) from [nsf dir], taking [# samples], making\
+ [# reqs] web requests per hour, and printing debug info if [testing].'
     if (len(sys.argv) <= 1):
         print(usage)
         sys.exit(1)
@@ -1633,8 +1633,6 @@ out_dir/processed_descriptors-year-month.\n\
         # insert gaps for missing time periods
         network_state_files.sort(key = lambda x: os.path.basename(x))
         network_state_files = pad_network_state_files(network_state_files)
-        for nsf in network_state_files:
-            print(nsf)
         
         # determine start and end times
         start_time = None
