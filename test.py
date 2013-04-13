@@ -405,3 +405,45 @@ B8F81CF0C665EA8BE947F102CBFF97615F1FF300:       31.172.30.4
 DA29C7BD34640D749392DFA7919AB1E9AEADC311:       173.254.192.35
 92D151A8219CC742DE7E0EAEB6D18FAF9793BA79:       80.237.226.76
 """
+
+##### Aggregate relays that appear in consensus with descriptor 3/12-3/13 #####
+in_dir = 'out/network-state-2012-03--2013-03'
+# START network_state_files = []
+for dirpath, dirnames, filenames in os.walk(in_dir, followlinks=True):
+    for filename in filenames:
+        if (filename[0] != '.'):
+            network_state_files.append(os.path.join(dirpath,filename))
+
+# aggregate relays in consensuses with descriptors
+relays = {}
+network_state_files.sort(key = lambda x: os.path.basename(x))
+num_addresses = 0
+for ns_file in network_state_files:
+    print('Reading {0}'.format(os.path.basename(ns_file)))
+    with open(ns_file, 'r') as nsf:
+        consensus = pickle.load(nsf)
+        descriptors = pickle.load(nsf)
+    for relay in consensus.relays:
+        if (relay in descriptors):
+            if relay in relays:
+                if (descriptors[relay].address not in relays[relay]['a']):
+                    relays[relay]['a'].append(descriptors[relay].address)
+                    num_addresses += 1                    
+            else:
+                relays[relay] = {\
+                    'n':relay.nickname,\
+                    'f':relay.fingerprint,\
+                    'a':[descriptors[relay].address],\
+                    'r':True}
+                num_addresses += 1
+print('Num relays: {0}'.format(len(relays)))
+print('Num addresses: {0}'.format(num_addresses))
+
+# turn relays dict into {'relays':[relay dict]} and write to disk
+
+# {"relays":[
+# {"n":"PelmenTorRelay","f":"3CE26C7E299224F958BBC6BF76101CD2AF42CEDE","a":["2.93.158.149"],"r":false},
+# {"n":"darwinfish","f":"9DD5F90D641D835C4FCA7153148B156E6FD49CEE","a":["46.4.106.18"],"r":true}
+# ]
+# }                
+##########
