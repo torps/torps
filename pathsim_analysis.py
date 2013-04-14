@@ -5,7 +5,7 @@ import cPickle as pickle
 from pathsim import *
 import numpy
 import matplotlib
-#matplotlib.use('PDF')
+matplotlib.use('PDF')
 import matplotlib.pyplot
 #import matplotlib.mlab
 import math
