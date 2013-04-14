@@ -410,13 +410,15 @@ class CompromiseTopRelays:
         """Plots some of the statistics collected."""
         self.plot_compromise_rates(out_dir, out_name)
         self.plot_times_to_compromise(out_dir, out_name)
-
-
-def network_analysis(network_state_files):
-    """Prints large guards and exits in consensuses over the time period covered by the input \
-    files."""
-    
+        
+        
+def network_analysis_get_guards_and_exits(network_state_files):
+    """Takes list of network state files, pads the sorted list for missing
+    periods, and returns selection statistics about initial guards and
+    exits."""
+    network_state_files.sort(key = lambda x: os.path.basename(x))
     network_state_files = pad_network_state_files(network_state_files)
+    
     initial_guards = {}
     exits_tot_bw = {} # rel_stat -> sum of hours active weighted by exit prob.
     
@@ -442,7 +444,6 @@ def network_analysis(network_state_files):
                 descriptors = pickle.load(nsf)
                 hibernating_statuses = pickle.load(nsf)
                 cons_rel_stats = {}
-                hibernating_status = {}
                 
                 # set variables from consensus
                 cons_valid_after = timestamp(consensus.valid_after)            
@@ -516,16 +517,24 @@ def network_analysis(network_state_files):
             exits_tot_bw[fprint]['min_prob'] = \
                 min(exits_tot_bw[fprint]['min_prob'], prob)                
             cum_weight_old = cum_weight
+            
+    return (initial_guards, exits_tot_bw)
+    
 
+def network_analysis_print_guards_and_exits(initial_guards, exits_tot_bw,\
+    guard_cum_prob, num_exits):
+    """Prints top initial guards comprising [guard_cum_prob] selection prob.
+    and top [num_exits] exits."""
     # print out top initial guards comprising some total selection prob.
     initial_guards_items = initial_guards.items()
     initial_guards_items.sort(key = lambda x: x[1]['prob'], reverse=True)
     cum_prob = 0
     i = 1    
-    print('Top initial guards comprising 50% total selection probability')
+    print('Top initial guards comprising {0} total selection probability'.\
+        format(guard_cum_prob))
     print('#\tProb.\tUptime\tFingerprint\t\t\t\t\t\t\tNickname')
     for fp, guard in initial_guards_items:
-        if (cum_prob >= 0.5):
+        if (cum_prob >= guard_cum_prob):
             break
         print('{0}\t{1:.4f}\t{2}\t{3}\t{4}'.format(i, guard['prob'], \
             guard['uptime'], fp, guard['rel_stat'].nickname))
@@ -536,15 +545,15 @@ def network_analysis(network_state_files):
     exits_tot_bw_sorted = exits_tot_bw.items()
     exits_tot_bw_sorted.sort(key = lambda x: x[1]['tot_bw'], reverse=True)
     i = 1
-    print('Top 50 exits to {0}:{1} by probability-weighted uptime'.\
-        format(ip, port))
+    print('Top {0} exits to {1}:{2} by probability-weighted uptime'.\
+        format(num_exits, ip, port))
     print('#\ttot_bw\tmax_pr\tmin_pr\tFingerprint\t\t\t\t\t\t\tNickname')
-    for fprint, bw_dict in exits_tot_bw_sorted[0:50]:
+    for fprint, bw_dict in exits_tot_bw_sorted[0:num_exits]:
         print('{0}\t{1:.4f}\t{2:.4f}\t{3:.4f}\t{4}\t{5}'.\
             format(i, bw_dict['tot_bw'], bw_dict['max_prob'],\
                 bw_dict['min_prob'], fprint, bw_dict['nickname']))
         i += 1
-        
+    
         
 def simulation_analysis(log_files, adv):
     """Runs log file fields through given adversary object."""
@@ -595,8 +604,11 @@ if __name__ == '__main__':
             for filename in filenames:
                 if (filename[0] != '.'):
                     network_state_files.append(os.path.join(dirpath,filename))
-        network_state_files.sort(key = lambda x: os.path.basename(x))
         network_analysis(network_state_files)
+        (initial_guards, exits_tot_bw) = \
+            network_analysis_get_guards_and_exits(network_state_files)
+        network_analysis_print_guards_and_exits(initial_guards, exits_tot_bw,\
+            0.5, 50)            
     elif (command == 'simulation'):
         if (len(sys.argv) < 5):
             print(usage)
