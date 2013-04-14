@@ -724,7 +724,8 @@ def circuit_covers_port_need(circuit, descriptors, port, need):
         
         
 def print_mapped_stream(client_id, circuit, stream, descriptors):
-    """Prints log line showing client, time and IPs in path of stream."""
+    """Prints log line showing client, time, IPs, and fingerprints in path of
+    stream."""
     
     guard_ip = descriptors[circuit['path'][0]].address
     middle_ip = descriptors[circuit['path'][1]].address

@@ -3,6 +3,414 @@ import os
 import stem
 import cPickle as pickle
 from pathsim import *
+import numpy
+import matplotlib
+#matplotlib.use('PDF')
+import matplotlib.pyplot
+#import matplotlib.mlab
+import math
+
+
+##### Plotting functions #####
+## helper - cumulative fraction for y axis
+def cf(d): return numpy.arange(1.0,float(len(d))+1.0)/float(len(d))
+
+## helper - return step-based CDF x and y values
+## only show to the 99th percentile by default
+def getcdf(data, shownpercentile=0.99):
+    data.sort()
+    frac = cf(data)
+    x, y, lasty = [], [], 0.0
+    for i in xrange(int(round(len(data)*shownpercentile))):
+        x.append(data[i])
+        y.append(lasty)
+        x.append(data[i])
+        y.append(frac[i])
+        lasty = frac[i]
+    return (x, y)
+##########
+
+
+class CompromiseTopRelays:
+    """
+    Keeps statistics on circuit end compromises, considering ranges for
+    the number of top guard and top exits compromised.
+    """
+    def __init__(self, top_guards, top_exits):
+        self.top_guards = top_guards
+        self.top_exits = top_exits
+        self.all_compromise_stats = []
+        self.start_time = None
+        self.end_time = None
+        
+        
+    def start(self):
+        """Data from new log file will be processed."""
+        self.compromise_stats = []
+        
+        
+    def end(self):
+        """Store in final form stats collected from a log file."""
+        self.all_compromise_stats.extend(self.compromise_stats)
+
+
+    def log_line(self, id, time, guard_ip, exit_ip):
+        """Adds statistics based on fields from log line."""
+        # add entries for sample not yet seen
+        if (len(self.compromise_stats) <= id):
+            for i in xrange(id+1 - len(self.compromise_stats)):
+                # construct matrix storing counts for possible # comp relays
+                stats = []
+                for j in xrange(len(self.top_guards)+1):
+                    stats.append([])
+                    for k in xrange(len(self.top_exits)+1):
+                        stats[j].append({'guard_only_bad':0,\
+                                        'exit_only_bad':0,\
+                                        'guard_and_exit_bad':0,\
+                                        'good':0,\
+                                        'guard_only_time':None,\
+                                        'exit_only_time':None,\
+                                        'guard_and_exit_time':None})
+                self.compromise_stats.append(stats)
+                
+        # update start and end times
+        if (self.start_time == None):
+            self.start_time = time
+        else:
+            self.start_time = min(self.start_time, time)
+        if (self.end_time == None):
+            self.end_time = time
+        else:
+            self.end_time = max(self.end_time, time)
+
+        # find first occurrence of guard_ip and exit_ip in top_guards and
+        # top_exits - .index() would raise error if not present
+        top_guards_guard_idx = None
+        top_guards_exit_idx = None
+        top_exits_guard_idx = None
+        top_exits_exit_idx = None
+        for i, top_guard in enumerate(self.top_guards):
+            if (guard_ip == top_guard):
+                top_guards_guard_idx = i+1
+                break
+        for i, top_guard in enumerate(self.top_guards):
+            if (exit_ip == top_guard):
+                top_guards_exit_idx = i+1
+                break                
+        for i, top_exit in enumerate(self.top_exits):
+            if (guard_ip == top_exit):
+                top_exits_guard_idx = i+1
+                break
+        for i, top_exit in enumerate(self.top_exits):
+            if (exit_ip == top_exit):
+                top_exits_exit_idx = i+1
+                break    
+                
+        # increment counts and add times of first compromise
+        for i in xrange(len(self.compromise_stats[id])):
+            for j in xrange(len(self.compromise_stats[id][i])):
+                stats = self.compromise_stats[id][i][j]
+                guard_bad = False
+                exit_bad = False
+                if ((top_guards_guard_idx != None) and\
+                        (top_guards_guard_idx <= i)) or\
+                    ((top_exits_guard_idx != None) and\
+                         (top_exits_guard_idx <= j)):
+                    guard_bad = True
+                if ((top_guards_exit_idx != None) and\
+                        (top_guards_exit_idx <= i)) or\
+                    ((top_exits_exit_idx != None) and\
+                        (top_exits_exit_idx <= j)):
+                    exit_bad = True
+
+                if  (guard_bad and exit_bad):
+                    stats['guard_and_exit_bad'] += 1
+                    if (stats['guard_and_exit_time'] == None):
+                        stats['guard_and_exit_time'] = time
+                    else:
+                        stats['guard_and_exit_time'] = \
+                            min(time, stats['guard_and_exit_time'])
+                elif guard_bad:
+                    stats['guard_only_bad'] += 1
+                    if (stats['guard_only_time'] == None):
+                        stats['guard_only_time'] = time
+                    else:
+                        stats['guard_only_time'] = \
+                            min(time, stats['guard_only_time'])
+                elif exit_bad:
+                    stats['exit_only_bad'] += 1
+                    if (stats['exit_only_time'] == None):
+                        stats['exit_only_time'] = time
+                    else:
+                        stats['exit_only_time'] = \
+                            min(time, stats['exit_only_time'])                        
+                else:
+                    stats['good'] += 1
+              
+                        
+    def write_stats(self, out_dir, out_name):
+        """Write stats to out_dir in files with names containing
+        out_name."""        
+        # only write stats for powers of two adversaries
+        num_guards = 0
+        while (num_guards <= len(self.top_guards)):
+            if (num_guards == 0):
+                num_exits = 1
+            else:
+                num_exits = 0
+            while (num_exits <= len(self.top_exits)):
+                out_filename = 'analyze-sim.' + out_name + '.' +\
+                    str(num_guards) + '-' + str(num_exits) + '.out'
+                with open(os.path.join(out_dir, out_filename), 'w') as f:
+                    f.write('#\tbad guard&exit\tbad guard only\tbad exit only\tgood\tguard&exit time\tguard only time\texit only time\n')
+                    for i, comp_stats in enumerate(self.all_compromise_stats):
+                        adv_stats = comp_stats[num_guards][num_exits]
+                        if (adv_stats['guard_and_exit_time'] != None):
+                            ge_time = adv_stats['guard_and_exit_time']
+                        else:
+                            ge_time = -1
+                        if (adv_stats['guard_only_time'] != None):
+                            g_time = adv_stats['guard_only_time']
+                        else:
+                            g_time = -1
+                        if (adv_stats['exit_only_time'] != None):
+                            e_time = adv_stats['exit_only_time']
+                        else:
+                            e_time = -1                                                        
+                        f.write('{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\n'.\
+                            format(i, adv_stats['guard_and_exit_bad'],\
+                                adv_stats['guard_only_bad'],\
+                                adv_stats['exit_only_bad'],\
+                                adv_stats['good'],\
+                                ge_time, g_time, e_time))
+                if (num_exits == 0):
+                    num_exits = 1
+                else:
+                    num_exits *= 2
+            if (num_guards == 0):
+                num_guards = 1
+            else:
+                num_guards *= 2
+
+
+    def plot_num_exit_fracs(num_exit_fracs, line_label, xlabel, title,\
+        out_pathname):            
+            """Helper for plot_compromise_rates that plots the compromised-rate
+            CDF for a given number of compromised exits."""        
+            fig = matplotlib.pyplot.figure()
+            
+            # histogram
+            #ax = fig.add_subplot(111)
+            #ax.hist(frac_both_bad, bins=30)
+            #ax.set_xlabel('Fraction of compromised paths')
+            #ax.set_ylabel('Number of samples')
+            ##matplotlib.pyplot.hist(frac_both_bad)    
+        
+            for num_exit, fractions in num_exit_fractions:
+                x, y = getcdf(fractions)
+                matplotlib.pyplot.plot(x, y, label = '{0} {1}'.\
+                    format(num_exit, line_label))
+            matplotlib.pyplot.xlim(xmin=0.0)
+            matplotlib.pyplot.ylim(ymin=0.0)
+            matplotlib.pyplot.xlabel(xlabel)
+            matplotlib.pyplot.ylabel('Cumulative probability')
+            matplotlib.pyplot.legend(loc='lower right')
+            matplotlib.pyplot.title(title)
+            matplotlib.pyplot.grid()
+            
+            # output    
+            #matplotlib.pyplot.show()
+            matplotlib.pyplot.savefig(out_pathname)                
+                
+                
+    def plot_compromise_rates(self, out_dir, out_name):
+        """Plots a histogram of compromise counts as fractions."""
+        # only plot for powers of two adversaries
+        num_guards = 0
+        while (num_guards <= len(self.top_guards)):
+            if (num_guards == 0):
+                num_exits = 1
+            else:
+                num_exits = 0
+            num_exit_frac_both_bad = []
+            num_exit_frac_exit_bad = []
+            num_exit_frac_guard_bad = []
+            while (num_exits <= len(self.top_exits)):
+                # fraction of connection with bad guard and exit
+                frac_both_bad = []
+                frac_exit_bad = []
+                frac_guard_bad = []
+                for stats in self.all_compromise_stats:
+                    adv_stats = stats[num_guards][num_exits]
+                    tot_ct = adv_stats['guard_and_exit_bad'] +\
+                        adv_stats['guard_only_bad'] +\
+                        adv_stats['exit_only_bad'] + adv_stats['good']
+                    frac_both_bad.append(\
+                        float(adv_stats['guard_and_exit_bad']) / float(tot_ct))
+                    frac_exit_bad.append(\
+                        float(adv_stats['guard_and_exit_bad'] +\
+                            adv_stats['exit_only_bad']) / float(tot_ct))
+                    frac_guard_bad.append(\
+                        float(adv_stats['guard_and_exit_bad'] +\
+                            adv_stats['guard_only_bad']) / float(tot_ct))
+                num_exit_frac_both_bad.append((num_exits, frac_both_bad))
+                num_exit_frac_exit_bad.append((num_exits, frac_exit_bad))
+                num_exit_frac_guard_bad.append((num_exits, frac_guard_bad))
+                if (num_exits == 0):
+                    num_exits = 1
+                else:
+                    num_exits *= 2
+            
+            # cdf of both bad
+            out_filename = 'analyze-sim.' + out_name + '.' +\
+                str(num_guards) + '-guards.exit-guard-comp-rates.cdf.pdf' 
+            out_pathname = os.path.join(out_dir, out_filename)                           
+            self.plot_num_exit_fracs(num_exit_frac_both_bad, 'comp. exits',\
+                'Fraction of paths',\
+                'Fraction of connections with guard & exit compromised',\
+                out_pathname)
+            # cdf of exit bad
+            out_filename = 'analyze-sim.' + out_name + '.' +\
+                str(num_guards) + '.-guards.exit-comp-rates.cdf.pdf' 
+            out_pathname = os.path.join(out_dir, out_filename)                           
+            self.plot_num_exit_fracs(num_exit_frac_exit_bad, 'comp. exits',\
+                'Fraction of paths',\
+                'Fraction of connections with exit compromised', out_pathname)
+            # cdf of guard bad
+            out_filename = 'analyze-sim.' + out_name + '.' +\
+                str(num_guards) + '.-guards.guard-comp-rates.cdf.pdf' 
+            out_pathname = os.path.join(out_dir, out_filename)                           
+            self.plot_num_exit_fracs(num_exit_frac_guard_bad, 'comp. exits',\
+                'Fraction of paths',\
+                'Fraction of connections with guard compromised', out_pathname)            
+                                
+            if (num_guards == 0):
+                num_guards = 1
+            else:
+                num_guards *= 2
+
+                
+    def plot_num_exit_times(num_exit_times, line_label, xlabel, title,\
+        out_pathname):            
+            """Helper for plot_times_to_compromise that plots the
+            CDF of times to compromise for a given number of compromised
+            exits."""
+            fig = matplotlib.pyplot.figure()
+            
+            # histogram
+            #ax = fig.add_subplot(111)
+            #ax.hist(time_to_comp, bins=30)
+            #ax.set_xlabel('Time to first compromise (days)')
+            #ax.set_ylabel('Number of samples')
+            ##matplotlib.pyplot.hist(frac_both_bad)
+        
+            for num_exit, times in num_exit_times:
+                x, y = getcdf(times)
+                matplotlib.pyplot.plot(x, y, label = '{0} {1}'.\
+                    format(num_exit, line_label))
+            matplotlib.pyplot.xlim(xmin=0.0)
+            matplotlib.pyplot.ylim(ymin=0.0)
+            matplotlib.pyplot.xlabel(xlabel)
+            matplotlib.pyplot.ylabel('Cumulative probability')
+            matplotlib.pyplot.legend(loc='lower right')
+            matplotlib.pyplot.title(title)
+            time_len = float(self.end_time - self.start_time)/float(24*60*60)
+            matplotlib.pyplot.xticks(\
+                numpy.arange(0, math.ceil(time_len)+1, 5))
+            matplotlib.pyplot.yticks(numpy.arange(0, 1.05, .05))
+            matplotlib.pyplot.grid()
+        
+            # output    
+            #matplotlib.pyplot.show()
+            matplotlib.pyplot.savefig(out_pathname)
+                
+
+    def plot_times_to_compromise(self, out_dir, out_name):
+        """
+        Plots a histogram of times to first compromise.
+        Input: 
+            out_dir: output directory
+            out_name: string to comprise part of output filenames
+        """
+        time_len = float(self.end_time - self.start_time)/float(24*60*60)
+        # only plot for powers of two adversaries
+        num_guards = 0
+        while (num_guards <= len(self.top_guards)):
+            if (num_guards == 0):
+                num_exits = 1
+            else:
+                num_exits = 0
+            num_exit_guard_times = []
+            num_exit_exit_times = []
+            num_exit_guard_and_exit_times = []                
+            while (num_exits <= len(self.top_exits)):
+                guard_times = []
+                exit_times = []
+                guard_and_exit_times = []
+                for stats in self.all_compromise_stats:
+                    adv_stats = stats[num_guards][num_exits]
+                    guard_time = time_len
+                    exit_time = time_len
+                    guard_and_exit_time = time_len
+                    if (adv_stats['guard_only_time'] != None):
+                        guard_time = float(adv_stats['guard_only_time'] -\
+                            self.start_time)/float(24*60*60)
+                    if (adv_stats['exit_only_time'] != None):
+                        exit_time = float(adv_stats['exit_only_time'] -\
+                            self.start_time)/float(24*60*60)
+                    if (adv_stats['guard_and_exit_time'] != None):
+                        ge_time = float(adv_stats['guard_and_exit_time'] -\
+                            self.start_time)/float(24*60*60)
+                        guard_and_exit_time = ge_time
+                        guard_time = min(guard_time, ge_time)
+                        exit_time = min(exit_time, ge_time)
+                    guard_times.append(guard_time)
+                    exit_times.append(exit_time)
+                    guard_and_exit_times.append(guard_and_exit_time)
+                num_exit_guard_times.append((num_exits, guard_times))
+                num_exit_exit_times.append((num_exits, exit_times))
+                num_exit_guard_and_exit_times.append((num_exits,\
+                    guard_and_exit_times))                                    
+                if (num_exits == 0):
+                    num_exits = 1
+                else:
+                    num_exits *= 2
+                    
+            # cdf for both bad
+            out_filename = 'analyze-sim.' + out_name + '.' +\
+                    str(num_guards) + '-guards.exit-guard-comp-times.cdf.pdf'                
+            out_pathname = os.path.join(out_dir, out_filename)                           
+            self.plot_num_exit_times(num_exit_guard_and_exit_times,\
+                'comp. exits', 'Time to first compromise (days)',\
+                'Time to first circuit with guard & exit compromised',\
+                out_pathname)                    
+            # cdf for exit bad
+            out_filename = 'analyze-sim.' + out_name + '.' +\
+                    str(num_guards) + '-guards.exit-comp-times.cdf.pdf'                
+            out_pathname = os.path.join(out_dir, out_filename)                           
+            self.plot_num_exit_times(num_exit_exit_times,\
+                'comp. exits', 'Time to first compromise (days)',\
+                'Time to first circuit with exit compromised',\
+                out_pathname)                    
+            # cdf for guard bad
+            out_filename = 'analyze-sim.' + out_name + '.' +\
+                    str(num_guards) + '-guards.guard-comp-times.cdf.pdf'                
+            out_pathname = os.path.join(out_dir, out_filename)                           
+            self.plot_num_exit_times(num_exit_guard_times,\
+                'comp. exits', 'Time to first compromise (days)',\
+                'Time to first circuit with guard compromised',\
+                out_pathname)                    
+            if (num_guards == 0):
+                num_guards = 1
+            else:
+                num_guards *= 2
+                
+                
+    def plot_stats(self, out_dir, out_name):
+        """Plots some of the statistics collected."""
+        self.plot_compromise_rates(out_dir, out_name)
+        self.plot_times_to_compromise(out_dir, out_name)
+
 
 def network_analysis(network_state_files):
     """Prints large guards and exits in consensuses over the time period covered by the input \
@@ -138,63 +546,36 @@ def network_analysis(network_state_files):
         i += 1
         
         
-def simulation_analysis(log_files, malicious_ips):
-    """Returns times to first to compromise and compromise counts for all samples."""
-    print('test')
-    all_times_to_first_compromise = []
-    all_compromise_counts = []
-    for log_file in log_files:
-        compromise_times = []
-        compromise_counts = []        
-        
+def simulation_analysis(log_files, adv):
+    """Runs log file fields through given adversary object."""
+    for log_file in log_files:        
         with open(log_file, 'r') as lf:
             print('Processing file {0}.'.format(os.path.basename(log_file)))
+
+            # prepare for new log file
+            adv.start()
+
             lf.readline() # read header line
             i = 0
             for line in lf:
-                if (i % 1000000 == 0):
+                if (i % 100000 == 0):
                     print('Read {0} lines.'.format(i))
                 i = i+1
-
                 line = line[0:-1] # cut off final newline
                 line_fields = line.split('\t')
                 id = int(line_fields[0])
                 time = int(line_fields[1])
                 guard_ip = line_fields[2]
                 exit_ip = line_fields[4]
+                adv.log_line(id, time, guard_ip, exit_ip)
                 
-                # add extra empty stats slots if needed
-                if (len(compromise_times) <= id):
-                    compromise_times[len(compromise_times):] = \
-                        [None]*(id+1 - len(compromise_times))
-                if (len(compromise_counts) <= id):
-                    for j in range(id+1 - len(compromise_counts)):
-                        compromise_counts.append(\
-                            {'guard_only_bad':0,\
-                            'exit_only_bad':0,\
-                            'guard_and_exit_bad':0,\
-                            'good':0})
-                            
-                if (guard_ip in malicious_ips) and (exit_ip in malicious_ips):
-                    compromise_counts[id]['guard_and_exit_bad'] += 1
-                    if (compromise_times[id] == None):
-                        compromise_times[id] = time
-                    else:
-                        compromise_times[id] = min(time, compromise_times[id])
-                elif (guard_ip in malicious_ips):
-                    compromise_counts[id]['guard_only_bad'] += 1
-                elif (exit_ip in malicious_ips):
-                    compromise_counts[id]['exit_only_bad'] += 1
-                else:
-                    compromise_counts[id]['good'] += 1
-        all_times_to_first_compromise.extend(compromise_times)
-        all_compromise_counts.extend(compromise_counts)       
-    return (all_times_to_first_compromise, all_compromise_counts)
+            # finalize stats    
+            adv.end()
 
 if __name__ == '__main__':
     usage = 'Usage: pathsim_analysis.py [command]\nCommands:\n\
 \tnetwork [in_dir]:  Analyze the network status files in in_dir.\n\
-\tsimulation [in_dir] [out_dir] [num_bad_guards] [num_bad_exits]: Analyze the simulation logs in in_dir against adversary controlling num_bad_guards guards and num_bad_exits exits, and write statistics to files in out_dir.'
+\tsimulation [in_dir] [out_dir] [out_name]: Analyze the simulation logs in in_dir against adversary and write statistics to files in out_dir in files with names containing [out_name].'
     if (len(sys.argv) < 2):
         print(usage)
         sys.exit(1)
@@ -217,15 +598,14 @@ if __name__ == '__main__':
         network_state_files.sort(key = lambda x: os.path.basename(x))
         network_analysis(network_state_files)
     elif (command == 'simulation'):
-        if (len(sys.argv) < 6):
+        if (len(sys.argv) < 5):
             print(usage)
             sys.exit(1)
             
         # get list of log files
         in_dir = sys.argv[2]
         out_dir = sys.argv[3]
-        num_bad_guards = int(sys.argv[4])
-        num_bad_exits = int(sys.argv[5])
+        out_name = sys.argv[4]
         log_files = []
         for dirpath, dirnames, filenames in os.walk(in_dir, followlinks=True):
             for filename in filenames:
@@ -261,25 +641,8 @@ if __name__ == '__main__':
         top_exit_ips = ['178.217.184.147', '77.247.181.164', '96.44.163.77',\
             '146.185.23.179', '173.254.192.36', '77.247.181.162',\
             '96.44.163.75', '109.163.233.200', '146.185.23.180', '31.172.30.1']
-        malicious_ips = top_guard_ips[0:num_bad_guards]
-        malicious_ips.extend(top_exit_ips[0:num_bad_exits])
-        (times_to_first_compromise, compromise_counts) = \
-            simulation_analysis(log_files, malicious_ips)
-        compromise_times_file = os.path.join(out_dir,\
-            'analyze.simulation.XX--XX.compromise-times.{0}-{1}.out'.\
-                format(num_bad_guards, num_bad_exits))
-        compromise_counts_file = os.path.join(out_dir,\
-            'analyze.simulation.XX--XX.compromise-counts.{0}-{1}.out'.\
-                format(num_bad_guards, num_bad_exits))
-        with open(compromise_times_file, 'w') as f:
-            f.write('#\tTime of first compromise\n')
-            for i, t in enumerate(times_to_first_compromise):
-                if (t == None):
-                    t = -1
-                f.write('{0}\t{1}\n'.format(i,t))
-        with open(compromise_counts_file, 'w') as f:
-            f.write('#\tbad guard&exit\tbad guard\tbad exit\tgood\n')
-            for i, cts in enumerate(compromise_counts):
-                f.write('{0}\t{1}\t\t{2}\t\t{3}\t\t{4}\n'.format(i,\
-                    cts['guard_and_exit_bad'], cts['guard_only_bad'],\
-                    cts['exit_only_bad'], cts['good']))
+
+        top_relay_adversary = CompromiseTopRelays(top_guard_ips, top_exit_ips)        
+        simulation_analysis(log_files, top_relay_adversary)
+        top_relay_adversary.write_stats(out_dir, out_name)
+        top_relay_adversary.plot_stats(out_dir, out_name)
