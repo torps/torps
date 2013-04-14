@@ -31,6 +31,80 @@ def getcdf(data, shownpercentile=0.99):
 ##########
 
 
+class CompromisedSet:
+    """
+    Keeps statistics on circuit end compromises, where the adversary
+    is a set of relays.
+    """
+    def __init__(self, compromised_relays):
+        self.compromised_relays = compromised_relays
+        self.all_compromise_stats = []
+        self.start_time = None
+        self.end_time = None
+        
+        
+    def start(self):
+        """Data from new log file will be processed."""
+        self.compromise_stats = []        
+        
+        
+    def end(self):
+        """Store in final form stats collected from a log file."""
+        self.all_compromise_stats.extend(self.compromise_stats)
+
+
+    def log_line(self, id, time, guard_ip, exit_ip):
+        # add entries for sample not yet seen
+        if (len(self.compromise_stats) <= id):
+            for i in xrange(id+1 - len(self.compromise_stats)):
+                stats.append({'guard_only_bad':0,\
+                            'exit_only_bad':0,\
+                            'guard_and_exit_bad':0,\
+                            'good':0,\
+                            'guard_only_time':None,\
+                            'exit_only_time':None,\
+                            'guard_and_exit_time':None})
+                self.compromise_stats.append(stats)
+                
+        # update start and end times
+        if (self.start_time == None):
+            self.start_time = time
+        else:
+            self.start_time = min(self.start_time, time)
+        if (self.end_time == None):
+            self.end_time = time
+        else:
+            self.end_time = max(self.end_time, time)
+                
+        # increment counts and add times of first compromise
+        stats = self.compromise_stats[id]
+        guard_bad = guard_ip in self.compromised_relays
+        exit_bad = exit_ip in self.compromised_relays
+        if  (guard_bad and exit_bad):
+            stats['guard_and_exit_bad'] += 1
+            if (stats['guard_and_exit_time'] == None):
+                stats['guard_and_exit_time'] = time
+            else:
+                stats['guard_and_exit_time'] = \
+                    min(time, stats['guard_and_exit_time'])
+        elif guard_bad:
+            stats['guard_only_bad'] += 1
+            if (stats['guard_only_time'] == None):
+                stats['guard_only_time'] = time
+            else:
+                stats['guard_only_time'] = \
+                    min(time, stats['guard_only_time'])
+        elif exit_bad:
+            stats['exit_only_bad'] += 1
+            if (stats['exit_only_time'] == None):
+                stats['exit_only_time'] = time
+            else:
+                stats['exit_only_time'] = \
+                    min(time, stats['exit_only_time'])                        
+        else:
+            stats['good'] += 1
+    
+
 class CompromiseTopRelays:
     """
     Keeps statistics on circuit end compromises, considering ranges for
@@ -574,17 +648,17 @@ def network_analysis_get_groups(initial_guards, exits_tot_bw,\
 def network_analysis_print_groups(initial_guards, exits_tot_bw,\
     guard_group, exit_group):
     print('Guard group')
-    print('Nickname\tProbability\tUptime')
+    print('Probability\tUptime\tFingerprint\tNickname')
     for fprint in guard_group:
         guard = initial_guards[fprint]
-        print('{0}\t{1}\t{2}'.format(guard['rel_stat'].nickname,\
-            guard['prob'], guard['uptime']))
+        print('{0}\t{1}\t{2}\t{3}'.format(guard['prob'], guard['uptime'],\
+            fprint, guard['rel_stat'].nickname))
     print('Exit group')
-    print('Nickname\Total prob\tMax prob\tMin prob')
+    print('Total prob\tMax prob\tMin prob\tFingerprint\tNickname')
     for fprint in exit_group:
         exit = exits_tot_bw[fprint]
-        print('{0}\t{1}\t{2}\t{3}'.format(exit['nickname'],\
-            exit['tot_bw'], exit['max_prob'], exit['min_prob']))
+        print('{0}\t{1}\t{2}\t{3}\t{4}'.format(exit['tot_bw'],\
+            exit['max_prob'], exit['min_prob'], fprint, exit['nickname']))
 
         
 def simulation_analysis(log_files, adv):
