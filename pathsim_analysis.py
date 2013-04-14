@@ -193,7 +193,7 @@ class CompromiseTopRelays:
                 num_guards *= 2
 
 
-    def plot_num_exit_fracs(num_exit_fracs, line_label, xlabel, title,\
+    def plot_num_exit_fracs(self, num_exit_fracs, line_label, xlabel, title,\
         out_pathname):            
             """Helper for plot_compromise_rates that plots the compromised-rate
             CDF for a given number of compromised exits."""        
@@ -206,7 +206,7 @@ class CompromiseTopRelays:
             #ax.set_ylabel('Number of samples')
             ##matplotlib.pyplot.hist(frac_both_bad)    
         
-            for num_exit, fractions in num_exit_fractions:
+            for num_exit, fractions in num_exit_fracs:
                 x, y = getcdf(fractions)
                 matplotlib.pyplot.plot(x, y, label = '{0} {1}'.\
                     format(num_exit, line_label))
@@ -290,7 +290,7 @@ class CompromiseTopRelays:
                 num_guards *= 2
 
                 
-    def plot_num_exit_times(num_exit_times, line_label, xlabel, title,\
+    def plot_num_exit_times(self, num_exit_times, line_label, xlabel, title,\
         out_pathname):            
             """Helper for plot_times_to_compromise that plots the
             CDF of times to compromise for a given number of compromised
