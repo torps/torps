@@ -649,16 +649,28 @@ def network_analysis_print_groups(initial_guards, exits_tot_bw,\
     guard_group, exit_group):
     print('Guard group')
     print('Probability\tUptime\tFingerprint\tNickname')
+    tot_prob = 0
     for fprint in guard_group:
         guard = initial_guards[fprint]
+        tot_prob += guard['prob']
         print('{0}\t{1}\t{2}\t{3}'.format(guard['prob'], guard['uptime'],\
             fprint, guard['rel_stat'].nickname))
+    print('Total prob: {0}\n'.format(tot_prob))
     print('Exit group')
-    print('Total prob\tMax prob\tMin prob\tFingerprint\tNickname')
+    tot_cum_prob = 0
+    tot_max_prob = 0
+    tot_min_prob = 0
+    print('Cum. prob\tMax prob\tMin prob\tFingerprint\tNickname')
     for fprint in exit_group:
         exit = exits_tot_bw[fprint]
+        tot_cum_prob += exit['tot_bw']
+        tot_max_prob += exit['max_prob']
+        tot_min_prob += exit['min_prob']
         print('{0}\t{1}\t{2}\t{3}\t{4}'.format(exit['tot_bw'],\
             exit['max_prob'], exit['min_prob'], fprint, exit['nickname']))
+    print('Total cumulative prob: {0}'.format(tot_cum_prob))
+    print('Total max prob: {0}'.format(tot_max_prob))
+    print('Total min prob: {0}'.format(tot_min_prob))
 
         
 def simulation_analysis(log_files, adv):
