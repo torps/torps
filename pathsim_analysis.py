@@ -731,6 +731,15 @@ if __name__ == '__main__':
                 port)
         network_analysis_print_guards_and_exits(initial_guards, exits_tot_bw,\
             guard_cum_prob, num_exits, ip, port)
+
+        # some group substrings that have been of interest            
+        guard_substr = 'TORy'    
+        #guard_substr = 'PPrivCom'
+        #guard_substr = 'chaoscomputerclub'
+        exit_substr = 'chaoscomputerclub'
+        #exit_substr = 'TorLand'
+        #exit_substr = 'noiseexit'
+
         (guard_group, exit_group) = network_analysis_get_groups(\
             initial_guards, exits_tot_bw, guard_substr, exit_substr)
         network_analysis_print_groups(initial_guards, exits_tot_bw,\
