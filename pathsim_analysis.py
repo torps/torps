@@ -604,7 +604,6 @@ if __name__ == '__main__':
             for filename in filenames:
                 if (filename[0] != '.'):
                     network_state_files.append(os.path.join(dirpath,filename))
-        network_analysis(network_state_files)
         (initial_guards, exits_tot_bw) = \
             network_analysis_get_guards_and_exits(network_state_files)
         network_analysis_print_guards_and_exits(initial_guards, exits_tot_bw,\
