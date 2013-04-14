@@ -412,7 +412,7 @@ class CompromiseTopRelays:
         self.plot_times_to_compromise(out_dir, out_name)
         
         
-def network_analysis_get_guards_and_exits(network_state_files):
+def network_analysis_get_guards_and_exits(network_state_files, ip, port):
     """Takes list of network state files, pads the sorted list for missing
     periods, and returns selection statistics about initial guards and
     exits."""
@@ -425,8 +425,6 @@ def network_analysis_get_guards_and_exits(network_state_files):
     need_fast = True
     need_stable = False
     need_internal = False
-    ip = '74.125.131.105'
-    port = 80
 
     consensus = None
     descriptors = None
@@ -522,7 +520,7 @@ def network_analysis_get_guards_and_exits(network_state_files):
     
 
 def network_analysis_print_guards_and_exits(initial_guards, exits_tot_bw,\
-    guard_cum_prob, num_exits):
+    guard_cum_prob, num_exits, ip, port):
     """Prints top initial guards comprising [guard_cum_prob] selection prob.
     and top [num_exits] exits."""
     # print out top initial guards comprising some total selection prob.
@@ -553,7 +551,41 @@ def network_analysis_print_guards_and_exits(initial_guards, exits_tot_bw,\
             format(i, bw_dict['tot_bw'], bw_dict['max_prob'],\
                 bw_dict['min_prob'], fprint, bw_dict['nickname']))
         i += 1
+        
+        
+def network_analysis_get_groups(initial_guards, exits_tot_bw,\
+    guard_substr, exit_substr):
+    """Searches for guards and exits with nicknames containing respective
+        input strings."""
+    # find matching guards
+    guard_group = []
+    for fprint, guard in initial_guards.items():
+        if (guard_substr in guard['rel_stat'].nickname):
+            guard_group.append(fprint)
+    #find matching exits
+    exit_group = []
+    for fprint, exit in exits_tot_bw.items():
+        if (exit_substr in exit['nickname']):
+            exit_group.append(fprint)
+            
+    return (guard_group, exit_group)
     
+    
+def network_analysis_print_groups(initial_guards, exits_tot_bw,\
+    guard_group, exit_group):
+    print('Guard group')
+    print('Nickname\tProbability\tUptime')
+    for fprint in guard_group:
+        guard = initial_guards[fprint]
+        print('{0}\t{1}\t{2}'.format(guard['rel_stat'].nickname,\
+            guard['prob'], guard['uptime']))
+    print('Exit group')
+    print('Nickname\Total prob\tMax prob\tMin prob')
+    for fprint in exit_group:
+        exit = exits_tot_bw[fprint]
+        print('{0}\t{1}\t{2}\t{3}'.format(exit['nickname'],\
+            exit['tot_bw'], exit['max_prob'], exit['min_prob']))
+
         
 def simulation_analysis(log_files, adv):
     """Runs log file fields through given adversary object."""
@@ -604,10 +636,20 @@ if __name__ == '__main__':
             for filename in filenames:
                 if (filename[0] != '.'):
                     network_state_files.append(os.path.join(dirpath,filename))
+        ip = '74.125.131.105'
+        port = 80
+        guard_cum_prob = 0.5
+        num_exits = 50
         (initial_guards, exits_tot_bw) = \
-            network_analysis_get_guards_and_exits(network_state_files)
+            network_analysis_get_guards_and_exits(network_state_files, ip,\
+                port)
         network_analysis_print_guards_and_exits(initial_guards, exits_tot_bw,\
-            0.5, 50)            
+            guard_cum_prob, num_exits, ip, port)
+        (guard_group, exit_group) = network_analysis_get_groups(\
+            initial_guards, exits_tot_bw, guard_substr, exit_substr)
+        network_analysis_print_groups(initial_guards, exits_tot_bw,\
+            guard_group, exit_group)
+            
     elif (command == 'simulation'):
         if (len(sys.argv) < 5):
             print(usage)
