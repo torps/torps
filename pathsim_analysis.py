@@ -3,12 +3,12 @@ import os
 import stem
 import cPickle as pickle
 from pathsim import *
-import numpy
-import matplotlib
-matplotlib.use('PDF')
-import matplotlib.pyplot
-#import matplotlib.mlab
-import math
+#import numpy
+#import matplotlib
+#matplotlib.use('PDF')
+#import matplotlib.pyplot
+##import matplotlib.mlab
+#import math
 
 
 ##### Plotting functions #####
@@ -267,9 +267,15 @@ class CompromiseTopRelays:
                 num_guards *= 2
                 
                 
-    def plot_compromise_rates(self, out_dir, out_name):
-        """Plots a histogram of compromise counts as fractions."""
-        # only plot for powers of two adversaries
+    def output_compromise_rates_plot_data(self, out_dir, out_name):
+        """
+        Outputs data defining plot of compromise counts as fractions.
+        Input:
+            out_dir: directory for output files
+            out_name: identifying string to be incorporated in filenames
+        
+        """
+        # only output for powers of two adversaries
         num_guards = 0
         while (num_guards <= len(self.top_guards)):
             if (num_guards == 0):
@@ -279,6 +285,7 @@ class CompromiseTopRelays:
             num_exit_frac_both_bad = []
             num_exit_frac_exit_bad = []
             num_exit_frac_guard_bad = []
+            line_label = []
             while (num_exits <= len(self.top_exits)):
                 # fraction of connection with bad guard and exit
                 frac_both_bad = []
@@ -300,6 +307,7 @@ class CompromiseTopRelays:
                 num_exit_frac_both_bad.append((num_exits, frac_both_bad))
                 num_exit_frac_exit_bad.append((num_exits, frac_exit_bad))
                 num_exit_frac_guard_bad.append((num_exits, frac_guard_bad))
+                line_labels.append('{0} comp. exits'.format(num_exits))
                 if (num_exits == 0):
                     num_exits = 1
                 else:
@@ -307,36 +315,51 @@ class CompromiseTopRelays:
             
             # cdf of both bad
             out_filename = 'analyze-sim.' + out_name + '.' +\
-                str(num_guards) + '-guards.exit-guard-comp-rates.cdf.pdf' 
+                str(num_guards) + '-guards.exit-guard-comp-rates.pickle' 
             out_pathname = os.path.join(out_dir, out_filename)                           
-            self.plot_num_exit_fracs(num_exit_frac_both_bad, 'comp. exits',\
-                'Fraction of paths',\
-                'Fraction of connections with guard & exit compromised',\
-                out_pathname)
+            with open(out_pathname, 'wb') as f:
+                pickle.dump(num_exit_frac_both_bad, f, pickle.HIGHEST_PROTOCOL)
+                pickle.dump(line_labels, f, pickle.HIGHEST_PROTOCOL)
+                pickle.dump('Fraction of paths', f, pickle.HIGHEST_PROTOCOL)
+                pickle.dump(\
+                    'Fraction of connections with guard & exit compromised',\
+                    f, pickle.HIGHEST_PROTOCOL)
+
+                
             # cdf of exit bad
             out_filename = 'analyze-sim.' + out_name + '.' +\
-                str(num_guards) + '.-guards.exit-comp-rates.cdf.pdf' 
+                str(num_guards) + '.-guards.exit-comp-rates.pickle'
             out_pathname = os.path.join(out_dir, out_filename)                           
-            self.plot_num_exit_fracs(num_exit_frac_exit_bad, 'comp. exits',\
-                'Fraction of paths',\
-                'Fraction of connections with exit compromised', out_pathname)
+            with open(out_pathname, 'wb') as f:
+                pickle.dump(num_exit_frac_exit_bad, f, pickle.HIGHEST_PROTOCOL)
+                pickle.dump(line_labels, f, pickle.HIGHEST_PROTOCOL)
+                pickle.dump('Fraction of paths', f, pickle.HIGHEST_PROTOCOL)
+                pickle.dump(\
+                    'Fraction of connections with exit compromised',\
+                    f, pickle.HIGHEST_PROTOCOL)
+
             # cdf of guard bad
             out_filename = 'analyze-sim.' + out_name + '.' +\
                 str(num_guards) + '.-guards.guard-comp-rates.cdf.pdf' 
             out_pathname = os.path.join(out_dir, out_filename)                           
-            self.plot_num_exit_fracs(num_exit_frac_guard_bad, 'comp. exits',\
-                'Fraction of paths',\
-                'Fraction of connections with guard compromised', out_pathname)            
-                                
+            with open(out_pathname, 'wb') as f:
+                pickle.dump(num_exit_frac_guard_bad, f,\
+                    pickle.HIGHEST_PROTOCOL)
+                pickle.dump(line_labels, f, pickle.HIGHEST_PROTOCOL)
+                pickle.dump('Fraction of paths', f, pickle.HIGHEST_PROTOCOL)
+                pickle.dump(\
+                    'Fraction of connections with guard compromised',\
+                    f, pickle.HIGHEST_PROTOCOL)
+
             if (num_guards == 0):
                 num_guards = 1
             else:
                 num_guards *= 2
 
 
-    def plot_times_to_compromise(self, out_dir, out_name):
+    def output_times_to_compromise_plot_data(self, out_dir, out_name):
         """
-        Plots a histogram of times to first compromise.
+        Outputs data defining plot of times to first compromise.
         Input: 
             out_dir: output directory
             out_name: string to comprise part of output filenames
@@ -351,7 +374,8 @@ class CompromiseTopRelays:
                 num_exits = 0
             num_exit_guard_times = []
             num_exit_exit_times = []
-            num_exit_guard_and_exit_times = []                
+            num_exit_guard_and_exit_times = []
+            line_labels = []          
             while (num_exits <= len(self.top_exits)):
                 guard_times = []
                 exit_times = []
@@ -379,7 +403,8 @@ class CompromiseTopRelays:
                 num_exit_guard_times.append((num_exits, guard_times))
                 num_exit_exit_times.append((num_exits, exit_times))
                 num_exit_guard_and_exit_times.append((num_exits,\
-                    guard_and_exit_times))                                    
+                    guard_and_exit_times))
+                line_labels.append('{0} comp. exits'.format(num_exits))
                 if (num_exits == 0):
                     num_exits = 1
                 else:
@@ -387,38 +412,56 @@ class CompromiseTopRelays:
                     
             # cdf for both bad
             out_filename = 'analyze-sim.' + out_name + '.' +\
-                    str(num_guards) + '-guards.exit-guard-comp-times.cdf.pdf'                
-            out_pathname = os.path.join(out_dir, out_filename)                           
-            self.plot_num_exit_times(num_exit_guard_and_exit_times,\
-                'comp. exits', 'Time to first compromise (days)',\
-                'Time to first circuit with guard & exit compromised',\
-                out_pathname)                    
+                    str(num_guards) + '-guards.exit-guard-comp-times.pickle'                
+            out_pathname = os.path.join(out_dir, out_filename)            
+            with open(out_pathname, 'wb') as f:
+                pickle.dump(num_exit_guard_and_exit_times, f,\
+                    pickle.HIGHEST_PROTOCOL)
+                pickle.dump(line_labels, f, pickle.HIGHEST_PROTOCOL)
+                pickle.dump('Time to first compromise (days)', f,\
+                    pickle.HIGHEST_PROTOCOL)
+                pickle.dump(\
+                    'Time to first circuit with guard & exit compromised',\
+                    f, pickle.HIGHEST_PROTOCOL)
+
             # cdf for exit bad
             out_filename = 'analyze-sim.' + out_name + '.' +\
-                    str(num_guards) + '-guards.exit-comp-times.cdf.pdf'                
-            out_pathname = os.path.join(out_dir, out_filename)                           
-            self.plot_num_exit_times(num_exit_exit_times,\
-                'comp. exits', 'Time to first compromise (days)',\
-                'Time to first circuit with exit compromised',\
-                out_pathname)                    
+                    str(num_guards) + '-guards.exit-comp-times.pickle'
+            out_pathname = os.path.join(out_dir, out_filename)       
+            with open(out_pathname, 'wb') as f:
+                pickle.dump(num_exit_exit_times, f,\
+                    pickle.HIGHEST_PROTOCOL)
+                pickle.dump(line_labels, f, pickle.HIGHEST_PROTOCOL)
+                pickle.dump('Time to first compromise (days)', f,\
+                    pickle.HIGHEST_PROTOCOL)
+                pickle.dump(\
+                    'Time to first circuit with exit compromised',\
+                    f, pickle.HIGHEST_PROTOCOL)
+                                
             # cdf for guard bad
             out_filename = 'analyze-sim.' + out_name + '.' +\
-                    str(num_guards) + '-guards.guard-comp-times.cdf.pdf'                
-            out_pathname = os.path.join(out_dir, out_filename)                           
-            self.plot_num_exit_times(num_exit_guard_times,\
-                'comp. exits', 'Time to first compromise (days)',\
-                'Time to first circuit with guard compromised',\
-                out_pathname)                    
+                    str(num_guards) + '-guards.guard-comp-times.pickle'                
+            out_pathname = os.path.join(out_dir, out_filename)        
+            with open(out_pathname, 'wb') as f:
+                pickle.dump(num_exit_guard_times, f,\
+                    pickle.HIGHEST_PROTOCOL)
+                pickle.dump(line_labels, f, pickle.HIGHEST_PROTOCOL)
+                pickle.dump('Time to first compromise (days)', f,\
+                    pickle.HIGHEST_PROTOCOL)
+                pickle.dump(\
+                    'Time to first circuit with guard compromised',\
+                    f, pickle.HIGHEST_PROTOCOL)
+                               
             if (num_guards == 0):
                 num_guards = 1
             else:
                 num_guards *= 2
                 
                 
-    def plot_stats(self, out_dir, out_name):
-        """Plots some of the statistics collected."""
-        self.plot_compromise_rates(out_dir, out_name)
-        self.plot_times_to_compromise(out_dir, out_name)
+    def output_stats_plot_data(self, out_dir, out_name):
+        """Output data defining cdf some of the statistics collected."""
+        self.output_compromise_rates_plot_data(out_dir, out_name)
+        self.output_times_to_compromise_plot_data(out_dir, out_name)
         
         
 def network_analysis_get_guards_and_exits(network_state_files, ip, port):
@@ -726,5 +769,5 @@ if __name__ == '__main__':
 
         top_relay_adversary = CompromiseTopRelays(top_guard_ips, top_exit_ips)        
         simulation_analysis(log_files, top_relay_adversary)
-        top_relay_adversary.write_stats(out_dir, out_name)
-        top_relay_adversary.plot_stats(out_dir, out_name)
+        #top_relay_adversary.write_stats(out_dir, out_name)
+        top_relay_adversary.output_stats_plot_data(out_dir, out_name)
