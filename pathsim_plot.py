@@ -9,67 +9,62 @@ import matplotlib.pyplot
 #import matplotlib.mlab
 import math
 
-def plot_num_exit_fracs(self, num_exit_fracs, line_label, xlabel, title,\
-    out_pathname):            
-        """Helper for plot_compromise_rates that plots the compromised-rate
-        CDF for a given number of compromised exits."""        
-        fig = matplotlib.pyplot.figure()
-        
-        # histogram
-        #ax = fig.add_subplot(111)
-        #ax.hist(frac_both_bad, bins=30)
-        #ax.set_xlabel('Fraction of compromised paths')
-        #ax.set_ylabel('Number of samples')
-        ##matplotlib.pyplot.hist(frac_both_bad)    
-    
-        for num_exit, fractions in num_exit_fracs:
-            x, y = getcdf(fractions)
-            matplotlib.pyplot.plot(x, y, label = '{0} {1}'.\
-                format(num_exit, line_label))
-        matplotlib.pyplot.xlim(xmin=0.0)
-        matplotlib.pyplot.ylim(ymin=0.0)
-        matplotlib.pyplot.xlabel(xlabel)
-        matplotlib.pyplot.ylabel('Cumulative probability')
-        matplotlib.pyplot.legend(loc='lower right')
-        matplotlib.pyplot.title(title)
-        matplotlib.pyplot.grid()
-        
-        # output    
-        #matplotlib.pyplot.show()
-        matplotlib.pyplot.savefig(out_pathname)                
+def plot_output_data(in_file, out_file):
+    """Takes plot data output by functions in pathsim_analysis.py"""
+    with open(in_file, 'rb') as f:
+        data = pickle.load(f)
+        line_labels = pickle.load(f)
+        xlabel = pickle.load(f)
+        title = pickle.load(f)
 
+    fig = matplotlib.pyplot.figure()
+    
+    # histogram
+    #ax = fig.add_subplot(111)
+    #ax.hist(data, bins=30)
+    #ax.set_xlabel('Fraction of compromised paths')
+    #ax.set_ylabel('Number of samples')
+    ##matplotlib.pyplot.hist(data)    
+    
+    if (line_labels != None):
+        for data_points, line_label in zip(data, line_labels):
+            x, y = getcdf(data_points)
+            matplotlib.pyplot.plot(x, y, label = line_label)
+        matplotlib.pyplot.legend(loc='upper left')
+    else:
+        x, y = getcdf(data)
+        matplotlib.pyplot.plot(x, y)
+    matplotlib.pyplot.xlim(xmin=0.0)
+    matplotlib.pyplot.ylim(ymin=0.0)
+    matplotlib.pyplot.xlabel(xlabel)
+    matplotlib.pyplot.ylabel('Cumulative probability')
+    matplotlib.pyplot.title(title)
+    matplotlib.pyplot.grid()
+    
+    # output    
+    #matplotlib.pyplot.show()
+    matplotlib.pyplot.savefig(out_file)                
 
-def plot_num_exit_times(self, num_exit_times, line_label, xlabel, title,\
-    out_pathname):            
-        """Helper for plot_times_to_compromise that plots the
-        CDF of times to compromise for a given number of compromised
-        exits."""
-        fig = matplotlib.pyplot.figure()
+if __name__ = '__main__':
+    usage = 'Usage: pathsim_plot.py [in_dir] [out_dir]\nTakes all files in in_dir, plots their contents, and outputs the results to out_dir.'
+    if (len(sys.argv) < 3):
+        print(usage)
+        sys.exit(1)
         
-        # histogram
-        #ax = fig.add_subplot(111)
-        #ax.hist(time_to_comp, bins=30)
-        #ax.set_xlabel('Time to first compromise (days)')
-        #ax.set_ylabel('Number of samples')
-        ##matplotlib.pyplot.hist(frac_both_bad)
+    in_dir = sys.argv[1]
+    out_dir = sys.argv[2]
     
-        for num_exit, times in num_exit_times:
-            x, y = getcdf(times)
-            matplotlib.pyplot.plot(x, y, label = '{0} {1}'.\
-                format(num_exit, line_label))
-        matplotlib.pyplot.xlim(xmin=0.0)
-        matplotlib.pyplot.ylim(ymin=0.0)
-        matplotlib.pyplot.xlabel(xlabel)
-        matplotlib.pyplot.ylabel('Cumulative probability')
-        matplotlib.pyplot.legend(loc='lower right')
-        matplotlib.pyplot.title(title)
-        time_len = float(self.end_time - self.start_time)/float(24*60*60)
-        matplotlib.pyplot.xticks(\
-            numpy.arange(0, math.ceil(time_len)+1, 5))
-        matplotlib.pyplot.yticks(numpy.arange(0, 1.05, .05))
-        matplotlib.pyplot.grid()
-    
-        # output    
-        #matplotlib.pyplot.show()
-        matplotlib.pyplot.savefig(out_pathname)
-            
+    pathnames = []
+    for dirpath, dirnames, fnames in os.walk(in_dir):
+        for fname in fnames:
+            pathnames.append(os.path.join(in_dir,fname))
+    pathnames.sort()
+    for in_pathname in pathnames:
+        filename = os.path.basename(in_pathname)
+        if (filename[0] == '.'):
+            continue
+        if (filename[-7:] == '.pickle'):
+            out_pathname = os.path.join(out_dir, filename[:-7]+'.cdf.pdf')
+        else:
+            out_pathname = os.path.join(out_dir, filename+'.cdf.pdf')
+        plot_output_data(in_pathname, out_pathname)

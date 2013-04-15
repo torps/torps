@@ -103,6 +103,145 @@ class CompromisedSet:
                     min(time, stats['exit_only_time'])                        
         else:
             stats['good'] += 1
+            
+            
+    def output_compromise_rates_plot_data(self, out_dir, out_name):
+        """
+        Outputs data defining plot of compromise counts as fractions.
+        Input:
+            out_dir: directory for output files
+            out_name: identifying string to be incorporated in filenames
+        
+        """
+        frac_both_bad = []
+        frac_exit_bad = []
+        frac_guard_bad = []
+        line_labels = None
+
+        for stats in self.all_compromise_stats:
+            tot_ct = stats['guard_and_exit_bad'] +\
+                stats['guard_only_bad'] +\
+                stats['exit_only_bad'] + stats['good']
+            frac_both_bad.append(\
+                float(stats['guard_and_exit_bad']) / float(tot_ct))
+            frac_exit_bad.append(\
+                float(stats['guard_and_exit_bad'] +\
+                    stats['exit_only_bad']) / float(tot_ct))
+            frac_guard_bad.append(\
+                float(stats['guard_and_exit_bad'] +\
+                    stats['guard_only_bad']) / float(tot_ct))
+        
+        # cdf of both bad
+        out_filename = 'analyze-sim.' + out_name +\
+            '.exit-guard-comp-rates.pickle' 
+        out_pathname = os.path.join(out_dir, out_filename)                           
+        with open(out_pathname, 'wb') as f:
+            pickle.dump(frac_both_bad, f, pickle.HIGHEST_PROTOCOL)
+            pickle.dump(line_labels, f, pickle.HIGHEST_PROTOCOL)
+            pickle.dump('Fraction of paths', f, pickle.HIGHEST_PROTOCOL)
+            pickle.dump(\
+                'Fraction of connections with guard & exit compromised',\
+                f, pickle.HIGHEST_PROTOCOL)
+            
+        # cdf of exit bad
+        out_filename = 'analyze-sim.' + out_name +\
+            '.exit-comp-rates.pickle'
+        out_pathname = os.path.join(out_dir, out_filename)                           
+        with open(out_pathname, 'wb') as f:
+            pickle.dump(frac_exit_bad, f, pickle.HIGHEST_PROTOCOL)
+            pickle.dump(line_labels, f, pickle.HIGHEST_PROTOCOL)
+            pickle.dump('Fraction of paths', f, pickle.HIGHEST_PROTOCOL)
+            pickle.dump(\
+                'Fraction of connections with exit compromised',\
+                f, pickle.HIGHEST_PROTOCOL)
+
+        # cdf of guard bad
+        out_filename = 'analyze-sim.' + out_name +\
+            '.guard-comp-rates.cdf.pdf' 
+        out_pathname = os.path.join(out_dir, out_filename)                           
+        with open(out_pathname, 'wb') as f:
+            pickle.dump(frac_guard_bad, f, pickle.HIGHEST_PROTOCOL)
+            pickle.dump(line_labels, f, pickle.HIGHEST_PROTOCOL)
+            pickle.dump('Fraction of paths', f, pickle.HIGHEST_PROTOCOL)
+            pickle.dump(\
+                'Fraction of connections with guard compromised',\
+                f, pickle.HIGHEST_PROTOCOL)
+
+
+    def output_times_to_compromise_plot_data(self, out_dir, out_name):
+        """
+        Outputs data defining plot of times to first compromise.
+        Input: 
+            out_dir: output directory
+            out_name: string to comprise part of output filenames
+        """
+        time_len = float(self.end_time - self.start_time)/float(24*60*60)
+        line_labels = None     
+        guard_times = []
+        exit_times = []
+        guard_and_exit_times = []        
+        for stats in self.all_compromise_stats:
+            guard_time = time_len
+            exit_time = time_len
+            guard_and_exit_time = time_len
+            if (stats['guard_only_time'] != None):
+                guard_time = float(stats['guard_only_time'] -\
+                    self.start_time)/float(24*60*60)
+            if (stats['exit_only_time'] != None):
+                exit_time = float(stats['exit_only_time'] -\
+                    self.start_time)/float(24*60*60)
+            if (stats['guard_and_exit_time'] != None):
+                ge_time = float(stats['guard_and_exit_time'] -\
+                    self.start_time)/float(24*60*60)
+                guard_and_exit_time = ge_time
+                guard_time = min(guard_time, ge_time)
+                exit_time = min(exit_time, ge_time)
+            guard_times.append(guard_time)
+            exit_times.append(exit_time)
+            guard_and_exit_times.append(guard_and_exit_time)
+                    
+        # cdf for both bad
+        out_filename = 'analyze-sim.' + out_name +\
+                '.exit-guard-comp-times.pickle'                
+        out_pathname = os.path.join(out_dir, out_filename)            
+        with open(out_pathname, 'wb') as f:
+            pickle.dump(guard_and_exit_times, f,\
+                pickle.HIGHEST_PROTOCOL)
+            pickle.dump(line_labels, f, pickle.HIGHEST_PROTOCOL)
+            pickle.dump('Time to first compromise (days)', f,\
+                pickle.HIGHEST_PROTOCOL)
+            pickle.dump(\
+                'Time to first circuit with guard & exit compromised',\
+                f, pickle.HIGHEST_PROTOCOL)
+
+        # cdf for exit bad
+        out_filename = 'analyze-sim.' + out_name +\
+                '.exit-comp-times.pickle'
+        out_pathname = os.path.join(out_dir, out_filename)       
+        with open(out_pathname, 'wb') as f:
+            pickle.dump(exit_times, f, pickle.HIGHEST_PROTOCOL)
+            pickle.dump(line_labels, f, pickle.HIGHEST_PROTOCOL)
+            pickle.dump('Time to first compromise (days)', f,\
+                pickle.HIGHEST_PROTOCOL)
+            pickle.dump('Time to first circuit with exit compromised',\
+                f, pickle.HIGHEST_PROTOCOL)
+                            
+        # cdf for guard bad
+        out_filename = 'analyze-sim.' + out_name + '.guard-comp-times.pickle'                
+        out_pathname = os.path.join(out_dir, out_filename)        
+        with open(out_pathname, 'wb') as f:
+            pickle.dump(guard_times, f, pickle.HIGHEST_PROTOCOL)
+            pickle.dump(line_labels, f, pickle.HIGHEST_PROTOCOL)
+            pickle.dump('Time to first compromise (days)', f,\
+                pickle.HIGHEST_PROTOCOL)
+            pickle.dump('Time to first circuit with guard compromised',\
+                f, pickle.HIGHEST_PROTOCOL)
+                
+                
+    def output_stats_plot_data(self, out_dir, out_name):
+        """Output data defining cdf some of the statistics collected."""
+        self.output_compromise_rates_plot_data(out_dir, out_name)
+        self.output_times_to_compromise_plot_data(out_dir, out_name)            
     
 
 class CompromiseTopRelays:
@@ -285,7 +424,7 @@ class CompromiseTopRelays:
             num_exit_frac_both_bad = []
             num_exit_frac_exit_bad = []
             num_exit_frac_guard_bad = []
-            line_label = []
+            line_labels = []
             while (num_exits <= len(self.top_exits)):
                 # fraction of connection with bad guard and exit
                 frac_both_bad = []
@@ -304,9 +443,9 @@ class CompromiseTopRelays:
                     frac_guard_bad.append(\
                         float(adv_stats['guard_and_exit_bad'] +\
                             adv_stats['guard_only_bad']) / float(tot_ct))
-                num_exit_frac_both_bad.append((num_exits, frac_both_bad))
-                num_exit_frac_exit_bad.append((num_exits, frac_exit_bad))
-                num_exit_frac_guard_bad.append((num_exits, frac_guard_bad))
+                num_exit_frac_both_bad.append(frac_both_bad)
+                num_exit_frac_exit_bad.append(frac_exit_bad)
+                num_exit_frac_guard_bad.append(frac_guard_bad)
                 line_labels.append('{0} comp. exits'.format(num_exits))
                 if (num_exits == 0):
                     num_exits = 1
@@ -400,10 +539,9 @@ class CompromiseTopRelays:
                     guard_times.append(guard_time)
                     exit_times.append(exit_time)
                     guard_and_exit_times.append(guard_and_exit_time)
-                num_exit_guard_times.append((num_exits, guard_times))
-                num_exit_exit_times.append((num_exits, exit_times))
-                num_exit_guard_and_exit_times.append((num_exits,\
-                    guard_and_exit_times))
+                num_exit_guard_times.append(guard_times)
+                num_exit_exit_times.append(exit_times)
+                num_exit_guard_and_exit_times.append(guard_and_exit_times)
                 line_labels.append('{0} comp. exits'.format(num_exits))
                 if (num_exits == 0):
                     num_exits = 1
@@ -771,3 +909,29 @@ if __name__ == '__main__':
         simulation_analysis(log_files, top_relay_adversary)
         #top_relay_adversary.write_stats(out_dir, out_name)
         top_relay_adversary.output_stats_plot_data(out_dir, out_name)
+        
+        
+        # taken from fingerprints_to_ips.py
+        pprivcom_ips = ['192.162.102.50', '212.117.161.80', '204.45.70.98',\
+            '95.128.242.224', '84.19.178.6', '95.143.192.159',\
+            '92.243.26.232', '212.117.177.110', '50.7.240.10',\
+            '41.215.241.234', '195.254.134.10', '208.53.158.59',\
+            '82.195.232.218', '192.162.100.209', '95.211.13.145',\
+            '213.163.64.43', '95.211.10.25', '46.37.167.122',\
+            '212.117.162.222', '46.37.168.82', '67.205.112.74',\
+            '84.19.178.7', '95.211.99.91', '79.134.255.67',\
+            '213.163.65.50', '195.254.134.194', '212.117.160.22',\
+            '212.117.162.192', '212.117.163.21', '46.165.196.73',\
+            '212.117.165.197', '212.117.162.194']
+        chaoscomputerclub_ips = ['192.162.102.224', '80.237.226.75',\
+            '62.113.219.5', '62.113.219.6', '31.172.30.1', '80.237.226.74',\
+            '62.113.219.4', '31.172.30.2', '31.172.30.3', '62.113.219.3',\
+            '31.172.30.4', '80.237.226.76', '80.237.226.73']
+
+        compromised_relays = []
+        compromised_relays.extend(pprivcom_ips)
+        compromised_relays.extend(chaoscomputerclub_ips)
+        compromised_groups_adversary = CompromisedSet(compromised_relays)
+        simulation_analysis(log_files, compromised_groups_adversary)
+        # include string identifying malicious groups in outname
+        compromised_groups_adversary.output_stats_plot_data(out_dir, out_name)
