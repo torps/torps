@@ -1,0 +1,45 @@
+
+package torps.ext;
+
+enum Type {
+  INIT = 1;
+  GET = 2;
+  COORDS = 3;
+}
+
+//TODO Instantiates multiple coordinate networks, and a request specifies which network you want.
+
+message NodeSpecification {
+  required string id = 1;
+  repeated double congestion_dist = 2;
+}
+
+message LatencyInfo {
+  required uint32 n1_idx = 1;
+  required uint32 n2_idx = 2;
+  required double latency = 3;
+}
+
+message CoordInit {
+  required uint32 update_interval_seconds = 1;
+  optional uint32 ping_interval_seconds = 2 [default = 3];
+  repeated NodeSpecification node_data = 3;
+  repeated LatencyInfo latency_map = 4;
+}
+
+message Coordinate {
+  required string node_id = 1;
+  required int32 dim = 2;
+  required double error = 3;
+  repeated double vectors = 4;
+}
+
+message CoordUpdate {
+  repeated Coordinate coord = 1;
+}
+
+message ControlMessage {
+  required Type type = 1;
+  optional CoordInit init_data = 2;
+  optional CoordUpdate update_data = 3;
+}
