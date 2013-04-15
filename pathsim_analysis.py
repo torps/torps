@@ -57,13 +57,13 @@ class CompromisedSet:
         # add entries for sample not yet seen
         if (len(self.compromise_stats) <= id):
             for i in xrange(id+1 - len(self.compromise_stats)):
-                stats.append({'guard_only_bad':0,\
+                stats = {'guard_only_bad':0,\
                             'exit_only_bad':0,\
                             'guard_and_exit_bad':0,\
                             'good':0,\
                             'guard_only_time':None,\
                             'exit_only_time':None,\
-                            'guard_and_exit_time':None})
+                            'guard_and_exit_time':None}
                 self.compromise_stats.append(stats)
                 
         # update start and end times
