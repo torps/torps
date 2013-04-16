@@ -1,6 +1,7 @@
 # Isolate code that uses numpy and matplotlib here
 # so pypy can be used with the rest.
 import os
+import cPickle as pickle
 import sys
 import numpy
 import matplotlib
