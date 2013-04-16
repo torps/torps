@@ -45,7 +45,7 @@ def plot_output_data(in_file, out_file):
     #matplotlib.pyplot.show()
     matplotlib.pyplot.savefig(out_file)                
 
-if __name__ = '__main__':
+if __name__ == '__main__':
     usage = 'Usage: pathsim_plot.py [in_dir] [out_dir]\nTakes all files in in_dir, plots their contents, and outputs the results to out_dir.'
     if (len(sys.argv) < 3):
         print(usage)
