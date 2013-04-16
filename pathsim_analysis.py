@@ -12,92 +12,90 @@ from pathsim import *
 import multiprocessing
 
 
+def compromised_sets_process_log(compromised_relays, log_file, q):
+    """Calculates security statistics against compromised-set
+    adversary and stores the results in a Process.Queue."""
+    compromise_stats = []
+    start_time = None
+    end_time = None
+    with open(log_file, 'r') as lf:
+        lf.readline() # read header line
+        i = 0
+        for line in lf:
+            if (i % 10000000 == 0):
+                print('Read {0} lines.'.format(i))
+            i = i+1
+            line = line[0:-1] # cut off final newline
+            line_fields = line.split('\t')
+            id = int(line_fields[0])
+            time = int(line_fields[1])
+            guard_ip = line_fields[2]
+            exit_ip = line_fields[4]
+
+
+            # add entries for sample not yet seen
+            if (len(compromise_stats) <= id):
+                for i in xrange(id+1 - len(compromise_stats)):
+                    stats = {'guard_only_bad':0,\
+                                'exit_only_bad':0,\
+                                'guard_and_exit_bad':0,\
+                                'good':0,\
+                                'guard_only_time':None,\
+                                'exit_only_time':None,\
+                                'guard_and_exit_time':None}
+                    compromise_stats.append(stats)
+                    
+            # update start and end times
+            if (start_time == None):
+                start_time = time
+            else:
+                start_time = min(start_time, time)
+            if (end_time == None):
+                end_time = time
+            else:
+                end_time = max(end_time, time)
+                    
+            # increment counts and add times of first compromise
+            stats = compromise_stats[id]
+            guard_bad = guard_ip in compromised_relays
+            exit_bad = exit_ip in compromised_relays
+            if  (guard_bad and exit_bad):
+                stats['guard_and_exit_bad'] += 1
+                if (stats['guard_and_exit_time'] == None):
+                    stats['guard_and_exit_time'] = time
+                else:
+                    stats['guard_and_exit_time'] = \
+                        min(time, stats['guard_and_exit_time'])
+            elif guard_bad:
+                stats['guard_only_bad'] += 1
+                if (stats['guard_only_time'] == None):
+                    stats['guard_only_time'] = time
+                else:
+                    stats['guard_only_time'] = \
+                        min(time, stats['guard_only_time'])
+            elif exit_bad:
+                stats['exit_only_bad'] += 1
+                if (stats['exit_only_time'] == None):
+                    stats['exit_only_time'] = time
+                else:
+                    stats['exit_only_time'] = \
+                        min(time, stats['exit_only_time'])                        
+            else:
+                stats['good'] += 1
+
+    print('Putting results into queue.')
+    q.put((start_time, end_time, compromise_stats))
+    print('Results in queue.')
+
 class CompromisedSet:
     """
     Keeps statistics on circuit end compromises, where the adversary
     is a set of relays.
     """
     def __init__(self, compromised_relays):
-        self.compromised_relays = compromised_relays
         self.all_compromise_stats = []
         self.all_start_time = None
         self.all_end_time = None
-        
-        
-    def process_log(self, log_file, q):
-        """Calculates security statistics against compromised-set
-        adversary and stores the results in a Process.Queue."""
-        compromise_stats = []
-        start_time = None
-        end_time = None
-        with open(log_file, 'r') as lf:
-            lf.readline() # read header line
-            i = 0
-            for line in lf:
-#                if (i % 10000000 == 0):
-                    #print('Read {0} lines.'.format(i))
-                i = i+1
-                line = line[0:-1] # cut off final newline
-                line_fields = line.split('\t')
-                id = int(line_fields[0])
-                time = int(line_fields[1])
-                guard_ip = line_fields[2]
-                exit_ip = line_fields[4]
-
-
-                # add entries for sample not yet seen
-                if (len(compromise_stats) <= id):
-                    for i in xrange(id+1 - len(compromise_stats)):
-                        stats = {'guard_only_bad':0,\
-                                    'exit_only_bad':0,\
-                                    'guard_and_exit_bad':0,\
-                                    'good':0,\
-                                    'guard_only_time':None,\
-                                    'exit_only_time':None,\
-                                    'guard_and_exit_time':None}
-                        compromise_stats.append(stats)
-                        
-                # update start and end times
-                if (start_time == None):
-                    start_time = time
-                else:
-                    start_time = min(start_time, time)
-                if (end_time == None):
-                    end_time = time
-                else:
-                    end_time = max(end_time, time)
-                        
-                # increment counts and add times of first compromise
-                stats = compromise_stats[id]
-                guard_bad = guard_ip in self.compromised_relays
-                exit_bad = exit_ip in self.compromised_relays
-                if  (guard_bad and exit_bad):
-                    stats['guard_and_exit_bad'] += 1
-                    if (stats['guard_and_exit_time'] == None):
-                        stats['guard_and_exit_time'] = time
-                    else:
-                        stats['guard_and_exit_time'] = \
-                            min(time, stats['guard_and_exit_time'])
-                elif guard_bad:
-                    stats['guard_only_bad'] += 1
-                    if (stats['guard_only_time'] == None):
-                        stats['guard_only_time'] = time
-                    else:
-                        stats['guard_only_time'] = \
-                            min(time, stats['guard_only_time'])
-                elif exit_bad:
-                    stats['exit_only_bad'] += 1
-                    if (stats['exit_only_time'] == None):
-                        stats['exit_only_time'] = time
-                    else:
-                        stats['exit_only_time'] = \
-                            min(time, stats['exit_only_time'])                        
-                else:
-                    stats['good'] += 1
-
-        print('Putting results into queue.')
-        q.put((start_time, end_time, compromise_stats))
-        print('Results in queue.')
         
         
     def add_results(self, q):
@@ -832,7 +830,7 @@ def network_analysis_print_groups(initial_guards, exits_tot_bw,\
     print('Total min prob: {0}'.format(tot_min_prob))
 
         
-def simulation_analysis(log_files, adv):
+def simulation_analysis(log_files, process_log, process_log_args, adv):
     """Runs log file fields through given adversary object.
         Inputs:
             log_files: list of log files
@@ -842,7 +840,7 @@ def simulation_analysis(log_files, adv):
     ps = []
     for log_file in log_files:        
         print('Processing file {0}.'.format(os.path.basename(log_file)))
-        p = multiprocessing.Process(target=adv.process_log, args=(log_file, q))
+        p = multiprocessing.Process(target=process_log, args = process_log_args + (log_file, q))
         p.start()
         ps.append(p)
     for p in ps:
@@ -970,6 +968,7 @@ if __name__ == '__main__':
         compromised_relays.extend(pprivcom_ips)
         compromised_relays.extend(chaoscomputerclub_ips)
         compromised_groups_adversary = CompromisedSet(compromised_relays)
-        simulation_analysis(log_files, compromised_groups_adversary)
+        simulation_analysis(log_files, compromised_sets_process_log,\
+        (compromised_relays,), compromised_groups_adversary)
         # include string identifying malicious groups in outname
         compromised_groups_adversary.output_stats_plot_data(out_dir, out_name)
