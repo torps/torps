@@ -141,7 +141,7 @@ We collected session traces of approximately 20 minutes for each usage class. We
                     if currenttime < offset and seconds < offset: continue
                     currenttime = seconds-offset+starttime
                     if currenttime >= endtime: break
-                    self.model.append({'time':currenttime,'type':'connect','ip':ip,'port':port})
+                    self.model[key].append({'time':currenttime,'type':'connect','ip':ip,'port':port})
                 week += 1
 
     def schedule_session(self, key, trace, sessionstart):
@@ -149,10 +149,11 @@ We collected session traces of approximately 20 minutes for each usage class. We
         for (seconds, ip, port) in trace:
             s = sessionstart+seconds
             self.schedule[key].append((s, ip, port))
+        if s < sessionstart+20*60: s = sessionstart+20*60 # assume session took at least 20 minutes
         return s
 
     def get_streams(self, session):
-        return self.model(session)
+        return self.model[session]
 
 def timestamp(t):
     """Returns UNIX timestamp"""
@@ -1755,7 +1756,9 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
             end_time = timestamp(consensus.fresh_until)
 
         # get our stream creation model from our user traces
-        streams = get_stream_model(start_time, end_time, tracefilename)
+        # available sessions:
+        # "simple", "facebook", "gmailgchat", "gcalgdocs", "websearch", "irc", "bittorrent"
+        streams = get_stream_model(start_time, end_time, tracefilename, session="simple")
 
         # simulate the circuits for these streams
         create_circuits(network_state_files, streams, num_samples)    
