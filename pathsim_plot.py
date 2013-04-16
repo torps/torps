@@ -10,6 +10,27 @@ import matplotlib.pyplot
 #import matplotlib.mlab
 import math
 
+
+##### Plotting functions #####
+## helper - cumulative fraction for y axis
+def cf(d): return numpy.arange(1.0,float(len(d))+1.0)/float(len(d))
+
+## helper - return step-based CDF x and y values
+## only show to the 99th percentile by default
+def getcdf(data, shownpercentile=0.99):
+    data.sort()
+    frac = cf(data)
+    x, y, lasty = [], [], 0.0
+    for i in xrange(int(round(len(data)*shownpercentile))):
+        x.append(data[i])
+        y.append(lasty)
+        x.append(data[i])
+        y.append(frac[i])
+        lasty = frac[i]
+    return (x, y)
+##########
+
+
 def plot_output_data(in_file, out_file):
     """Takes plot data output by functions in pathsim_analysis.py"""
     with open(in_file, 'rb') as f:

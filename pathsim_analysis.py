@@ -11,26 +11,6 @@ from pathsim import *
 #import math
 
 
-##### Plotting functions #####
-## helper - cumulative fraction for y axis
-def cf(d): return numpy.arange(1.0,float(len(d))+1.0)/float(len(d))
-
-## helper - return step-based CDF x and y values
-## only show to the 99th percentile by default
-def getcdf(data, shownpercentile=0.99):
-    data.sort()
-    frac = cf(data)
-    x, y, lasty = [], [], 0.0
-    for i in xrange(int(round(len(data)*shownpercentile))):
-        x.append(data[i])
-        y.append(lasty)
-        x.append(data[i])
-        y.append(frac[i])
-        lasty = frac[i]
-    return (x, y)
-##########
-
-
 class CompromisedSet:
     """
     Keeps statistics on circuit end compromises, where the adversary
