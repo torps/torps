@@ -34,7 +34,7 @@ class CompromisedSet:
             lf.readline() # read header line
             i = 0
             for line in lf:
-                if (i % 10000000 == 0):
+#                if (i % 10000000 == 0):
                     #print('Read {0} lines.'.format(i))
                 i = i+1
                 line = line[0:-1] # cut off final newline
