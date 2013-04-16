@@ -34,7 +34,7 @@ class CompromisedSet:
             lf.readline() # read header line
             i = 0
             for line in lf:
-                if (i % 100000 == 0):
+                if (i % 10000000 == 0):
                     print('Read {0} lines.'.format(i))
                 i = i+1
                 line = line[0:-1] # cut off final newline
@@ -95,7 +95,9 @@ class CompromisedSet:
                 else:
                     stats['good'] += 1
 
+        print('Putting results into queue.')
         q.put((start_time, end_time, compromise_stats))
+        print('Results in queue.')
         
         
     def join_results(self, q):
@@ -377,6 +379,22 @@ class CompromiseTopRelays:
                                     min(time, stats['exit_only_time'])                        
                         else:
                             stats['good'] += 1
+                            
+                            
+    def join_results(self, q):
+        """Combine results from separate log processes."""
+        (start_time, end_time, compromise_stats) = q.get()
+        if (self.all_start_time == None):
+            self.all_start_time = start_time
+        else:
+            self.all_start_time = \
+                min(start_time, self.all_start_time)
+        if (self.all_end_time == None):
+            self.all_end_time = end_time
+        else:
+            self.all_end_time = \
+                min(end_time, self.all_end_time)
+        self.all_compromise_stats.extend(compromise_stats)
               
                         
     def write_stats(self, out_dir, out_name):
