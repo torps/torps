@@ -25,6 +25,8 @@ class CompromisedSet:
         
         
     def process_log(self, log_file, q):
+        """Calculates security statistics against compromised-set
+        adversary and stores the results in a Process.Queue."""
         compromise_stats = []
         start_time = None
         end_time = None
@@ -261,111 +263,120 @@ class CompromiseTopRelays:
         self.top_exits = top_exits
         self.all_compromise_stats = []
         self.all_start_time = None
-        self.end_time = None
+        self.all_end_time = None
+
         
-        #START
-    def start(self):
-        """Data from new log file will be processed."""
-        self.compromise_stats = []
-        
-        
-    def end(self):
-        """Store in final form stats collected from a log file."""
-        self.all_compromise_stats.extend(self.compromise_stats)
+    def process_log(self, log_file, q):
+        """Calculates security statistics against top-relay
+        adversary and stores the results in a Process.Queue."""
+        compromise_stats = []
+        start_time = None
+        end_time = None
+        with open(log_file, 'r') as lf:
+            lf.readline() # read header line
+            i = 0
+            for line in lf:
+                if (i % 100000 == 0):
+                    print('Read {0} lines.'.format(i))
+                i = i+1
+                line = line[0:-1] # cut off final newline
+                line_fields = line.split('\t')
+                id = int(line_fields[0])
+                time = int(line_fields[1])
+                guard_ip = line_fields[2]
+                exit_ip = line_fields[4]
 
-
-    def log_line(self, id, time, guard_ip, exit_ip):
-        """Adds statistics based on fields from log line."""
-        # add entries for sample not yet seen
-        if (len(self.compromise_stats) <= id):
-            for i in xrange(id+1 - len(self.compromise_stats)):
-                # construct matrix storing counts for possible # comp relays
-                stats = []
-                for j in xrange(len(self.top_guards)+1):
-                    stats.append([])
-                    for k in xrange(len(self.top_exits)+1):
-                        stats[j].append({'guard_only_bad':0,\
-                                        'exit_only_bad':0,\
-                                        'guard_and_exit_bad':0,\
-                                        'good':0,\
-                                        'guard_only_time':None,\
-                                        'exit_only_time':None,\
-                                        'guard_and_exit_time':None})
-                self.compromise_stats.append(stats)
-                
-        # update start and end times
-        if (self.start_time == None):
-            self.start_time = time
-        else:
-            self.start_time = min(self.start_time, time)
-        if (self.end_time == None):
-            self.end_time = time
-        else:
-            self.end_time = max(self.end_time, time)
-
-        # find first occurrence of guard_ip and exit_ip in top_guards and
-        # top_exits - .index() would raise error if not present
-        top_guards_guard_idx = None
-        top_guards_exit_idx = None
-        top_exits_guard_idx = None
-        top_exits_exit_idx = None
-        for i, top_guard in enumerate(self.top_guards):
-            if (guard_ip == top_guard):
-                top_guards_guard_idx = i+1
-                break
-        for i, top_guard in enumerate(self.top_guards):
-            if (exit_ip == top_guard):
-                top_guards_exit_idx = i+1
-                break                
-        for i, top_exit in enumerate(self.top_exits):
-            if (guard_ip == top_exit):
-                top_exits_guard_idx = i+1
-                break
-        for i, top_exit in enumerate(self.top_exits):
-            if (exit_ip == top_exit):
-                top_exits_exit_idx = i+1
-                break    
-                
-        # increment counts and add times of first compromise
-        for i in xrange(len(self.compromise_stats[id])):
-            for j in xrange(len(self.compromise_stats[id][i])):
-                stats = self.compromise_stats[id][i][j]
-                guard_bad = False
-                exit_bad = False
-                if ((top_guards_guard_idx != None) and\
-                        (top_guards_guard_idx <= i)) or\
-                    ((top_exits_guard_idx != None) and\
-                         (top_exits_guard_idx <= j)):
-                    guard_bad = True
-                if ((top_guards_exit_idx != None) and\
-                        (top_guards_exit_idx <= i)) or\
-                    ((top_exits_exit_idx != None) and\
-                        (top_exits_exit_idx <= j)):
-                    exit_bad = True
-
-                if  (guard_bad and exit_bad):
-                    stats['guard_and_exit_bad'] += 1
-                    if (stats['guard_and_exit_time'] == None):
-                        stats['guard_and_exit_time'] = time
-                    else:
-                        stats['guard_and_exit_time'] = \
-                            min(time, stats['guard_and_exit_time'])
-                elif guard_bad:
-                    stats['guard_only_bad'] += 1
-                    if (stats['guard_only_time'] == None):
-                        stats['guard_only_time'] = time
-                    else:
-                        stats['guard_only_time'] = \
-                            min(time, stats['guard_only_time'])
-                elif exit_bad:
-                    stats['exit_only_bad'] += 1
-                    if (stats['exit_only_time'] == None):
-                        stats['exit_only_time'] = time
-                    else:
-                        stats['exit_only_time'] = \
-                            min(time, stats['exit_only_time'])                        
+                """Adds statistics based on fields from log line."""
+                # add entries for sample not yet seen
+                if (len(compromise_stats) <= id):
+                    for i in xrange(id+1 - len(compromise_stats)):
+                        # matrix storing counts for possible # comp relays
+                        stats = []
+                        for j in xrange(len(self.top_guards)+1):
+                            stats.append([])
+                            for k in xrange(len(self.top_exits)+1):
+                                stats[j].append({'guard_only_bad':0,\
+                                                'exit_only_bad':0,\
+                                                'guard_and_exit_bad':0,\
+                                                'good':0,\
+                                                'guard_only_time':None,\
+                                                'exit_only_time':None,\
+                                                'guard_and_exit_time':None})
+                        compromise_stats.append(stats)
+                        
+                # update start and end times
+                if (start_time == None):
+                    start_time = time
                 else:
-                    stats['good'] += 1
+                    start_time = min(start_time, time)
+                if (end_time == None):
+                    end_time = time
+                else:
+                    end_time = max(end_time, time)
+        
+                # find first occurrence of guard_ip and exit_ip in top_guards
+                # and top_exits - .index() would raise error if not present
+                top_guards_guard_idx = None
+                top_guards_exit_idx = None
+                top_exits_guard_idx = None
+                top_exits_exit_idx = None
+                for i, top_guard in enumerate(self.top_guards):
+                    if (guard_ip == top_guard):
+                        top_guards_guard_idx = i+1
+                        break
+                for i, top_guard in enumerate(self.top_guards):
+                    if (exit_ip == top_guard):
+                        top_guards_exit_idx = i+1
+                        break                
+                for i, top_exit in enumerate(self.top_exits):
+                    if (guard_ip == top_exit):
+                        top_exits_guard_idx = i+1
+                        break
+                for i, top_exit in enumerate(self.top_exits):
+                    if (exit_ip == top_exit):
+                        top_exits_exit_idx = i+1
+                        break    
+                        
+                # increment counts and add times of first compromise
+                for i in xrange(len(compromise_stats[id])):
+                    for j in xrange(len(compromise_stats[id][i])):
+                        stats = compromise_stats[id][i][j]
+                        guard_bad = False
+                        exit_bad = False
+                        if ((top_guards_guard_idx != None) and\
+                                (top_guards_guard_idx <= i)) or\
+                            ((top_exits_guard_idx != None) and\
+                                 (top_exits_guard_idx <= j)):
+                            guard_bad = True
+                        if ((top_guards_exit_idx != None) and\
+                                (top_guards_exit_idx <= i)) or\
+                            ((top_exits_exit_idx != None) and\
+                                (top_exits_exit_idx <= j)):
+                            exit_bad = True
+        
+                        if  (guard_bad and exit_bad):
+                            stats['guard_and_exit_bad'] += 1
+                            if (stats['guard_and_exit_time'] == None):
+                                stats['guard_and_exit_time'] = time
+                            else:
+                                stats['guard_and_exit_time'] = \
+                                    min(time, stats['guard_and_exit_time'])
+                        elif guard_bad:
+                            stats['guard_only_bad'] += 1
+                            if (stats['guard_only_time'] == None):
+                                stats['guard_only_time'] = time
+                            else:
+                                stats['guard_only_time'] = \
+                                    min(time, stats['guard_only_time'])
+                        elif exit_bad:
+                            stats['exit_only_bad'] += 1
+                            if (stats['exit_only_time'] == None):
+                                stats['exit_only_time'] = time
+                            else:
+                                stats['exit_only_time'] = \
+                                    min(time, stats['exit_only_time'])                        
+                        else:
+                            stats['good'] += 1
               
                         
     def write_stats(self, out_dir, out_name):
@@ -510,7 +521,8 @@ class CompromiseTopRelays:
             out_dir: output directory
             out_name: string to comprise part of output filenames
         """
-        time_len = float(self.end_time - self.start_time)/float(24*60*60)
+        time_len = float(self.all_end_time -\
+            self._all_start_time)/float(24*60*60)
         # only plot for powers of two adversaries
         num_guards = 0
         while (num_guards <= len(self.top_guards)):
@@ -533,13 +545,13 @@ class CompromiseTopRelays:
                     guard_and_exit_time = time_len
                     if (adv_stats['guard_only_time'] != None):
                         guard_time = float(adv_stats['guard_only_time'] -\
-                            self.start_time)/float(24*60*60)
+                            self._all_start_time)/float(24*60*60)
                     if (adv_stats['exit_only_time'] != None):
                         exit_time = float(adv_stats['exit_only_time'] -\
-                            self.start_time)/float(24*60*60)
+                            self._all_start_time)/float(24*60*60)
                     if (adv_stats['guard_and_exit_time'] != None):
                         ge_time = float(adv_stats['guard_and_exit_time'] -\
-                            self.start_time)/float(24*60*60)
+                            self._all_start_time)/float(24*60*60)
                         guard_and_exit_time = ge_time
                         guard_time = min(guard_time, ge_time)
                         exit_time = min(exit_time, ge_time)
