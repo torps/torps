@@ -38,10 +38,10 @@ class TestCoordinateEngineClient(unittest.TestCase):
     assert self.cli.socket is True
 
   def test_raises_on_noniterable_instances(self):
-    self.assertRaises(TypeError,self.cli.setup,"false","false")
+    self.assertRaises(TypeError,self.cli.setup,2,"false","false")
 
   def test_raises_on_non_NodeInfo_instances(self):
-    self.assertRaises(TypeError,self.cli.setup,["randomstring"],"false")
+    self.assertRaises(TypeError,self.cli.setup,2,["randomstring"],"false")
 
   def test_checks_latency_map(self):
 
@@ -56,10 +56,10 @@ class TestCoordinateEngineClient(unittest.TestCase):
     invalid_map[n1.nodeid][n2.nodeid] = 50.0
     invalid_map[n1.nodeid][n3.nodeid] = 8
 
-    self.assertRaises(TypeError,self.cli.setup,(n1,n2),(n1,n2))
+    self.assertRaises(TypeError,self.cli.setup,2,(n1,n2),(n1,n2))
 
     with self.assertRaises(AttributeError) as cm:
-      self.cli.setup((n1,n2,n3),invalid_map)
+      self.cli.setup(2,(n1,n2,n3),invalid_map)
 
   def test_creates_valid_messages(self):
     n1 = ce_client.NodeInfo("james")
@@ -73,7 +73,7 @@ class TestCoordinateEngineClient(unittest.TestCase):
     valid_map[n1.nodeid][n2.nodeid] = 50.0
     valid_map[n1.nodeid][n3.nodeid] = 8
 
-    init_msg = self.cli.create_setup_message((n1,n2),valid_map,40,2)
+    init_msg = self.cli.create_setup_message(2,(n1,n2),valid_map,40,2)
     msg = init_msg.SerializeToString()
 
     parsed_msg = ext.ControlMessage()
@@ -83,6 +83,7 @@ class TestCoordinateEngineClient(unittest.TestCase):
     assert parsed_msg.HasField("init_data")
     assert parsed_msg.init_data.update_interval_seconds == 40
     assert parsed_msg.init_data.ping_interval_seconds == 2
+    assert parsed_msg.init_data.num_networks == 2
     assert n1.nodeid in map(lambda x: x.id, parsed_msg.init_data.node_data)
     assert n2.nodeid in map(lambda x: x.id, parsed_msg.init_data.node_data)
 
