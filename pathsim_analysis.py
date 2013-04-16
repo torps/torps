@@ -35,7 +35,7 @@ class CompromisedSet:
             i = 0
             for line in lf:
                 if (i % 10000000 == 0):
-                    print('Read {0} lines.'.format(i))
+                    #print('Read {0} lines.'.format(i))
                 i = i+1
                 line = line[0:-1] # cut off final newline
                 line_fields = line.split('\t')
@@ -846,8 +846,11 @@ def simulation_analysis(log_files, adv):
         p.start()
         ps.append(p)
     for p in ps:
+        print('Waiting for process')
         p.join()
+        print('Process returned. Adding results to total.')
         adv.join_results(q)
+        print('Process results added to total.')
 
 
 if __name__ == '__main__':
