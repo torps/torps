@@ -9,6 +9,7 @@ from pathsim import *
 #import matplotlib.pyplot
 ##import matplotlib.mlab
 #import math
+import multiprocessing
 
 
 class CompromisedSet:
@@ -19,72 +20,97 @@ class CompromisedSet:
     def __init__(self, compromised_relays):
         self.compromised_relays = compromised_relays
         self.all_compromise_stats = []
-        self.start_time = None
-        self.end_time = None
+        self.all_start_time = None
+        self.all_end_time = None
         
         
-    def start(self):
-        """Data from new log file will be processed."""
-        self.compromise_stats = []        
-        
-        
-    def end(self):
-        """Store in final form stats collected from a log file."""
-        self.all_compromise_stats.extend(self.compromise_stats)
+    def process_log(self, log_file, q):
+        compromise_stats = []
+        start_time = None
+        end_time = None
+        with open(log_file, 'r') as lf:
+            lf.readline() # read header line
+            i = 0
+            for line in lf:
+                if (i % 100000 == 0):
+                    print('Read {0} lines.'.format(i))
+                i = i+1
+                line = line[0:-1] # cut off final newline
+                line_fields = line.split('\t')
+                id = int(line_fields[0])
+                time = int(line_fields[1])
+                guard_ip = line_fields[2]
+                exit_ip = line_fields[4]
 
 
-    def log_line(self, id, time, guard_ip, exit_ip):
-        # add entries for sample not yet seen
-        if (len(self.compromise_stats) <= id):
-            for i in xrange(id+1 - len(self.compromise_stats)):
-                stats = {'guard_only_bad':0,\
-                            'exit_only_bad':0,\
-                            'guard_and_exit_bad':0,\
-                            'good':0,\
-                            'guard_only_time':None,\
-                            'exit_only_time':None,\
-                            'guard_and_exit_time':None}
-                self.compromise_stats.append(stats)
-                
-        # update start and end times
-        if (self.start_time == None):
-            self.start_time = time
+                # add entries for sample not yet seen
+                if (len(compromise_stats) <= id):
+                    for i in xrange(id+1 - len(compromise_stats)):
+                        stats = {'guard_only_bad':0,\
+                                    'exit_only_bad':0,\
+                                    'guard_and_exit_bad':0,\
+                                    'good':0,\
+                                    'guard_only_time':None,\
+                                    'exit_only_time':None,\
+                                    'guard_and_exit_time':None}
+                        compromise_stats.append(stats)
+                        
+                # update start and end times
+                if (start_time == None):
+                    start_time = time
+                else:
+                    start_time = min(start_time, time)
+                if (end_time == None):
+                    end_time = time
+                else:
+                    end_time = max(end_time, time)
+                        
+                # increment counts and add times of first compromise
+                stats = compromise_stats[id]
+                guard_bad = guard_ip in self.compromised_relays
+                exit_bad = exit_ip in self.compromised_relays
+                if  (guard_bad and exit_bad):
+                    stats['guard_and_exit_bad'] += 1
+                    if (stats['guard_and_exit_time'] == None):
+                        stats['guard_and_exit_time'] = time
+                    else:
+                        stats['guard_and_exit_time'] = \
+                            min(time, stats['guard_and_exit_time'])
+                elif guard_bad:
+                    stats['guard_only_bad'] += 1
+                    if (stats['guard_only_time'] == None):
+                        stats['guard_only_time'] = time
+                    else:
+                        stats['guard_only_time'] = \
+                            min(time, stats['guard_only_time'])
+                elif exit_bad:
+                    stats['exit_only_bad'] += 1
+                    if (stats['exit_only_time'] == None):
+                        stats['exit_only_time'] = time
+                    else:
+                        stats['exit_only_time'] = \
+                            min(time, stats['exit_only_time'])                        
+                else:
+                    stats['good'] += 1
+
+        q.put((start_time, end_time, compromise_stats))
+        
+        
+    def join_results(self, q):
+        """Combine results from separate log processes."""
+        (start_time, end_time, compromise_stats) = q.get()
+        if (self.all_start_time == None):
+            self.all_start_time = start_time
         else:
-            self.start_time = min(self.start_time, time)
-        if (self.end_time == None):
-            self.end_time = time
+            self.all_start_time = \
+                min(start_time, self.all_start_time)
+        if (self.all_end_time == None):
+            self.all_end_time = end_time
         else:
-            self.end_time = max(self.end_time, time)
-                
-        # increment counts and add times of first compromise
-        stats = self.compromise_stats[id]
-        guard_bad = guard_ip in self.compromised_relays
-        exit_bad = exit_ip in self.compromised_relays
-        if  (guard_bad and exit_bad):
-            stats['guard_and_exit_bad'] += 1
-            if (stats['guard_and_exit_time'] == None):
-                stats['guard_and_exit_time'] = time
-            else:
-                stats['guard_and_exit_time'] = \
-                    min(time, stats['guard_and_exit_time'])
-        elif guard_bad:
-            stats['guard_only_bad'] += 1
-            if (stats['guard_only_time'] == None):
-                stats['guard_only_time'] = time
-            else:
-                stats['guard_only_time'] = \
-                    min(time, stats['guard_only_time'])
-        elif exit_bad:
-            stats['exit_only_bad'] += 1
-            if (stats['exit_only_time'] == None):
-                stats['exit_only_time'] = time
-            else:
-                stats['exit_only_time'] = \
-                    min(time, stats['exit_only_time'])                        
-        else:
-            stats['good'] += 1
-            
-            
+            self.all_end_time = \
+                min(end_time, self.all_end_time)
+        self.all_compromise_stats.extend(compromise_stats)
+                          
     def output_compromise_rates_plot_data(self, out_dir, out_name):
         """
         Outputs data defining plot of compromise counts as fractions.
@@ -155,7 +181,8 @@ class CompromisedSet:
             out_dir: output directory
             out_name: string to comprise part of output filenames
         """
-        time_len = float(self.end_time - self.start_time)/float(24*60*60)
+        time_len = float(self.all_end_time - \
+            self.all_start_time)/float(24*60*60)
         line_labels = None     
         guard_times = []
         exit_times = []
@@ -166,13 +193,13 @@ class CompromisedSet:
             guard_and_exit_time = time_len
             if (stats['guard_only_time'] != None):
                 guard_time = float(stats['guard_only_time'] -\
-                    self.start_time)/float(24*60*60)
+                    self.all_start_time)/float(24*60*60)
             if (stats['exit_only_time'] != None):
                 exit_time = float(stats['exit_only_time'] -\
-                    self.start_time)/float(24*60*60)
+                    self.all_start_time)/float(24*60*60)
             if (stats['guard_and_exit_time'] != None):
                 ge_time = float(stats['guard_and_exit_time'] -\
-                    self.start_time)/float(24*60*60)
+                    self.all_start_time)/float(24*60*60)
                 guard_and_exit_time = ge_time
                 guard_time = min(guard_time, ge_time)
                 exit_time = min(exit_time, ge_time)
@@ -233,10 +260,10 @@ class CompromiseTopRelays:
         self.top_guards = top_guards
         self.top_exits = top_exits
         self.all_compromise_stats = []
-        self.start_time = None
+        self.all_start_time = None
         self.end_time = None
         
-        
+        #START
     def start(self):
         """Data from new log file will be processed."""
         self.compromise_stats = []
@@ -459,7 +486,7 @@ class CompromiseTopRelays:
 
             # cdf of guard bad
             out_filename = 'analyze-sim.' + out_name + '.' +\
-                str(num_guards) + '.-guards.guard-comp-rates.cdf.pdf' 
+                str(num_guards) + '.-guards.guard-comp-rates.pickle' 
             out_pathname = os.path.join(out_dir, out_filename)                           
             with open(out_pathname, 'wb') as f:
                 pickle.dump(num_exit_frac_guard_bad, f,\
@@ -770,30 +797,22 @@ def network_analysis_print_groups(initial_guards, exits_tot_bw,\
 
         
 def simulation_analysis(log_files, adv):
-    """Runs log file fields through given adversary object."""
+    """Runs log file fields through given adversary object.
+        Inputs:
+            log_files: list of log files
+            adv: adversary object containing processing methods
+    """
+    q = multiprocessing.Queue()
+    ps = []
     for log_file in log_files:        
-        with open(log_file, 'r') as lf:
-            print('Processing file {0}.'.format(os.path.basename(log_file)))
+        print('Processing file {0}.'.format(os.path.basename(log_file)))
+        p = multiprocessing.Process(target=adv.process_log, args=(log_file, q))
+        p.start()
+        ps.append(p)
+    for p in ps:
+        p.join()
+    adv.join_results(q)
 
-            # prepare for new log file
-            adv.start()
-
-            lf.readline() # read header line
-            i = 0
-            for line in lf:
-                if (i % 100000 == 0):
-                    print('Read {0} lines.'.format(i))
-                i = i+1
-                line = line[0:-1] # cut off final newline
-                line_fields = line.split('\t')
-                id = int(line_fields[0])
-                time = int(line_fields[1])
-                guard_ip = line_fields[2]
-                exit_ip = line_fields[4]
-                adv.log_line(id, time, guard_ip, exit_ip)
-                
-            # finalize stats    
-            adv.end()
 
 if __name__ == '__main__':
     usage = 'Usage: pathsim_analysis.py [command]\nCommands:\n\

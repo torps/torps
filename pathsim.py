@@ -81,7 +81,7 @@ where each line represents a new stream, TIME is the stream creation timestamp i
         import cPickle as pickle
         with open(filename, 'wb') as f: pickle.dump(self, f)
 
-streams.append({'time':t,'type':'connect','ip':str_ip,'port':80})
+
 class UserModel(object):
     """
 Sessions:
@@ -1651,8 +1651,6 @@ relay in hibernating_status, hstat))
             
             cur_time += time_step
 
-
-[("facebook",facebookf) , ("gmailgchat",gmailgchatf), ("gcalgdocs",gcalgdocsf), ("websearch",websearchf), ("irc",ircf), ("bittorrent",bittorrentf)]:
 
 def get_stream_model(start_time, end_time, tracefilename=None, session="simple"):
     streams = []
