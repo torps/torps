@@ -100,9 +100,11 @@ class CompromisedSet:
         print('Results in queue.')
         
         
-    def join_results(self, q):
-        """Combine results from separate log processes."""
+    def add_results(self, q):
+        """Add in results from separate log process."""
+        print('Getting queue element to aggregate.')
         (start_time, end_time, compromise_stats) = q.get()
+        print('Got queue element.')
         if (self.all_start_time == None):
             self.all_start_time = start_time
         else:
@@ -278,7 +280,7 @@ class CompromiseTopRelays:
             lf.readline() # read header line
             i = 0
             for line in lf:
-                if (i % 100000 == 0):
+                if (i % 10000000 == 0):
                     print('Read {0} lines.'.format(i))
                 i = i+1
                 line = line[0:-1] # cut off final newline
@@ -380,9 +382,13 @@ class CompromiseTopRelays:
                         else:
                             stats['good'] += 1
                             
+        print('Putting results into queue.')
+        q.put((start_time, end_time, compromise_stats))
+        print('Results in queue.')                            
                             
-    def join_results(self, q):
-        """Combine results from separate log processes."""
+                            
+    def add_results(self, q):
+        """Add in results from a separate log process."""
         (start_time, end_time, compromise_stats) = q.get()
         if (self.all_start_time == None):
             self.all_start_time = start_time
@@ -841,7 +847,7 @@ def simulation_analysis(log_files, adv):
         ps.append(p)
     for p in ps:
         p.join()
-    adv.join_results(q)
+        adv.join_results(q)
 
 
 if __name__ == '__main__':
