@@ -35,6 +35,7 @@ void  protobuf_AddDesc_message_5fspec_2eproto();
 void protobuf_AssignDesc_message_5fspec_2eproto();
 void protobuf_ShutdownFile_message_5fspec_2eproto();
 
+class StatusMessage;
 class NodeSpecification;
 class LatencyInfo;
 class CoordInit;
@@ -42,6 +43,26 @@ class Coordinate;
 class CoordUpdate;
 class ControlMessage;
 
+enum StatusMessage_Status {
+  StatusMessage_Status_OK = 1,
+  StatusMessage_Status_ERR = 2,
+  StatusMessage_Status_DATA_NEXT = 3
+};
+bool StatusMessage_Status_IsValid(int value);
+const StatusMessage_Status StatusMessage_Status_Status_MIN = StatusMessage_Status_OK;
+const StatusMessage_Status StatusMessage_Status_Status_MAX = StatusMessage_Status_DATA_NEXT;
+const int StatusMessage_Status_Status_ARRAYSIZE = StatusMessage_Status_Status_MAX + 1;
+
+const ::google::protobuf::EnumDescriptor* StatusMessage_Status_descriptor();
+inline const ::std::string& StatusMessage_Status_Name(StatusMessage_Status value) {
+  return ::google::protobuf::internal::NameOfEnum(
+    StatusMessage_Status_descriptor(), value);
+}
+inline bool StatusMessage_Status_Parse(
+    const ::std::string& name, StatusMessage_Status* value) {
+  return ::google::protobuf::internal::ParseNamedEnum<StatusMessage_Status>(
+    StatusMessage_Status_descriptor(), name, value);
+}
 enum Type {
   INIT = 1,
   GET = 2,
@@ -63,6 +84,128 @@ inline bool Type_Parse(
     Type_descriptor(), name, value);
 }
 // ===================================================================
+
+class StatusMessage : public ::google::protobuf::Message {
+ public:
+  StatusMessage();
+  virtual ~StatusMessage();
+
+  StatusMessage(const StatusMessage& from);
+
+  inline StatusMessage& operator=(const StatusMessage& from) {
+    CopyFrom(from);
+    return *this;
+  }
+
+  inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const {
+    return _unknown_fields_;
+  }
+
+  inline ::google::protobuf::UnknownFieldSet* mutable_unknown_fields() {
+    return &_unknown_fields_;
+  }
+
+  static const ::google::protobuf::Descriptor* descriptor();
+  static const StatusMessage& default_instance();
+
+  void Swap(StatusMessage* other);
+
+  // implements Message ----------------------------------------------
+
+  StatusMessage* New() const;
+  void CopyFrom(const ::google::protobuf::Message& from);
+  void MergeFrom(const ::google::protobuf::Message& from);
+  void CopyFrom(const StatusMessage& from);
+  void MergeFrom(const StatusMessage& from);
+  void Clear();
+  bool IsInitialized() const;
+
+  int ByteSize() const;
+  bool MergePartialFromCodedStream(
+      ::google::protobuf::io::CodedInputStream* input);
+  void SerializeWithCachedSizes(
+      ::google::protobuf::io::CodedOutputStream* output) const;
+  ::google::protobuf::uint8* SerializeWithCachedSizesToArray(::google::protobuf::uint8* output) const;
+  int GetCachedSize() const { return _cached_size_; }
+  private:
+  void SharedCtor();
+  void SharedDtor();
+  void SetCachedSize(int size) const;
+  public:
+
+  ::google::protobuf::Metadata GetMetadata() const;
+
+  // nested types ----------------------------------------------------
+
+  typedef StatusMessage_Status Status;
+  static const Status OK = StatusMessage_Status_OK;
+  static const Status ERR = StatusMessage_Status_ERR;
+  static const Status DATA_NEXT = StatusMessage_Status_DATA_NEXT;
+  static inline bool Status_IsValid(int value) {
+    return StatusMessage_Status_IsValid(value);
+  }
+  static const Status Status_MIN =
+    StatusMessage_Status_Status_MIN;
+  static const Status Status_MAX =
+    StatusMessage_Status_Status_MAX;
+  static const int Status_ARRAYSIZE =
+    StatusMessage_Status_Status_ARRAYSIZE;
+  static inline const ::google::protobuf::EnumDescriptor*
+  Status_descriptor() {
+    return StatusMessage_Status_descriptor();
+  }
+  static inline const ::std::string& Status_Name(Status value) {
+    return StatusMessage_Status_Name(value);
+  }
+  static inline bool Status_Parse(const ::std::string& name,
+      Status* value) {
+    return StatusMessage_Status_Parse(name, value);
+  }
+
+  // accessors -------------------------------------------------------
+
+  // required .torps.ext.StatusMessage.Status status = 1;
+  inline bool has_status() const;
+  inline void clear_status();
+  static const int kStatusFieldNumber = 1;
+  inline ::torps::ext::StatusMessage_Status status() const;
+  inline void set_status(::torps::ext::StatusMessage_Status value);
+
+  // optional string msg = 2;
+  inline bool has_msg() const;
+  inline void clear_msg();
+  static const int kMsgFieldNumber = 2;
+  inline const ::std::string& msg() const;
+  inline void set_msg(const ::std::string& value);
+  inline void set_msg(const char* value);
+  inline void set_msg(const char* value, size_t size);
+  inline ::std::string* mutable_msg();
+  inline ::std::string* release_msg();
+  inline void set_allocated_msg(::std::string* msg);
+
+  // @@protoc_insertion_point(class_scope:torps.ext.StatusMessage)
+ private:
+  inline void set_has_status();
+  inline void clear_has_status();
+  inline void set_has_msg();
+  inline void clear_has_msg();
+
+  ::google::protobuf::UnknownFieldSet _unknown_fields_;
+
+  ::std::string* msg_;
+  int status_;
+
+  mutable int _cached_size_;
+  ::google::protobuf::uint32 _has_bits_[(2 + 31) / 32];
+
+  friend void  protobuf_AddDesc_message_5fspec_2eproto();
+  friend void protobuf_AssignDesc_message_5fspec_2eproto();
+  friend void protobuf_ShutdownFile_message_5fspec_2eproto();
+
+  void InitAsDefaultInstance();
+  static StatusMessage* default_instance_;
+};
+// -------------------------------------------------------------------
 
 class NodeSpecification : public ::google::protobuf::Message {
  public:
@@ -320,24 +463,31 @@ class CoordInit : public ::google::protobuf::Message {
 
   // accessors -------------------------------------------------------
 
-  // required uint32 update_interval_seconds = 1;
+  // optional uint32 num_networks = 1 [default = 1];
+  inline bool has_num_networks() const;
+  inline void clear_num_networks();
+  static const int kNumNetworksFieldNumber = 1;
+  inline ::google::protobuf::uint32 num_networks() const;
+  inline void set_num_networks(::google::protobuf::uint32 value);
+
+  // required uint32 update_interval_seconds = 2;
   inline bool has_update_interval_seconds() const;
   inline void clear_update_interval_seconds();
-  static const int kUpdateIntervalSecondsFieldNumber = 1;
+  static const int kUpdateIntervalSecondsFieldNumber = 2;
   inline ::google::protobuf::uint32 update_interval_seconds() const;
   inline void set_update_interval_seconds(::google::protobuf::uint32 value);
 
-  // optional uint32 ping_interval_seconds = 2 [default = 3];
+  // optional uint32 ping_interval_seconds = 3 [default = 3];
   inline bool has_ping_interval_seconds() const;
   inline void clear_ping_interval_seconds();
-  static const int kPingIntervalSecondsFieldNumber = 2;
+  static const int kPingIntervalSecondsFieldNumber = 3;
   inline ::google::protobuf::uint32 ping_interval_seconds() const;
   inline void set_ping_interval_seconds(::google::protobuf::uint32 value);
 
-  // repeated .torps.ext.NodeSpecification node_data = 3;
+  // repeated .torps.ext.NodeSpecification node_data = 4;
   inline int node_data_size() const;
   inline void clear_node_data();
-  static const int kNodeDataFieldNumber = 3;
+  static const int kNodeDataFieldNumber = 4;
   inline const ::torps::ext::NodeSpecification& node_data(int index) const;
   inline ::torps::ext::NodeSpecification* mutable_node_data(int index);
   inline ::torps::ext::NodeSpecification* add_node_data();
@@ -346,10 +496,10 @@ class CoordInit : public ::google::protobuf::Message {
   inline ::google::protobuf::RepeatedPtrField< ::torps::ext::NodeSpecification >*
       mutable_node_data();
 
-  // repeated .torps.ext.LatencyInfo latency_map = 4;
+  // repeated .torps.ext.LatencyInfo latency_map = 5;
   inline int latency_map_size() const;
   inline void clear_latency_map();
-  static const int kLatencyMapFieldNumber = 4;
+  static const int kLatencyMapFieldNumber = 5;
   inline const ::torps::ext::LatencyInfo& latency_map(int index) const;
   inline ::torps::ext::LatencyInfo* mutable_latency_map(int index);
   inline ::torps::ext::LatencyInfo* add_latency_map();
@@ -360,6 +510,8 @@ class CoordInit : public ::google::protobuf::Message {
 
   // @@protoc_insertion_point(class_scope:torps.ext.CoordInit)
  private:
+  inline void set_has_num_networks();
+  inline void clear_has_num_networks();
   inline void set_has_update_interval_seconds();
   inline void clear_has_update_interval_seconds();
   inline void set_has_ping_interval_seconds();
@@ -367,13 +519,14 @@ class CoordInit : public ::google::protobuf::Message {
 
   ::google::protobuf::UnknownFieldSet _unknown_fields_;
 
+  ::google::protobuf::uint32 num_networks_;
   ::google::protobuf::uint32 update_interval_seconds_;
-  ::google::protobuf::uint32 ping_interval_seconds_;
   ::google::protobuf::RepeatedPtrField< ::torps::ext::NodeSpecification > node_data_;
   ::google::protobuf::RepeatedPtrField< ::torps::ext::LatencyInfo > latency_map_;
+  ::google::protobuf::uint32 ping_interval_seconds_;
 
   mutable int _cached_size_;
-  ::google::protobuf::uint32 _has_bits_[(4 + 31) / 32];
+  ::google::protobuf::uint32 _has_bits_[(5 + 31) / 32];
 
   friend void  protobuf_AddDesc_message_5fspec_2eproto();
   friend void protobuf_AssignDesc_message_5fspec_2eproto();
@@ -558,27 +711,37 @@ class CoordUpdate : public ::google::protobuf::Message {
 
   // accessors -------------------------------------------------------
 
-  // repeated .torps.ext.Coordinate coord = 1;
-  inline int coord_size() const;
-  inline void clear_coord();
-  static const int kCoordFieldNumber = 1;
-  inline const ::torps::ext::Coordinate& coord(int index) const;
-  inline ::torps::ext::Coordinate* mutable_coord(int index);
-  inline ::torps::ext::Coordinate* add_coord();
+  // required uint32 network_id = 1;
+  inline bool has_network_id() const;
+  inline void clear_network_id();
+  static const int kNetworkIdFieldNumber = 1;
+  inline ::google::protobuf::uint32 network_id() const;
+  inline void set_network_id(::google::protobuf::uint32 value);
+
+  // repeated .torps.ext.Coordinate coords = 2;
+  inline int coords_size() const;
+  inline void clear_coords();
+  static const int kCoordsFieldNumber = 2;
+  inline const ::torps::ext::Coordinate& coords(int index) const;
+  inline ::torps::ext::Coordinate* mutable_coords(int index);
+  inline ::torps::ext::Coordinate* add_coords();
   inline const ::google::protobuf::RepeatedPtrField< ::torps::ext::Coordinate >&
-      coord() const;
+      coords() const;
   inline ::google::protobuf::RepeatedPtrField< ::torps::ext::Coordinate >*
-      mutable_coord();
+      mutable_coords();
 
   // @@protoc_insertion_point(class_scope:torps.ext.CoordUpdate)
  private:
+  inline void set_has_network_id();
+  inline void clear_has_network_id();
 
   ::google::protobuf::UnknownFieldSet _unknown_fields_;
 
-  ::google::protobuf::RepeatedPtrField< ::torps::ext::Coordinate > coord_;
+  ::google::protobuf::RepeatedPtrField< ::torps::ext::Coordinate > coords_;
+  ::google::protobuf::uint32 network_id_;
 
   mutable int _cached_size_;
-  ::google::protobuf::uint32 _has_bits_[(1 + 31) / 32];
+  ::google::protobuf::uint32 _has_bits_[(2 + 31) / 32];
 
   friend void  protobuf_AddDesc_message_5fspec_2eproto();
   friend void protobuf_AssignDesc_message_5fspec_2eproto();
@@ -668,6 +831,13 @@ class ControlMessage : public ::google::protobuf::Message {
   inline ::torps::ext::CoordUpdate* release_update_data();
   inline void set_allocated_update_data(::torps::ext::CoordUpdate* update_data);
 
+  // optional uint32 get_network_id = 4;
+  inline bool has_get_network_id() const;
+  inline void clear_get_network_id();
+  static const int kGetNetworkIdFieldNumber = 4;
+  inline ::google::protobuf::uint32 get_network_id() const;
+  inline void set_get_network_id(::google::protobuf::uint32 value);
+
   // @@protoc_insertion_point(class_scope:torps.ext.ControlMessage)
  private:
   inline void set_has_type();
@@ -676,15 +846,18 @@ class ControlMessage : public ::google::protobuf::Message {
   inline void clear_has_init_data();
   inline void set_has_update_data();
   inline void clear_has_update_data();
+  inline void set_has_get_network_id();
+  inline void clear_has_get_network_id();
 
   ::google::protobuf::UnknownFieldSet _unknown_fields_;
 
   ::torps::ext::CoordInit* init_data_;
-  ::torps::ext::CoordUpdate* update_data_;
   int type_;
+  ::google::protobuf::uint32 get_network_id_;
+  ::torps::ext::CoordUpdate* update_data_;
 
   mutable int _cached_size_;
-  ::google::protobuf::uint32 _has_bits_[(3 + 31) / 32];
+  ::google::protobuf::uint32 _has_bits_[(4 + 31) / 32];
 
   friend void  protobuf_AddDesc_message_5fspec_2eproto();
   friend void protobuf_AssignDesc_message_5fspec_2eproto();
@@ -697,6 +870,103 @@ class ControlMessage : public ::google::protobuf::Message {
 
 
 // ===================================================================
+
+// StatusMessage
+
+// required .torps.ext.StatusMessage.Status status = 1;
+inline bool StatusMessage::has_status() const {
+  return (_has_bits_[0] & 0x00000001u) != 0;
+}
+inline void StatusMessage::set_has_status() {
+  _has_bits_[0] |= 0x00000001u;
+}
+inline void StatusMessage::clear_has_status() {
+  _has_bits_[0] &= ~0x00000001u;
+}
+inline void StatusMessage::clear_status() {
+  status_ = 1;
+  clear_has_status();
+}
+inline ::torps::ext::StatusMessage_Status StatusMessage::status() const {
+  return static_cast< ::torps::ext::StatusMessage_Status >(status_);
+}
+inline void StatusMessage::set_status(::torps::ext::StatusMessage_Status value) {
+  assert(::torps::ext::StatusMessage_Status_IsValid(value));
+  set_has_status();
+  status_ = value;
+}
+
+// optional string msg = 2;
+inline bool StatusMessage::has_msg() const {
+  return (_has_bits_[0] & 0x00000002u) != 0;
+}
+inline void StatusMessage::set_has_msg() {
+  _has_bits_[0] |= 0x00000002u;
+}
+inline void StatusMessage::clear_has_msg() {
+  _has_bits_[0] &= ~0x00000002u;
+}
+inline void StatusMessage::clear_msg() {
+  if (msg_ != &::google::protobuf::internal::kEmptyString) {
+    msg_->clear();
+  }
+  clear_has_msg();
+}
+inline const ::std::string& StatusMessage::msg() const {
+  return *msg_;
+}
+inline void StatusMessage::set_msg(const ::std::string& value) {
+  set_has_msg();
+  if (msg_ == &::google::protobuf::internal::kEmptyString) {
+    msg_ = new ::std::string;
+  }
+  msg_->assign(value);
+}
+inline void StatusMessage::set_msg(const char* value) {
+  set_has_msg();
+  if (msg_ == &::google::protobuf::internal::kEmptyString) {
+    msg_ = new ::std::string;
+  }
+  msg_->assign(value);
+}
+inline void StatusMessage::set_msg(const char* value, size_t size) {
+  set_has_msg();
+  if (msg_ == &::google::protobuf::internal::kEmptyString) {
+    msg_ = new ::std::string;
+  }
+  msg_->assign(reinterpret_cast<const char*>(value), size);
+}
+inline ::std::string* StatusMessage::mutable_msg() {
+  set_has_msg();
+  if (msg_ == &::google::protobuf::internal::kEmptyString) {
+    msg_ = new ::std::string;
+  }
+  return msg_;
+}
+inline ::std::string* StatusMessage::release_msg() {
+  clear_has_msg();
+  if (msg_ == &::google::protobuf::internal::kEmptyString) {
+    return NULL;
+  } else {
+    ::std::string* temp = msg_;
+    msg_ = const_cast< ::std::string*>(&::google::protobuf::internal::kEmptyString);
+    return temp;
+  }
+}
+inline void StatusMessage::set_allocated_msg(::std::string* msg) {
+  if (msg_ != &::google::protobuf::internal::kEmptyString) {
+    delete msg_;
+  }
+  if (msg) {
+    set_has_msg();
+    msg_ = msg;
+  } else {
+    clear_has_msg();
+    msg_ = const_cast< ::std::string*>(&::google::protobuf::internal::kEmptyString);
+  }
+}
+
+// -------------------------------------------------------------------
 
 // NodeSpecification
 
@@ -869,15 +1139,37 @@ inline void LatencyInfo::set_latency(double value) {
 
 // CoordInit
 
-// required uint32 update_interval_seconds = 1;
-inline bool CoordInit::has_update_interval_seconds() const {
+// optional uint32 num_networks = 1 [default = 1];
+inline bool CoordInit::has_num_networks() const {
   return (_has_bits_[0] & 0x00000001u) != 0;
 }
-inline void CoordInit::set_has_update_interval_seconds() {
+inline void CoordInit::set_has_num_networks() {
   _has_bits_[0] |= 0x00000001u;
 }
-inline void CoordInit::clear_has_update_interval_seconds() {
+inline void CoordInit::clear_has_num_networks() {
   _has_bits_[0] &= ~0x00000001u;
+}
+inline void CoordInit::clear_num_networks() {
+  num_networks_ = 1u;
+  clear_has_num_networks();
+}
+inline ::google::protobuf::uint32 CoordInit::num_networks() const {
+  return num_networks_;
+}
+inline void CoordInit::set_num_networks(::google::protobuf::uint32 value) {
+  set_has_num_networks();
+  num_networks_ = value;
+}
+
+// required uint32 update_interval_seconds = 2;
+inline bool CoordInit::has_update_interval_seconds() const {
+  return (_has_bits_[0] & 0x00000002u) != 0;
+}
+inline void CoordInit::set_has_update_interval_seconds() {
+  _has_bits_[0] |= 0x00000002u;
+}
+inline void CoordInit::clear_has_update_interval_seconds() {
+  _has_bits_[0] &= ~0x00000002u;
 }
 inline void CoordInit::clear_update_interval_seconds() {
   update_interval_seconds_ = 0u;
@@ -891,15 +1183,15 @@ inline void CoordInit::set_update_interval_seconds(::google::protobuf::uint32 va
   update_interval_seconds_ = value;
 }
 
-// optional uint32 ping_interval_seconds = 2 [default = 3];
+// optional uint32 ping_interval_seconds = 3 [default = 3];
 inline bool CoordInit::has_ping_interval_seconds() const {
-  return (_has_bits_[0] & 0x00000002u) != 0;
+  return (_has_bits_[0] & 0x00000004u) != 0;
 }
 inline void CoordInit::set_has_ping_interval_seconds() {
-  _has_bits_[0] |= 0x00000002u;
+  _has_bits_[0] |= 0x00000004u;
 }
 inline void CoordInit::clear_has_ping_interval_seconds() {
-  _has_bits_[0] &= ~0x00000002u;
+  _has_bits_[0] &= ~0x00000004u;
 }
 inline void CoordInit::clear_ping_interval_seconds() {
   ping_interval_seconds_ = 3u;
@@ -913,7 +1205,7 @@ inline void CoordInit::set_ping_interval_seconds(::google::protobuf::uint32 valu
   ping_interval_seconds_ = value;
 }
 
-// repeated .torps.ext.NodeSpecification node_data = 3;
+// repeated .torps.ext.NodeSpecification node_data = 4;
 inline int CoordInit::node_data_size() const {
   return node_data_.size();
 }
@@ -938,7 +1230,7 @@ CoordInit::mutable_node_data() {
   return &node_data_;
 }
 
-// repeated .torps.ext.LatencyInfo latency_map = 4;
+// repeated .torps.ext.LatencyInfo latency_map = 5;
 inline int CoordInit::latency_map_size() const {
   return latency_map_.size();
 }
@@ -1110,29 +1402,51 @@ Coordinate::mutable_vectors() {
 
 // CoordUpdate
 
-// repeated .torps.ext.Coordinate coord = 1;
-inline int CoordUpdate::coord_size() const {
-  return coord_.size();
+// required uint32 network_id = 1;
+inline bool CoordUpdate::has_network_id() const {
+  return (_has_bits_[0] & 0x00000001u) != 0;
 }
-inline void CoordUpdate::clear_coord() {
-  coord_.Clear();
+inline void CoordUpdate::set_has_network_id() {
+  _has_bits_[0] |= 0x00000001u;
 }
-inline const ::torps::ext::Coordinate& CoordUpdate::coord(int index) const {
-  return coord_.Get(index);
+inline void CoordUpdate::clear_has_network_id() {
+  _has_bits_[0] &= ~0x00000001u;
 }
-inline ::torps::ext::Coordinate* CoordUpdate::mutable_coord(int index) {
-  return coord_.Mutable(index);
+inline void CoordUpdate::clear_network_id() {
+  network_id_ = 0u;
+  clear_has_network_id();
 }
-inline ::torps::ext::Coordinate* CoordUpdate::add_coord() {
-  return coord_.Add();
+inline ::google::protobuf::uint32 CoordUpdate::network_id() const {
+  return network_id_;
+}
+inline void CoordUpdate::set_network_id(::google::protobuf::uint32 value) {
+  set_has_network_id();
+  network_id_ = value;
+}
+
+// repeated .torps.ext.Coordinate coords = 2;
+inline int CoordUpdate::coords_size() const {
+  return coords_.size();
+}
+inline void CoordUpdate::clear_coords() {
+  coords_.Clear();
+}
+inline const ::torps::ext::Coordinate& CoordUpdate::coords(int index) const {
+  return coords_.Get(index);
+}
+inline ::torps::ext::Coordinate* CoordUpdate::mutable_coords(int index) {
+  return coords_.Mutable(index);
+}
+inline ::torps::ext::Coordinate* CoordUpdate::add_coords() {
+  return coords_.Add();
 }
 inline const ::google::protobuf::RepeatedPtrField< ::torps::ext::Coordinate >&
-CoordUpdate::coord() const {
-  return coord_;
+CoordUpdate::coords() const {
+  return coords_;
 }
 inline ::google::protobuf::RepeatedPtrField< ::torps::ext::Coordinate >*
-CoordUpdate::mutable_coord() {
-  return &coord_;
+CoordUpdate::mutable_coords() {
+  return &coords_;
 }
 
 // -------------------------------------------------------------------
@@ -1238,6 +1552,28 @@ inline void ControlMessage::set_allocated_update_data(::torps::ext::CoordUpdate*
   }
 }
 
+// optional uint32 get_network_id = 4;
+inline bool ControlMessage::has_get_network_id() const {
+  return (_has_bits_[0] & 0x00000008u) != 0;
+}
+inline void ControlMessage::set_has_get_network_id() {
+  _has_bits_[0] |= 0x00000008u;
+}
+inline void ControlMessage::clear_has_get_network_id() {
+  _has_bits_[0] &= ~0x00000008u;
+}
+inline void ControlMessage::clear_get_network_id() {
+  get_network_id_ = 0u;
+  clear_has_get_network_id();
+}
+inline ::google::protobuf::uint32 ControlMessage::get_network_id() const {
+  return get_network_id_;
+}
+inline void ControlMessage::set_get_network_id(::google::protobuf::uint32 value) {
+  set_has_get_network_id();
+  get_network_id_ = value;
+}
+
 
 // @@protoc_insertion_point(namespace_scope)
 
@@ -1248,6 +1584,10 @@ inline void ControlMessage::set_allocated_update_data(::torps::ext::CoordUpdate*
 namespace google {
 namespace protobuf {
 
+template <>
+inline const EnumDescriptor* GetEnumDescriptor< ::torps::ext::StatusMessage_Status>() {
+  return ::torps::ext::StatusMessage_Status_descriptor();
+}
 template <>
 inline const EnumDescriptor* GetEnumDescriptor< ::torps::ext::Type>() {
   return ::torps::ext::Type_descriptor();
