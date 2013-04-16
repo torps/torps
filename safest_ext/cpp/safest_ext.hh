@@ -9,7 +9,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
-#include "message_spec.pb.hh"
+#include "message_spec.pb.h"
 #include "cpp_interface.hh"
 
 extern "C" {
@@ -17,6 +17,8 @@ extern "C" {
 }
 
 namespace cs {
+
+  const std::string empty = std::string();
 
   class CongestionDistribution {
 
@@ -48,6 +50,10 @@ namespace cs {
     void coord_msg_from_viv_instance(torps::ext::Coordinate *,
                                      const viv_instance_t *);
 
+    void send_response(int socket,
+                      torps::ext::StatusMessage::Status s,
+                      const std::string &status_msg = empty);
+
     /* Setup Functions */
     int initialize(const torps::ext::CoordInit & );
     bool is_initialized();
@@ -77,6 +83,7 @@ namespace cs {
     std::string msgbuf;
     struct sockaddr_in conn_addr;
     torps::ext::ControlMessage prepared_response;
+
 
   private:
     CoordinateEngine() {

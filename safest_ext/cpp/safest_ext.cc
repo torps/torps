@@ -1,5 +1,4 @@
 #include "safest_ext.hh"
-#include "message_spec.pb.hh"
 
 using namespace cs;
 
@@ -107,6 +106,27 @@ read_sock(int sock, std::string &dst)
   return dst.length();
 }
 
+void
+CoordinateEngine::send_response(int socket,
+                               torps::ext::StatusMessage::Status s,
+                               const std::string &status_msg)
+{
+  int rc;
+
+  torps::ext::StatusMessage msg;
+  if (status_msg.length() > 0) {
+    msg.set_msg(status_msg);
+  }
+  msg.set_status(s);
+
+  std::ostringstream obuf;
+  msg.SerializeToOstream(&obuf);
+  rc = send(socket,obuf.str().data(),obuf.str().size(),0);
+
+  if (rc != msg.ByteSize())
+    perror_quit("send");
+}
+
 int
 CoordinateEngine::dispatch(int socket)
 {
@@ -138,13 +158,17 @@ CoordinateEngine::dispatch(int socket)
         pick_ping_targets();
         if (step_coordinates() < 0) {
           fprintf(stderr,"Failed to step coordinates correctly\n");
+          send_response(socket,torps::ext::StatusMessage::ERR,
+                        "Failed to step coordinates correctly.");
         }
         prepare_response();
-        exit(0);
+
+        send_response(socket,torps::ext::StatusMessage::OK);
       }
       break;
 
     case torps::ext::GET:
+      send_response(socket,torps::ext::StatusMessage::DATA_NEXT);
       write_coordinates(socket);
       pick_ping_targets();
       rc = step_coordinates();
@@ -154,6 +178,8 @@ CoordinateEngine::dispatch(int socket)
     case torps::ext::COORDS:
       rc = -1;
       fprintf(stderr, "Coordinate engine doesn't respond to COORDS");
+      send_response(socket,torps::ext::StatusMessage::ERR,
+                    "CoordinateEngine doesn't respond to COORDS");
       break;
   }
 
@@ -281,8 +307,6 @@ CoordinateEngine::step_coordinates()
 
   fprintf(stderr,"Completed iteration in %ld seconds\n",time(0)-timer);
 
-
-
   return 0;
 }
 
@@ -320,7 +344,7 @@ CoordinateEngine::prepare_response()
   torps::ext::Coordinate *coord;
 
   for (uint32_t i = 0; i < instance_count; i++) {
-    coord = coords->add_coord();
+    coord = coords->add_coords();
     coord_msg_from_viv_instance(coord,&instances[i]);
   }
 
