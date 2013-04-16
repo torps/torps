@@ -9,7 +9,7 @@ CPPFLAGS = -g -Wall -pg -I../message_spec/protobuf-2.5.0/src/ -O2 #-std=c++0x -O
 PROD_CFLAGS = $(CFLAGS) -O2 #-std=c++0x 
 TESTDIR = test
 
-.PHONY: default all clean cmdline protobuf
+.PHONY: default all clean cmdline message_spec.pb.cc
 
 default: $(TARGET)
 all: default
@@ -31,9 +31,9 @@ HEADERS = $(wildcard *.h)
 	#gcc $(CFLAGS) -c $< -o $@
 #endif
 
-.PRECIOUS: $(TARGET) $(OBJECTS) $(C_OBJECTS)
+.PRECIOUS: $(TARGET) $(OBJECTS) $(C_OBJECTS) message_spec.pb.cc
 
-$(TARGET): $(CMD_SRC)  $(OBJECTS) $(C_OBJECTS) protobuf
+$(TARGET): $(CMD_SRC)  $(OBJECTS) $(C_OBJECTS) 
 	glibtool --tag=CXX --mode=link gcc -O2 -pg -g -O -o $@ $(LIBS) $(C_OBJECTS) $(OBJECTS) -Wall
 
 production: $(CMD_SRC) $(OBJECTS)
