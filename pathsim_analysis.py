@@ -137,7 +137,7 @@ class CompromisedSet:
 
         # cdf of guard bad
         out_filename = 'analyze-sim.' + out_name +\
-            '.guard-comp-rates.cdf.pdf' 
+            '.guard-comp-rates.pickle' 
         out_pathname = os.path.join(out_dir, out_filename)                           
         with open(out_pathname, 'wb') as f:
             pickle.dump(frac_guard_bad, f, pickle.HIGHEST_PROTOCOL)
