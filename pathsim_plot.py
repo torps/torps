@@ -416,19 +416,26 @@ def compromised_top_relays_plot(pathnames, out_dir):
         
 
 if __name__ == '__main__':
-    usage = 'Usage: pathsim_plot.py [in_dir] [out_dir]\nTakes all files in in_dir, plots their contents, and outputs the results to out_dir.'
-    if (len(sys.argv) < 3):
+    usage = 'Usage: pathsim_plot.py [plot type] [in_dir] [out_dir]: \nTakes all files in in_dir, plots their contents according to type, and outputs the results to out_dir. Plot type is one of "set" or "top".'
+    if (len(sys.argv) < 4):
         print(usage)
         sys.exit(1)
         
-    in_dir = sys.argv[1]
-    out_dir = sys.argv[2]
+    plot_type = sys.argv[1]
+    if (plot_type != 'set') and (plot_type != 'top'):
+        print(usage)
+        sys.exit(1)
+    in_dir = sys.argv[2]
+    out_dir = sys.argv[3]
     
     pathnames = []
     for dirpath, dirnames, fnames in os.walk(in_dir):
         for fname in fnames:
             pathnames.append(os.path.join(in_dir,fname))
     pathnames.sort()
-            
-    # plot data from compromised-set adversary
-    compromised_set_plot(pathnames, out_dir)
+    
+    if (plot_type == 'set'):
+        # plot data from compromised-set adversary
+        compromised_set_plot(pathnames, out_dir)
+    elif (plot_type == 'top'):
+        compromised_top_relays_plot(pathnames, out_dir)
