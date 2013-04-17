@@ -27,7 +27,7 @@ class RouterStatusEntry:
         # not currently used, but potentially useful
         self.address = address # IP address in consensus
         self.or_port = or_port
-        self.exit_policy # micro exit policy
+        self.exit_policy = exit_policy # micro exit policy
     
 
 class NetworkStatusDocument:
@@ -53,8 +53,8 @@ class ServerDescriptor:
     Trim version of stem.descriptor.server_descriptor.ServerDescriptor.
     """
     def __init__(self, fingerprint, hibernating, nickname, family, address,\
-        exit_policy, published, or_port, uptime, average_bandwidth,\
-        burst_bandwidth, observed_bandwidth):
+        exit_policy, or_port, uptime, average_bandwidth, burst_bandwidth,\
+        observed_bandwidth):
         self.fingerprint = fingerprint
         self.hibernating = hibernating
         self.nickname = nickname
@@ -63,7 +63,6 @@ class ServerDescriptor:
         self.exit_policy = exit_policy
         
         # not currently used, but potentially useful
-        self.published = published
         self.or_port = or_port
         self.uptime = uptime
         self.average_bandwidth = average_bandwidth
@@ -173,7 +172,8 @@ We collected session traces of approximately 20 minutes for each usage class. We
 
     def get_streams(self, session):
         return self.model[session]
-
+        
+        
 def timestamp(t):
     """Returns UNIX timestamp"""
     td = t - datetime.datetime(1970, 1, 1)
@@ -331,7 +331,7 @@ def process_consensuses(in_dirs):
                         ServerDescriptor(desc.fingerprint, \
                             desc.hibernating, desc.nickname, \
                             desc.family, desc.address, \
-                            desc.exit_policy, desc.published, desc.or_port,\
+                            desc.exit_policy, desc.or_port,\
                             desc.uptime, desc.average_bandwidth,\
                             desc.burst_bandwidth, desc.observed_bandwidth)                           
                      
@@ -1254,7 +1254,8 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
             'cons_rel_stats':cons_rel_stats,\
             'covering':[]}
     
-def create_circuits(network_state_files, streams, num_samples):
+def create_circuits(network_state_files, streams, num_samples, add_relays,\
+    add_descriptors):
     """Takes streams over time and creates circuits by interaction
     with create_circuit().
       Input:
@@ -1266,6 +1267,10 @@ def create_circuits(network_state_files, streams, num_samples):
             'ip': IP address of destination
             'port': desired TCP port
         num_samples: (int) # circuit-creation samples to take for given streams
+        add_relays: (dict: fprint->RouterStatusEntry)
+            add to all existing consensuses (as usual network state just
+            continued for missing consensuses)
+        add_descriptors: (dict: fprint->ServerDescriptor) add to descriptors
     Output:
         [Prints circuit and guard selections of clients.]
     """
@@ -1306,12 +1311,25 @@ def create_circuits(network_state_files, streams, num_samples):
     port_need_cover_num = 2
     ### End Tor parameters ###
     
+    
+    ### Simulation variables ###
+    cur_period_start = None
+    cur_period_end = None
+    stream_start = 0
+    stream_end = 0
+    init = True
+
+    # store old descriptors (for entry guards that leave consensus)
+    # initialize with add_descriptors 
+    descriptors = {}
+    descriptors.update(add_descriptors)
+    
     port_needs_global = {}
 
-    ### Client states for each sample ###
+    # client states for each sample
     client_states = []
     for i in range(num_samples):
-        # guard is fingerprint -> {'expires':exp_time, 'bad_since':bad_since}
+        # guard is dict with client guard state (expiration, bad_since, etc.)
         # port_needs are ports that must be covered by existing circuits        
         # circuit vars are ordered by increasing time since create or dirty
         port_needs_covered = {}
@@ -1321,19 +1339,10 @@ def create_circuits(network_state_files, streams, num_samples):
                             'clean_exit_circuits':collections.deque(),
                             'dirty_exit_circuits':collections.deque()})
     
-    ### Simulation variables ###
-    cur_period_start = None
-    cur_period_end = None
-    stream_start = 0
-    stream_end = 0
-    init = True
-    
     if (not _testing):
         print('Sample\tTimestamp\tGuard IP\tMiddle IP\tExit IP\tDestination\
  IP\tGuard Fingerprint\tMiddle Fingerprint\tExit Fingerprint')
 
-     # store old descriptors (for entry guards that leave consensus)    
-    descriptors = {}
     # run simulation period one pair of consensus/descriptor files at a time
     for ns_file in network_state_files:
         # read in network states            
@@ -1351,7 +1360,7 @@ def create_circuits(network_state_files, streams, num_samples):
             with open(ns_file, 'r') as nsf:
                 consensus = pickle.load(nsf)
                 new_descriptors = pickle.load(nsf)
-                hibernating_statuses = pickle.load(nsf)
+                new_hibernating_statuses = pickle.load(nsf)
                 
                 # set variables from consensus
                 cons_valid_after = timestamp(consensus.valid_after)            
@@ -1364,6 +1373,17 @@ def create_circuits(network_state_files, streams, num_samples):
                 for relay in consensus.relays:
                     if (relay in new_descriptors):
                         cons_rel_stats[relay] = consensus.relays[relay]
+
+                # include additional relays in consensus
+                for fprint, relay in add_relays.items():
+                    if fprint in cons_rel_stats:
+                        raise ValueError(\
+                            'Added relay exists in consensus: {0}:{1}'.\
+                                format(relay.nickname, fprint))
+                    cons_rel_stats[fprint] = relay
+                # include hibernating statuses for adde relays
+                hibernating_statuses = [(0, fp, False) for fp in add_relays]
+                hibernating_statuses.extend(new_hibernating_statuses)
                         
                 # update descriptors
                 descriptors.update(new_descriptors)
@@ -1785,10 +1805,76 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
         # get our stream creation model from our user traces
         # available sessions:
         # "simple", "facebook", "gmailgchat", "gcalgdocs", "websearch", "irc", "bittorrent"
-        streams = get_stream_model(start_time, end_time, tracefilename, session="simple")
+        streams = get_stream_model(start_time, end_time, tracefilename,\
+            session="simple")
+        
+        adv_relays = {}
+        adv_descriptors = {}
+        # choose adversarial guards to add to network
+        num_adv_guards = 4
+        for i in xrange(num_adv_guards):
+            # create consensus
+            num_str = str(i+1)
+            fingerprint = '0' * (40-len(num_str)) + num_str
+            nickname = 'BadGuyGuard' + num_str
+            flags = [stem.Flag.FAST, stem.Flag.GUARD, stem.Flag.RUNNING, \
+                stem.Flag.STABLE, stem.Flag.VALID]
+            bandwidth = 128000 #TBD more justifiably
+            address = '10.'+num_str+'.0.0' # avoid /16 conflicts
+            or_port = 80
+            micro_exit_policy = stem.exit_policy.MicroExitPolicy(\
+                'reject 1-65535')
+            adv_relays[fingerprint] = RouterStatusEntry(fingerprint, nickname,\
+                flags, bandwidth, address, or_port, micro_exit_policy)
+
+            # create descriptor
+            hibernating = False
+            family = {}
+            exit_policy = stem.exit_policy.ExitPolicy('reject *:*')
+            uptime = 60*60*24*31 # say, one month uptime
+            average_bandwidth = 1024*1024*1024 # 1 GBps, though unused
+            burst_bandwidth = 1024*1024*1024 # 1 GBps, though unused
+            observed_bandwidth = 1024*1024*1024 # 1 GBps, though unused
+            adv_descriptors[fingerprint] = ServerDescriptor(fingerprint,\
+                hibernating, nickname, family, address, exit_policy,\
+                or_port, uptime, average_bandwidth, burst_bandwidth,\
+                observed_bandwidth)
+
+
+        # choose adversarial exits to add to network
+        num_adv_exits = 1
+        for i in xrange(num_adv_exits):
+            # create consensus
+            num_str = str(i+1)
+            fingerprint = 'F' * (40-len(num_str)) + num_str
+            nickname = 'BadGuyExit' + num_str
+            flags = [stem.Flag.FAST, stem.Flag.EXIT, stem.Flag.RUNNING, \
+                stem.Flag.STABLE, stem.Flag.VALID]
+            bandwidth = 128000 #TBD more justifiably
+            # avoid /16 conflicts
+            address = '10.'+str(num_adv_guards+i+1)+'.0.0' 
+            or_port = 80
+            micro_exit_policy = stem.exit_policy.MicroExitPolicy(\
+                'accept 1-65535')
+            adv_relays[fingerprint] = RouterStatusEntry(fingerprint, nickname,\
+                flags, bandwidth, address, or_port, micro_exit_policy)
+                
+            # create descriptor
+            hibernating = False
+            family = {}
+            exit_policy = stem.exit_policy.ExitPolicy('accept *:*')
+            uptime = 60*60*24*31 # say, one month uptime
+            average_bandwidth = 1024*1024*1024 # 1 GBps, though unused
+            burst_bandwidth = 1024*1024*1024 # 1 GBps, though unused
+            observed_bandwidth = 1024*1024*1024 # 1 GBps, though unused
+            adv_descriptors[fingerprint] = ServerDescriptor(fingerprint,\
+                hibernating, nickname, family, address, exit_policy,\
+                or_port, uptime, average_bandwidth, burst_bandwidth,\
+                observed_bandwidth)                
 
         # simulate the circuits for these streams
-        create_circuits(network_state_files, streams, num_samples)    
+        create_circuits(network_state_files, streams, num_samples, adv_relays,\
+            adv_descriptors)  
     elif (command == 'concattraces'): 
         if len(sys.argv) != 9: print usage; sys.exit(1)           
         ut = UserTraces(sys.argv[3], sys.argv[4], sys.argv[5], sys.argv[6], sys.argv[7], sys.argv[8])
@@ -1804,71 +1890,3 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
 #   satisfy that, but they may just by chance. should we check?
 # - Tor actually seems to build a circuit to cover a port by randomly selecting from exits that cover *some* unhandled port (see choose_good_exit_server_general() in circuitbuild.c). Possibly change procedure for covering ports to act like this.
 # - We should expire descriptors older than router_max_age on a per-minute basis. I'm not sure exactly how relays in the consensus but without descriptors are treated, especially in terms of putting guards down. As an approximation, we expire descriptors while building consensuses, and thus do so at most an hour off from when a running relay would. Given that router_max_age is 48 hours, that not large relative error for how long a relay may be used. Also, I don't think that in the Tor metrics data a relay ever appears in the consensus but does not have a recent descriptor.
-
-
-##### Relevant lines for path selection extracted from Tor specs.
-
-# Circuit creation according to path-spec.txt
-# Specifically, on startup Tor tries to maintain one clean
-# fast exit circuit that allows connections to port 80, and at least
-# two fast clean stable internal circuits in case we get a resolve
-# request...
-# After that, Tor will adapt the circuits that it preemptively builds
-# based on the requests it sees from the user: it tries to have two
-# fast
-# clean exit circuits available for every port seen within the past
-# hour
-# (each circuit can be adequate for many predicted ports -- it doesn't
-# need two separate circuits for each port), and it tries to have the
-# above internal circuits available if we've seen resolves or hidden
-# service activity within the past hour...
-# Additionally, when a client request exists that no circuit (built or
-# pending) might support, we create a new circuit to support the
-# request.
-# For exit connections, we pick an exit node that will handle the
-# most pending requests (choosing arbitrarily among ties) 
-
-# Path selection according to dir-spec.txt
-# 1. Clients SHOULD NOT use non-'Valid' or non-'Running' routers
-# 2. Clients SHOULD NOT use non-'Fast' routers for any purpose other than
-#    very-low-bandwidth circuits (such as introduction circuits).
-# 3. Clients SHOULD NOT use non-'Stable' routers for circuits that are
-#    likely to need to be open for a very long time
-# 4. Clients SHOULD NOT choose non-'Guard' nodes when picking entry guard
-# 5. if the [Hibernate] value is 1, then the Tor relay was hibernating when
-#    the descriptor was published, and shouldn't be used to build circuits."    
-
-# Path selection according to path-spec.txt
-# 1. We weight node selection according to router bandwidth
-# 2. We also weight the bandwidth of Exit and Guard flagged
-# nodes       
-# depending on the fraction of total bandwidth that they make
-#up 
-# and depending upon the position they are being selected for.
-# 4. IP address and port. If dest. IP is unknown, we need to
-# pick    
-# an exit node that "might support" connections to a
-# given address port with an unknown address.  An exit node
-# "might 
-# support" such a connection if any clause that accepts any 
-# connections to that port precedes all clauses that reject all       
-# connections to that port.
-# 5. We never choose an exit node flagged as "BadExit"
-# ...
-# 6. We do not choose the same router twice for the same path.
-# 7. We do not choose any router in the same family as another in the same
-#    path.
-# 8. We do not choose more than one router in a given /16 subnet
-#    (unless EnforceDistinctSubnets is 0).
-# 9. We don't choose any non-running or non-valid router unless we have
-#    been configured to do so. By default, we are configured to allow
-#    non-valid routers in "middle" and "rendezvous" positions.
-# 10. If we're using Guard nodes, the first node must be a Guard (see 5
-#     below)
-# ...
-# [Sec. 5]
-#  A guard is unusable if any of the following hold:
-#    - it is not marked as a Guard by the networkstatuses,
-#    - it is not marked Valid (and the user hasn't set AllowInvalid
-#    - it is not marked Running
-#    - Tor couldn't reach it the last time it tried to connect
