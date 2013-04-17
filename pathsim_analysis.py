@@ -33,7 +33,6 @@ def compromised_set_process_log(compromised_relays, out_dir, out_name,\
             guard_ip = line_fields[2]
             exit_ip = line_fields[4]
 
-
             # add entries for sample not yet seen
             if (len(compromise_stats) <= id):
                 for i in xrange(id+1 - len(compromise_stats)):

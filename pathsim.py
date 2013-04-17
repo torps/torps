@@ -17,11 +17,17 @@ class RouterStatusEntry:
     Represents a relay entry in a consensus document.
     Trim version of stem.descriptor.router_status_entry.RouterStatusEntry.
     """
-    def __init__(self, fingerprint, nickname, flags, bandwidth):
+    def __init__(self, fingerprint, nickname, flags, bandwidth, address,\
+        or_port, exit_policy):
         self.fingerprint = fingerprint
         self.nickname = nickname
         self.flags = flags
         self.bandwidth = bandwidth
+        
+        # not currently used, but potentially useful
+        self.address = address # IP address in consensus
+        self.or_port = or_port
+        self.exit_policy # micro exit policy
     
 
 class NetworkStatusDocument:
@@ -29,12 +35,16 @@ class NetworkStatusDocument:
     Represents a consensus document.
     Trim version of stem.descriptor.networkstatus.NetworkStatusDocument.
     """
-    def __init__(self, valid_after, fresh_until, bandwidth_weights, bwweightscale, relays):
+    def __init__(self, valid_after, fresh_until, bandwidth_weights, \
+        bwweightscale, relays, is_microdescriptor):
         self.valid_after = valid_after
         self.fresh_until = fresh_until
         self.bandwidth_weights = bandwidth_weights
         self.bwweightscale = bwweightscale
         self.relays = relays
+        
+        # not currently used, but potentially useful
+        self.is_microdescriptor = is_microdescriptor
 
 
 class ServerDescriptor:
@@ -43,13 +53,22 @@ class ServerDescriptor:
     Trim version of stem.descriptor.server_descriptor.ServerDescriptor.
     """
     def __init__(self, fingerprint, hibernating, nickname, family, address,\
-        exit_policy):
+        exit_policy, published, or_port, uptime, average_bandwidth,\
+        burst_bandwidth, observed_bandwidth):
         self.fingerprint = fingerprint
         self.hibernating = hibernating
         self.nickname = nickname
         self.family = family
         self.address = address
         self.exit_policy = exit_policy
+        
+        # not currently used, but potentially useful
+        self.published = published
+        self.or_port = or_port
+        self.uptime = uptime
+        self.average_bandwidth = average_bandwidth
+        self.burst_bandwidth = burst_bandwidth
+        self.observed_bandwidth = observed_bandwidth
 
 class UserTraces(object):
     """
@@ -242,6 +261,7 @@ def process_consensuses(in_dirs):
             cons_fresh_until = None
             cons_bw_weights = None
             cons_bwweightscale = None
+            cons_is_microdescriptor = None
             relays = {}
             num_not_found = 0
             num_found = 0
@@ -260,9 +280,14 @@ def process_consensuses(in_dirs):
                     ('bwweightscale' in r_stat.document.params):
                     cons_bwweightscale = r_stat.document.params[\
                             'bwweightscale']
+                if (cons_is_microdescriptor == None):
+                    cons_is_microdescriptor =\
+                        r_stat.document.is_microdescriptor
                 relays[r_stat.fingerprint] = RouterStatusEntry(\
                     r_stat.fingerprint, r_stat.nickname, \
-                    r_stat.flags, r_stat.bandwidth)
+                    r_stat.flags, r_stat.bandwidth, r_stat.address,\
+                    r_stat.or_port, r_stat.exit_policy)
+
                 # find most recent unexpired descriptor published before
                 # the publication time in the consensus
                 # and status changes in fresh period (i.e. hibernation)
@@ -306,8 +331,10 @@ def process_consensuses(in_dirs):
                         ServerDescriptor(desc.fingerprint, \
                             desc.hibernating, desc.nickname, \
                             desc.family, desc.address, \
-                            desc.exit_policy) 
-                            
+                            desc.exit_policy, desc.published, desc.or_port,\
+                            desc.uptime, desc.average_bandwidth,\
+                            desc.burst_bandwidth, desc.observed_bandwidth)                           
+                     
                     # store hibernating statuses
                     if (desc_time_fresh == None):
                         raise ValueError('Descriptor error for {0}:{1}.\n Found  descriptor before published date {2}: {3}\nDid not find descriptor for initial hibernation status for fresh period starting {4}.'.format(r_stat.nickname, r_stat.fingerprint, pub_time, desc_time, valid_after_ts))
@@ -342,7 +369,7 @@ def process_consensuses(in_dirs):
                 (cons_fresh_until != None):
                 consensus = NetworkStatusDocument(cons_valid_after,\
                     cons_fresh_until, cons_bw_weights,\
-                    cons_bwweightscale, relays)
+                    cons_bwweightscale, relays, cons_is_microdescriptor)    
                 hibernating_statuses.sort(key = lambda x: x[0],\
                     reverse=True)
                 outpath = os.path.join(desc_out_dir,\
@@ -1379,16 +1406,16 @@ def create_circuits(network_state_files, streams, num_samples):
                         format(cons_rel_stats[hs[1]].nickname))
         # TMP
         # quick check: relays in cons_rel_stats should have hibernating status
-        for relay in cons_rel_stats:
-            if (relay not in hibernating_status):
-                hstat = None
-                for hs in hibernating_statuses:
-                    if (hs[1] == relay):
-                        hstat = hs
-                        break
-                raise ValueError('Problem with {0}.\n In cons_rel_stats: {1}\n\
-In descriptors: {2}\n In hibernating_status: {3}\nLeft in hibernating_statuses: {4}'.format(relay, relay in cons_rel_stats, relay in descriptors, \
-relay in hibernating_status, hstat))
+#        for relay in cons_rel_stats:
+#            if (relay not in hibernating_status):
+#                hstat = None
+#                for hs in hibernating_statuses:
+#                    if (hs[1] == relay):
+#                        hstat = hs
+#                        break
+#                raise ValueError('Problem with {0}.\n In cons_rel_stats: {1}\n\
+#In descriptors: {2}\n In hibernating_status: {3}\nLeft in hibernating_statuses: {4}'.format(relay, relay in cons_rel_stats, relay in descriptors, \
+#relay in hibernating_status, hstat))
         
         if (init == True): # first period in simulation
             # seed port need
@@ -1729,13 +1756,13 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
         process_consensuses(in_dirs)
     elif (command == 'simulate'):
         # get lists of consensuses and the related processed-descriptor files 
-        descriptor_dir = sys.argv[2] if len(sys.argv) >= 3 else 'out/processed-descriptors'
+        network_state_files_dir = sys.argv[2] if len(sys.argv) >= 3 else 'out/network-state-files'
         num_samples = int(sys.argv[3]) if len(sys.argv) >= 4 else 1
         tracefilename = sys.argv[4] if len(sys.argv) >= 5 else "traces.pickle"
         _testing = True if len(sys.argv) >= 6 else False
         
         network_state_files = []
-        for dirpath, dirnames, filenames in os.walk(descriptor_dir,\
+        for dirpath, dirnames, filenames in os.walk(network_state_files_dir,\
             followlinks=True):
             for filename in filenames:
                 if (filename[0] != '.'):
