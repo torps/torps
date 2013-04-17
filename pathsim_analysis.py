@@ -474,7 +474,7 @@ def simulation_analysis(log_files, process_log, process_log_args):
 if __name__ == '__main__':
     usage = 'Usage: pathsim_analysis.py [command]\nCommands:\n\
 \tnetwork [in_dir]:  Analyze the network status files in in_dir.\n\
-\tsimulation [in_dir] [out_dir] [out_name]: Analyze the simulation logs in in_dir against adversary and write statistics to files in out_dir in files with names containing [out_name].'
+\tsimulation [type] [in_dir] [out_dir] [out_name]: Do analysis against adversary of type "set" or "top". Use simulation logs in in_dir and write statistics to files in out_dir in files with names containing [out_name].'
     if (len(sys.argv) < 2):
         print(usage)
         sys.exit(1)
@@ -517,14 +517,18 @@ if __name__ == '__main__':
             guard_group, exit_group)
             
     elif (command == 'simulation'):
-        if (len(sys.argv) < 5):
+        if (len(sys.argv) < 6):
             print(usage)
             sys.exit(1)
             
         # get list of log files
-        in_dir = sys.argv[2]
-        out_dir = sys.argv[3]
-        out_name = sys.argv[4]
+        type = sys.argv[2]
+        if (type != 'set') and (type != 'top'):
+            print(usage)
+            sys.exit(1)        
+        in_dir = sys.argv[3]
+        out_dir = sys.argv[4]
+        out_name = sys.argv[5]
         log_files = []
         for dirpath, dirnames, filenames in os.walk(in_dir, followlinks=True):
             for filename in filenames:
@@ -532,60 +536,64 @@ if __name__ == '__main__':
                     log_files.append(os.path.join(dirpath,filename))
         log_files.sort(key = lambda x: os.path.basename(x))
         
-        # set malicious ips (top guards/exits, determined manually)
-        # 1        BigBoy              38.229.79.2
-        # 2        ph3x                86.59.119.83
-        # 3        TORy2               137.56.163.46
-        # 4        TORy3               137.56.163.46  ## DUP!
-        # 5        PPrivCom016         46.165.196.73
-        # 6        oilsrv1             62.220.136.253
-        # 7        OldPlanetExpress    85.214.75.110
-        # 8        OnionsAndAtoms      18.85.8.71
-        # 9        IDXFdotcomMinz      85.17.122.34
-        # 10        TORy1               137.56.163.64
-        top_guard_ips = ['38.229.79.2', '86.59.119.83', '137.56.163.46',\
-            '46.165.196.73', '62.220.136.253', '85.214.75.110', '18.85.8.71',\
-            '85.17.122.34', '137.56.163.64']
-        # Top exits 3/12-4/12
-        # 1        ZhangPoland1        178.217.184.147
-        # 2        rainbowwarrior      77.247.181.164
-        # 3        hazare              96.44.163.77
-        # 4        TorLand1            146.185.23.179
-        # 5        manning             173.254.192.36
-        # 6        chomsky             77.247.181.162
-        # 7        saeed               96.44.163.75
-        # 8        wau                 109.163.233.200
-        # 9        TorLand2            146.185.23.180
-        # 10        chaoscomputerclub18 31.172.30.1
-        top_exit_ips = ['178.217.184.147', '77.247.181.164', '96.44.163.77',\
-            '146.185.23.179', '173.254.192.36', '77.247.181.162',\
-            '96.44.163.75', '109.163.233.200', '146.185.23.180', '31.172.30.1']
-
-        top_relay_adversary = CompromiseTopRelays(top_guard_ips, top_exit_ips)        
-        simulation_analysis(log_files, top_relay_adversary)
-        #top_relay_adversary.write_stats(out_dir, out_name)
-        top_relay_adversary.output_stats_plot_data(out_dir, out_name)
-        
-        
-        # taken from fingerprints_to_ips.py
-        pprivcom_ips = ['192.162.102.50', '212.117.161.80', '204.45.70.98',\
-            '95.128.242.224', '84.19.178.6', '95.143.192.159',\
-            '92.243.26.232', '212.117.177.110', '50.7.240.10',\
-            '41.215.241.234', '195.254.134.10', '208.53.158.59',\
-            '82.195.232.218', '192.162.100.209', '95.211.13.145',\
-            '213.163.64.43', '95.211.10.25', '46.37.167.122',\
-            '212.117.162.222', '46.37.168.82', '67.205.112.74',\
-            '84.19.178.7', '95.211.99.91', '79.134.255.67',\
-            '213.163.65.50', '195.254.134.194', '212.117.160.22',\
-            '212.117.162.192', '212.117.163.21', '46.165.196.73',\
-            '212.117.165.197', '212.117.162.194']
-        chaoscomputerclub_ips = ['192.162.102.224', '80.237.226.75',\
-            '62.113.219.5', '62.113.219.6', '31.172.30.1', '80.237.226.74',\
-            '62.113.219.4', '31.172.30.2', '31.172.30.3', '62.113.219.3',\
-            '31.172.30.4', '80.237.226.76', '80.237.226.73']
-
-        compromised_relays = []
-        compromised_relays.extend(pprivcom_ips)
-        compromised_relays.extend(chaoscomputerclub_ips)
-        args = (compromised_relays, out_dir, out_name)
-        simulation_analysis(log_files, compromised_set_process_log, args)
+        if (type == 'top'):
+            # set malicious ips (top guards/exits, determined manually)
+            # 1        BigBoy              38.229.79.2
+            # 2        ph3x                86.59.119.83
+            # 3        TORy2               137.56.163.46
+            # 4        TORy3               137.56.163.46  ## DUP!
+            # 5        PPrivCom016         46.165.196.73
+            # 6        oilsrv1             62.220.136.253
+            # 7        OldPlanetExpress    85.214.75.110
+            # 8        OnionsAndAtoms      18.85.8.71
+            # 9        IDXFdotcomMinz      85.17.122.34
+            # 10        TORy1               137.56.163.64
+            top_guard_ips = ['38.229.79.2', '86.59.119.83', '137.56.163.46',\
+                '46.165.196.73', '62.220.136.253', '85.214.75.110',\
+                '18.85.8.71',\
+                '85.17.122.34', '137.56.163.64']
+            # Top exits 3/12-4/12
+            # 1        ZhangPoland1        178.217.184.147
+            # 2        rainbowwarrior      77.247.181.164
+            # 3        hazare              96.44.163.77
+            # 4        TorLand1            146.185.23.179
+            # 5        manning             173.254.192.36
+            # 6        chomsky             77.247.181.162
+            # 7        saeed               96.44.163.75
+            # 8        wau                 109.163.233.200
+            # 9        TorLand2            146.185.23.180
+            # 10        chaoscomputerclub18 31.172.30.1
+            top_exit_ips = ['178.217.184.147', '77.247.181.164',\
+                '96.44.163.77',\
+                '146.185.23.179', '173.254.192.36', '77.247.181.162',\
+                '96.44.163.75', '109.163.233.200', '146.185.23.180',\
+                '31.172.30.1']
+                
+            args = (top_guards_ips, top_exits_ips, out_dir, out_name)
+            simulation_analysis(log_files, compromised_top_relays_process_log,\
+                args)
+        elif (type == 'set'):
+            # taken from fingerprints_to_ips.py
+            pprivcom_ips = ['192.162.102.50', '212.117.161.80',\
+                '204.45.70.98',\
+                '95.128.242.224', '84.19.178.6', '95.143.192.159',\
+                '92.243.26.232', '212.117.177.110', '50.7.240.10',\
+                '41.215.241.234', '195.254.134.10', '208.53.158.59',\
+                '82.195.232.218', '192.162.100.209', '95.211.13.145',\
+                '213.163.64.43', '95.211.10.25', '46.37.167.122',\
+                '212.117.162.222', '46.37.168.82', '67.205.112.74',\
+                '84.19.178.7', '95.211.99.91', '79.134.255.67',\
+                '213.163.65.50', '195.254.134.194', '212.117.160.22',\
+                '212.117.162.192', '212.117.163.21', '46.165.196.73',\
+                '212.117.165.197', '212.117.162.194']
+            chaoscomputerclub_ips = ['192.162.102.224', '80.237.226.75',\
+                '62.113.219.5', '62.113.219.6', '31.172.30.1',\
+                '80.237.226.74',\
+                '62.113.219.4', '31.172.30.2', '31.172.30.3', '62.113.219.3',\
+                '31.172.30.4', '80.237.226.76', '80.237.226.73']
+    
+            compromised_relays = []
+            compromised_relays.extend(pprivcom_ips)
+            compromised_relays.extend(chaoscomputerclub_ips)
+            args = (compromised_relays, out_dir, out_name)
+            simulation_analysis(log_files, compromised_set_process_log, args)
