@@ -232,7 +232,7 @@ CoordinateEngine::cleanup()
   delete[] latencies;
 }
 
-/* Initialize the coordinate engine according to the parameters 
+/* Initialize the coordinate engine according to the parameters
  * in msg*/
 int
 CoordinateEngine::initialize(const torps::ext::CoordInit & msg)
@@ -304,7 +304,7 @@ CoordinateEngine::step_coordinates()
       target_node = ping_targets[pinging_node][target_idx];
       assert(target_node != pinging_node);
       fprintf(stderr,"Iteration %d of %d. Stepping node '%s' (%d of %d).\n",
-                    target_idx+1, 
+                    target_idx+1,
                     node_pings_per_interval,
                     instances[pinging_node].nodeid,
                     pinging_node+1,instance_count);

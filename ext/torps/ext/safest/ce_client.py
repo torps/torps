@@ -63,12 +63,12 @@ class CoordinateEngineClient(object):
     self.socket= None
     self.log = logging.getLogger("CoordinateEngineClient")
 
-  """
-  Creates the CoordinateEngineClient, and establishes
-  a TCP connection with the server. Note that setup()
-  MUST still be called.
-  """
   def connect(self,host,port):
+    """
+    Creates the CoordinateEngineClient, and establishes
+    a TCP connection with the server. Note that setup()
+    MUST still be called.
+    """
     self.socket = socket.create_connection((host,port))
 
   def set_logger(self,logger):
@@ -78,27 +78,26 @@ class CoordinateEngineClient(object):
     """
     self.log = logger
 
-  """
-  Setup the CoordinateEngineClient with the specifics of 
-  the coordinate system that needs to be emulated. 'num_networks' copies of
-  the coordinate system will be instantiated for separate samples.
-
-  The most important argument is 'instances', which should
-  be a collection of NodeInfo objects, each of which contain
-  the id, and congestion distribution for one of the nodes
-  in the coordinate system.
-
-  'latency_map' should be an adjacency list format designating the latency and
-  links between pairs of nodes. For instances, {'n1': {'n2': 50 } } would
-  designate a link between 'n1' and 'n2' with a cost of 50 milliseconds. The
-  keys of the dictionary should be NodeInfo nodeids. 
-
-  There are two additional parameters, 'update_intvl' and 'ping_intvl',
-  which specify, in seconds, the length of the coordinate system update 
-  and node ping intervals respectively.
-  """
   def setup(self, num_networks, instances, latency_map, update_intvl = 3600, ping_intvl = 3 ):
+    """
+    Setup the CoordinateEngineClient with the specifics of
+    the coordinate system that needs to be emulated. 'num_networks' copies of
+    the coordinate system will be instantiated for separate samples.
 
+    The most important argument is 'instances', which should
+    be a collection of NodeInfo objects, each of which contain
+    the id, and congestion distribution for one of the nodes
+    in the coordinate system.
+
+    'latency_map' should be an adjacency list format designating the latency and
+    links between pairs of nodes. For instances, {'n1': {'n2': 50 } } would
+    designate a link between 'n1' and 'n2' with a cost of 50 milliseconds. The
+    keys of the dictionary should be NodeInfo nodeids.
+
+    There are two additional parameters, 'update_intvl' and 'ping_intvl',
+    which specify, in seconds, the length of the coordinate system update
+    and node ping intervals respectively.
+    """
     if not isinstance(instances,(list,tuple)):
       raise TypeError("'instances' should be an iterable")
 
@@ -120,7 +119,7 @@ class CoordinateEngineClient(object):
 
   def get_next_coordinates(self,network_id):
     """
-    Requests and returns the next set of coordinates 
+    Requests and returns the next set of coordinates
     for all of the nodes in network 'network_id'.
     """
 
@@ -148,12 +147,12 @@ class CoordinateEngineClient(object):
 
   def wait_response(self,data_cb = None, **cb_args):
     """
-    Wait for a response from the coordinate engine 
+    Wait for a response from the coordinate engine
     telling you whether or not the command was
     successful or not.
 
     If data was returned and 'data_cb' is provided,
-    it will be called with the received data buffer as 
+    it will be called with the received data buffer as
     the first argument, and the keyword arguments in 'cb_args'.
 
     This function will return ext.StatusMessage.OK or the
@@ -203,7 +202,7 @@ class CoordinateEngineClient(object):
 
   def create_setup_message(self,num_networks, instances,latency_map, update_intvl, ping_intvl):
     """
-    Do the actual work of creating the protocolbuffers message. 
+    Do the actual work of creating the protocolbuffers message.
     In a separate function so that we can test it properly.
     """
     instance_idx_map = dict()
