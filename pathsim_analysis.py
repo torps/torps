@@ -91,392 +91,173 @@ def compromised_set_process_log(compromised_relays, out_dir, out_name,\
         pickle.dump(compromise_stats, f, pickle.HIGHEST_PROTOCOL)
     
 
-class CompromiseTopRelays:
-    """
-    Keeps statistics on circuit end compromises, considering ranges for
-    the number of top guard and top exits compromised.
-    """
-    def __init__(self, top_guards, top_exits):
-        self.top_guards = top_guards
-        self.top_exits = top_exits
-        self.all_compromise_stats = []
-        self.all_start_time = None
-        self.all_end_time = None
-
-        
-    def process_log(self, log_file, q):
-        """Calculates security statistics against top-relay
-        adversary and stores the results in a Process.Queue."""
-        compromise_stats = []
-        start_time = None
-        end_time = None
-        with open(log_file, 'r') as lf:
-            lf.readline() # read header line
-            i = 0
-            for line in lf:
-                if (i % 10000000 == 0):
-                    print('Read {0} lines.'.format(i))
-                i = i+1
-                line = line[0:-1] # cut off final newline
-                line_fields = line.split('\t')
-                id = int(line_fields[0])
-                time = int(line_fields[1])
-                guard_ip = line_fields[2]
-                exit_ip = line_fields[4]
-
-                """Adds statistics based on fields from log line."""
-                # add entries for sample not yet seen
-                if (len(compromise_stats) <= id):
-                    for i in xrange(id+1 - len(compromise_stats)):
-                        # matrix storing counts for possible # comp relays
-                        stats = []
-                        for j in xrange(len(self.top_guards)+1):
-                            stats.append([])
-                            for k in xrange(len(self.top_exits)+1):
-                                stats[j].append({'guard_only_bad':0,\
-                                                'exit_only_bad':0,\
-                                                'guard_and_exit_bad':0,\
-                                                'good':0,\
-                                                'guard_only_time':None,\
-                                                'exit_only_time':None,\
-                                                'guard_and_exit_time':None})
-                        compromise_stats.append(stats)
-                        
-                # update start and end times
-                if (start_time == None):
-                    start_time = time
-                else:
-                    start_time = min(start_time, time)
-                if (end_time == None):
-                    end_time = time
-                else:
-                    end_time = max(end_time, time)
-        
-                # find first occurrence of guard_ip and exit_ip in top_guards
-                # and top_exits - .index() would raise error if not present
-                top_guards_guard_idx = None
-                top_guards_exit_idx = None
-                top_exits_guard_idx = None
-                top_exits_exit_idx = None
-                for i, top_guard in enumerate(self.top_guards):
-                    if (guard_ip == top_guard):
-                        top_guards_guard_idx = i+1
-                        break
-                for i, top_guard in enumerate(self.top_guards):
-                    if (exit_ip == top_guard):
-                        top_guards_exit_idx = i+1
-                        break                
-                for i, top_exit in enumerate(self.top_exits):
-                    if (guard_ip == top_exit):
-                        top_exits_guard_idx = i+1
-                        break
-                for i, top_exit in enumerate(self.top_exits):
-                    if (exit_ip == top_exit):
-                        top_exits_exit_idx = i+1
-                        break    
-                        
-                # increment counts and add times of first compromise
-                for i in xrange(len(compromise_stats[id])):
-                    for j in xrange(len(compromise_stats[id][i])):
-                        stats = compromise_stats[id][i][j]
-                        guard_bad = False
-                        exit_bad = False
-                        if ((top_guards_guard_idx != None) and\
-                                (top_guards_guard_idx <= i)) or\
-                            ((top_exits_guard_idx != None) and\
-                                 (top_exits_guard_idx <= j)):
-                            guard_bad = True
-                        if ((top_guards_exit_idx != None) and\
-                                (top_guards_exit_idx <= i)) or\
-                            ((top_exits_exit_idx != None) and\
-                                (top_exits_exit_idx <= j)):
-                            exit_bad = True
-        
-                        if  (guard_bad and exit_bad):
-                            stats['guard_and_exit_bad'] += 1
-                            if (stats['guard_and_exit_time'] == None):
-                                stats['guard_and_exit_time'] = time
-                            else:
-                                stats['guard_and_exit_time'] = \
-                                    min(time, stats['guard_and_exit_time'])
-                        elif guard_bad:
-                            stats['guard_only_bad'] += 1
-                            if (stats['guard_only_time'] == None):
-                                stats['guard_only_time'] = time
-                            else:
-                                stats['guard_only_time'] = \
-                                    min(time, stats['guard_only_time'])
-                        elif exit_bad:
-                            stats['exit_only_bad'] += 1
-                            if (stats['exit_only_time'] == None):
-                                stats['exit_only_time'] = time
-                            else:
-                                stats['exit_only_time'] = \
-                                    min(time, stats['exit_only_time'])                        
-                        else:
-                            stats['good'] += 1
-                            
-        print('Putting results into queue.')
-        q.put((start_time, end_time, compromise_stats))
-        print('Results in queue.')                            
-                            
-                            
-    def add_results(self, q):
-        """Add in results from a separate log process."""
-        (start_time, end_time, compromise_stats) = q.get()
-        if (self.all_start_time == None):
-            self.all_start_time = start_time
-        else:
-            self.all_start_time = \
-                min(start_time, self.all_start_time)
-        if (self.all_end_time == None):
-            self.all_end_time = end_time
-        else:
-            self.all_end_time = \
-                min(end_time, self.all_end_time)
-        self.all_compromise_stats.extend(compromise_stats)
-              
-                        
-    def write_stats(self, out_dir, out_name):
-        """Write stats to out_dir in files with names containing
-        out_name."""        
-        # only write stats for powers of two adversaries
-        num_guards = 0
-        while (num_guards <= len(self.top_guards)):
-            if (num_guards == 0):
-                num_exits = 1
-            else:
-                num_exits = 0
-            while (num_exits <= len(self.top_exits)):
-                out_filename = 'analyze-sim.' + out_name + '.' +\
-                    str(num_guards) + '-' + str(num_exits) + '.out'
-                with open(os.path.join(out_dir, out_filename), 'w') as f:
-                    f.write('#\tbad guard&exit\tbad guard only\tbad exit only\tgood\tguard&exit time\tguard only time\texit only time\n')
-                    for i, comp_stats in enumerate(self.all_compromise_stats):
-                        adv_stats = comp_stats[num_guards][num_exits]
-                        if (adv_stats['guard_and_exit_time'] != None):
-                            ge_time = adv_stats['guard_and_exit_time']
-                        else:
-                            ge_time = -1
-                        if (adv_stats['guard_only_time'] != None):
-                            g_time = adv_stats['guard_only_time']
-                        else:
-                            g_time = -1
-                        if (adv_stats['exit_only_time'] != None):
-                            e_time = adv_stats['exit_only_time']
-                        else:
-                            e_time = -1                                                        
-                        f.write('{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\n'.\
-                            format(i, adv_stats['guard_and_exit_bad'],\
-                                adv_stats['guard_only_bad'],\
-                                adv_stats['exit_only_bad'],\
-                                adv_stats['good'],\
-                                ge_time, g_time, e_time))
-                if (num_exits == 0):
-                    num_exits = 1
-                else:
-                    num_exits *= 2
-            if (num_guards == 0):
-                num_guards = 1
-            else:
-                num_guards *= 2
-                
-                
-    def output_compromise_rates_plot_data(self, out_dir, out_name):
-        """
-        Outputs data defining plot of compromise counts as fractions.
-        Input:
-            out_dir: directory for output files
-            out_name: identifying string to be incorporated in filenames
-        
-        """
-        # only output for powers of two adversaries
-        num_guards = 0
-        while (num_guards <= len(self.top_guards)):
-            if (num_guards == 0):
-                num_exits = 1
-            else:
-                num_exits = 0
-            num_exit_frac_both_bad = []
-            num_exit_frac_exit_bad = []
-            num_exit_frac_guard_bad = []
-            line_labels = []
-            while (num_exits <= len(self.top_exits)):
-                # fraction of connection with bad guard and exit
-                frac_both_bad = []
-                frac_exit_bad = []
-                frac_guard_bad = []
-                for stats in self.all_compromise_stats:
-                    adv_stats = stats[num_guards][num_exits]
-                    tot_ct = adv_stats['guard_and_exit_bad'] +\
-                        adv_stats['guard_only_bad'] +\
-                        adv_stats['exit_only_bad'] + adv_stats['good']
-                    frac_both_bad.append(\
-                        float(adv_stats['guard_and_exit_bad']) / float(tot_ct))
-                    frac_exit_bad.append(\
-                        float(adv_stats['guard_and_exit_bad'] +\
-                            adv_stats['exit_only_bad']) / float(tot_ct))
-                    frac_guard_bad.append(\
-                        float(adv_stats['guard_and_exit_bad'] +\
-                            adv_stats['guard_only_bad']) / float(tot_ct))
-                num_exit_frac_both_bad.append(frac_both_bad)
-                num_exit_frac_exit_bad.append(frac_exit_bad)
-                num_exit_frac_guard_bad.append(frac_guard_bad)
-                line_labels.append('{0} comp. exits'.format(num_exits))
-                if (num_exits == 0):
-                    num_exits = 1
-                else:
-                    num_exits *= 2
-            
-            # cdf of both bad
-            out_filename = 'analyze-sim.' + out_name + '.' +\
-                str(num_guards) + '-guards.exit-guard-comp-rates.pickle' 
-            out_pathname = os.path.join(out_dir, out_filename)                           
-            with open(out_pathname, 'wb') as f:
-                pickle.dump(num_exit_frac_both_bad, f, pickle.HIGHEST_PROTOCOL)
-                pickle.dump(line_labels, f, pickle.HIGHEST_PROTOCOL)
-                pickle.dump('Fraction of paths', f, pickle.HIGHEST_PROTOCOL)
-                pickle.dump(\
-                    'Fraction of connections with guard & exit compromised',\
-                    f, pickle.HIGHEST_PROTOCOL)
-
-                
-            # cdf of exit bad
-            out_filename = 'analyze-sim.' + out_name + '.' +\
-                str(num_guards) + '.-guards.exit-comp-rates.pickle'
-            out_pathname = os.path.join(out_dir, out_filename)                           
-            with open(out_pathname, 'wb') as f:
-                pickle.dump(num_exit_frac_exit_bad, f, pickle.HIGHEST_PROTOCOL)
-                pickle.dump(line_labels, f, pickle.HIGHEST_PROTOCOL)
-                pickle.dump('Fraction of paths', f, pickle.HIGHEST_PROTOCOL)
-                pickle.dump(\
-                    'Fraction of connections with exit compromised',\
-                    f, pickle.HIGHEST_PROTOCOL)
-
-            # cdf of guard bad
-            out_filename = 'analyze-sim.' + out_name + '.' +\
-                str(num_guards) + '.-guards.guard-comp-rates.pickle' 
-            out_pathname = os.path.join(out_dir, out_filename)                           
-            with open(out_pathname, 'wb') as f:
-                pickle.dump(num_exit_frac_guard_bad, f,\
-                    pickle.HIGHEST_PROTOCOL)
-                pickle.dump(line_labels, f, pickle.HIGHEST_PROTOCOL)
-                pickle.dump('Fraction of paths', f, pickle.HIGHEST_PROTOCOL)
-                pickle.dump(\
-                    'Fraction of connections with guard compromised',\
-                    f, pickle.HIGHEST_PROTOCOL)
-
-            if (num_guards == 0):
-                num_guards = 1
-            else:
-                num_guards *= 2
-
-
-    def output_times_to_compromise_plot_data(self, out_dir, out_name):
-        """
-        Outputs data defining plot of times to first compromise.
-        Input: 
-            out_dir: output directory
-            out_name: string to comprise part of output filenames
-        """
-        time_len = float(self.all_end_time -\
-            self._all_start_time)/float(24*60*60)
-        # only plot for powers of two adversaries
-        num_guards = 0
-        while (num_guards <= len(self.top_guards)):
-            if (num_guards == 0):
-                num_exits = 1
-            else:
-                num_exits = 0
-            num_exit_guard_times = []
-            num_exit_exit_times = []
-            num_exit_guard_and_exit_times = []
-            line_labels = []          
-            while (num_exits <= len(self.top_exits)):
-                guard_times = []
-                exit_times = []
-                guard_and_exit_times = []
-                for stats in self.all_compromise_stats:
-                    adv_stats = stats[num_guards][num_exits]
-                    guard_time = time_len
-                    exit_time = time_len
-                    guard_and_exit_time = time_len
-                    if (adv_stats['guard_only_time'] != None):
-                        guard_time = float(adv_stats['guard_only_time'] -\
-                            self._all_start_time)/float(24*60*60)
-                    if (adv_stats['exit_only_time'] != None):
-                        exit_time = float(adv_stats['exit_only_time'] -\
-                            self._all_start_time)/float(24*60*60)
-                    if (adv_stats['guard_and_exit_time'] != None):
-                        ge_time = float(adv_stats['guard_and_exit_time'] -\
-                            self._all_start_time)/float(24*60*60)
-                        guard_and_exit_time = ge_time
-                        guard_time = min(guard_time, ge_time)
-                        exit_time = min(exit_time, ge_time)
-                    guard_times.append(guard_time)
-                    exit_times.append(exit_time)
-                    guard_and_exit_times.append(guard_and_exit_time)
-                num_exit_guard_times.append(guard_times)
-                num_exit_exit_times.append(exit_times)
-                num_exit_guard_and_exit_times.append(guard_and_exit_times)
-                line_labels.append('{0} comp. exits'.format(num_exits))
-                if (num_exits == 0):
-                    num_exits = 1
-                else:
-                    num_exits *= 2
+def compromised_top_relays_process_log(top_guards, top_exits, out_dir,\
+    out_name, pnum, log_file):
+    """Calculates security statistics against top-relay
+    adversary and stores the results in a Process.Queue."""
+    compromise_stats = []
+    start_time = None
+    end_time = None
+    with open(log_file, 'r') as lf:
+        lf.readline() # read header line
+#        i = 0
+        for line in lf:
+#            if (i % 5000 == 0):
+#                print('Read {0} lines.'.format(i))
+#            i = i+1
+            line = line[0:-1] # cut off final newline
+            line_fields = line.split('\t')
+            id = int(line_fields[0])
+            time = int(line_fields[1])
+            guard_ip = line_fields[2]
+            exit_ip = line_fields[4]
                     
-            # cdf for both bad
-            out_filename = 'analyze-sim.' + out_name + '.' +\
-                    str(num_guards) + '-guards.exit-guard-comp-times.pickle'                
-            out_pathname = os.path.join(out_dir, out_filename)            
-            with open(out_pathname, 'wb') as f:
-                pickle.dump(num_exit_guard_and_exit_times, f,\
-                    pickle.HIGHEST_PROTOCOL)
-                pickle.dump(line_labels, f, pickle.HIGHEST_PROTOCOL)
-                pickle.dump('Time to first compromise (days)', f,\
-                    pickle.HIGHEST_PROTOCOL)
-                pickle.dump(\
-                    'Time to first circuit with guard & exit compromised',\
-                    f, pickle.HIGHEST_PROTOCOL)
-
-            # cdf for exit bad
-            out_filename = 'analyze-sim.' + out_name + '.' +\
-                    str(num_guards) + '-guards.exit-comp-times.pickle'
-            out_pathname = os.path.join(out_dir, out_filename)       
-            with open(out_pathname, 'wb') as f:
-                pickle.dump(num_exit_exit_times, f,\
-                    pickle.HIGHEST_PROTOCOL)
-                pickle.dump(line_labels, f, pickle.HIGHEST_PROTOCOL)
-                pickle.dump('Time to first compromise (days)', f,\
-                    pickle.HIGHEST_PROTOCOL)
-                pickle.dump(\
-                    'Time to first circuit with exit compromised',\
-                    f, pickle.HIGHEST_PROTOCOL)
-                                
-            # cdf for guard bad
-            out_filename = 'analyze-sim.' + out_name + '.' +\
-                    str(num_guards) + '-guards.guard-comp-times.pickle'                
-            out_pathname = os.path.join(out_dir, out_filename)        
-            with open(out_pathname, 'wb') as f:
-                pickle.dump(num_exit_guard_times, f,\
-                    pickle.HIGHEST_PROTOCOL)
-                pickle.dump(line_labels, f, pickle.HIGHEST_PROTOCOL)
-                pickle.dump('Time to first compromise (days)', f,\
-                    pickle.HIGHEST_PROTOCOL)
-                pickle.dump(\
-                    'Time to first circuit with guard compromised',\
-                    f, pickle.HIGHEST_PROTOCOL)
-                               
-            if (num_guards == 0):
-                num_guards = 1
+            """Adds statistics based on fields from log line."""
+            # add entries for sample not yet seen
+            if (len(compromise_stats) <= id):
+                for i in xrange(id+1 - len(compromise_stats)):
+                    # matrix storing counts for possible # comp relays
+                    stats = []
+                    for j in xrange(len(top_guards)+1):
+                        stats.append([])
+                        for k in xrange(len(top_exits)+1):
+                            stats[j].append({'guard_only_bad':0,\
+                                            'exit_only_bad':0,\
+                                            'guard_and_exit_bad':0,\
+                                            'good':0,\
+                                            'guard_only_time':None,\
+                                            'exit_only_time':None,\
+                                            'guard_and_exit_time':None})
+                    compromise_stats.append(stats)
+                    
+                    
+            # update start and end times
+            if (start_time == None):
+                start_time = time
             else:
-                num_guards *= 2
-                
-                
-    def output_stats_plot_data(self, out_dir, out_name):
-        """Output data defining cdf some of the statistics collected."""
-        self.output_compromise_rates_plot_data(out_dir, out_name)
-        self.output_times_to_compromise_plot_data(out_dir, out_name)
+                start_time = min(start_time, time)
+            if (end_time == None):
+                end_time = time
+            else:
+                end_time = max(end_time, time)
+
+            # find first occurrence of guard_ip and exit_ip in top_guards
+            # and top_exits - .index() would raise error if not present
+            top_guards_guard_idx = None
+            top_guards_exit_idx = None
+            top_exits_guard_idx = None
+            top_exits_exit_idx = None
+            for i, top_guard in enumerate(top_guards):
+                if (guard_ip == top_guard):
+                    top_guards_guard_idx = i+1
+                    break
+            for i, top_guard in enumerate(top_guards):
+                if (exit_ip == top_guard):
+                    top_guards_exit_idx = i+1
+                    break                
+            for i, top_exit in enumerate(top_exits):
+                if (guard_ip == top_exit):
+                    top_exits_guard_idx = i+1
+                    break
+            for i, top_exit in enumerate(top_exits):
+                if (exit_ip == top_exit):
+                    top_exits_exit_idx = i+1
+                    break    
+                    
+            # increment counts and add times of first compromise
+            for i in xrange(len(compromise_stats[id])):
+                for j in xrange(len(compromise_stats[id][i])):
+                    stats = compromise_stats[id][i][j]
+                    guard_bad = False
+                    exit_bad = False
+                    if ((top_guards_guard_idx != None) and\
+                            (top_guards_guard_idx <= i)) or\
+                        ((top_exits_guard_idx != None) and\
+                             (top_exits_guard_idx <= j)):
+                        guard_bad = True
+                    if ((top_guards_exit_idx != None) and\
+                            (top_guards_exit_idx <= i)) or\
+                        ((top_exits_exit_idx != None) and\
+                            (top_exits_exit_idx <= j)):
+                        exit_bad = True
+    
+                    if  (guard_bad and exit_bad):
+                        stats['guard_and_exit_bad'] += 1
+                        if (stats['guard_and_exit_time'] == None):
+                            stats['guard_and_exit_time'] = time
+                        else:
+                            stats['guard_and_exit_time'] = \
+                                min(time, stats['guard_and_exit_time'])
+                    elif guard_bad:
+                        stats['guard_only_bad'] += 1
+                        if (stats['guard_only_time'] == None):
+                            stats['guard_only_time'] = time
+                        else:
+                            stats['guard_only_time'] = \
+                                min(time, stats['guard_only_time'])
+                    elif exit_bad:
+                        stats['exit_only_bad'] += 1
+                        if (stats['exit_only_time'] == None):
+                            stats['exit_only_time'] = time
+                        else:
+                            stats['exit_only_time'] = \
+                                min(time, stats['exit_only_time'])                        
+                    else:
+                        stats['good'] += 1
+
+    out_filename = 'analyze-sim.' + out_name + '.' + str(pnum) + '.pickle'
+    out_pathname = os.path.join(out_dir, out_filename)
+    with open(out_pathname, 'wb') as f:
+        pickle.dump(start_time, f, pickle.HIGHEST_PROTOCOL)
+        pickle.dump(end_time, f, pickle.HIGHEST_PROTOCOL)
+        pickle.dump(compromise_stats, f, pickle.HIGHEST_PROTOCOL)
+
+
+def compromised_top_relays_print(in_file, top_guards, top_exits):
+    """Print stats from output of compromised_top_relays_process_log().""" 
+    
+    with open(in_file, 'rb') as f:
+        start_time = pickle.load(f)
+        end_time = pickle.load(f)
+        compromise_stats = pickle.load(f)
+    
+    # only write stats for powers of two adversaries
+    num_guards = 0
+    while (num_guards <= len(top_guards)):
+        if (num_guards == 0):
+            num_exits = 1
+        else:
+            num_exits = 0
+        while (num_exits <= len(top_exits)):
+            print('#\tbad guard&exit\tbad guard only\tbad exit only\tgood\tguard&exit time\tguard only time\texit only time')
+            for i, comp_stats in enumerate(compromise_stats):
+                adv_stats = comp_stats[num_guards][num_exits]
+                if (adv_stats['guard_and_exit_time'] != None):
+                    ge_time = adv_stats['guard_and_exit_time']
+                else:
+                    ge_time = -1
+                if (adv_stats['guard_only_time'] != None):
+                    g_time = adv_stats['guard_only_time']
+                else:
+                    g_time = -1
+                if (adv_stats['exit_only_time'] != None):
+                    e_time = adv_stats['exit_only_time']
+                else:
+                    e_time = -1                                                        
+                f.write('{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\n'.\
+                    format(i, adv_stats['guard_and_exit_bad'],\
+                        adv_stats['guard_only_bad'],\
+                        adv_stats['exit_only_bad'],\
+                        adv_stats['good'],\
+                        ge_time, g_time, e_time))
+            if (num_exits == 0):
+                num_exits = 1
+            else:
+                num_exits *= 2
+        if (num_guards == 0):
+            num_guards = 1
+        else:
+            num_guards *= 2
         
         
 def network_analysis_get_guards_and_exits(network_state_files, ip, port):
