@@ -288,14 +288,14 @@ def compromised_top_relays_plot_rates(compromise_stats, out_dir, out_name):
             num_guards *= 2
 
 
-def compromised_top_relays_plot_times(start_time, end_time, compromised_stats,\
+def compromised_top_relays_plot_times(start_time, end_time, compromise_stats,\
     out_dir, out_name):
     """
     Plots cdfs of times to compromise for statistics on compromised top relays.
     Input: 
         start_time: timestamp of simulation start
         end_time: timestamp of simulation end
-        compromised_stats: Statistics calculated for compromised top relays
+        compromise_stats: Statistics calculated for compromised top relays
         out_dir: output directory
         out_name: string to comprise part of output filenames
     """
@@ -411,7 +411,7 @@ def compromised_top_relays_plot(pathnames, out_dir):
             compromise_stats.extend(new_compromise_stats)
 
     compromised_top_relays_plot_rates(compromise_stats, out_dir, out_name)
-    compromised_top_relays_plot_times(start_time, end_time, compromised_stats,\
+    compromised_top_relays_plot_times(start_time, end_time, compromise_stats,\
         out_dir, out_name)
         
 
