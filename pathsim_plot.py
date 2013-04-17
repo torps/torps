@@ -35,10 +35,10 @@ def plot_cdf(lines, line_labels, xlabel, title, location, out_pathname):
     
     # histogram
     #ax = fig.add_subplot(111)
-    #ax.hist(data, bins=30)
+    #ax.hist(lines, bins=30)
     #ax.set_xlabel('Fraction of compromised paths')
     #ax.set_ylabel('Number of samples')
-    ##matplotlib.pyplot.hist(data)    
+    ##matplotlib.pyplot.hist(lines)    
     
     if (line_labels != None):
         for data_points, line_label in zip(lines, line_labels):
@@ -46,7 +46,7 @@ def plot_cdf(lines, line_labels, xlabel, title, location, out_pathname):
             matplotlib.pyplot.plot(x, y, label = line_label)
         matplotlib.pyplot.legend(loc=location)
     else:
-        x, y = getcdf(data)
+        x, y = getcdf(lines)
         matplotlib.pyplot.plot(x, y)
     matplotlib.pyplot.xlim(xmin=0.0)
     matplotlib.pyplot.ylim(ymin=0.0)
