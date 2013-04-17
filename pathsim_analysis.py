@@ -569,7 +569,7 @@ if __name__ == '__main__':
                 '96.44.163.75', '109.163.233.200', '146.185.23.180',\
                 '31.172.30.1']
                 
-            args = (top_guards_ips, top_exits_ips, out_dir, out_name)
+            args = (top_guard_ips, top_exit_ips, out_dir, out_name)
             simulation_analysis(log_files, compromised_top_relays_process_log,\
                 args)
         elif (type == 'set'):
