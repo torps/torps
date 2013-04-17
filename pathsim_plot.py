@@ -50,6 +50,7 @@ def plot_cdf(lines, line_labels, xlabel, title, location, out_pathname):
         matplotlib.pyplot.plot(x, y)
     matplotlib.pyplot.xlim(xmin=0.0)
     matplotlib.pyplot.ylim(ymin=0.0)
+    matplotlib.pyplot.yticks(numpy.arange(0, 1.1, 0.1))
     matplotlib.pyplot.xlabel(xlabel)
     matplotlib.pyplot.ylabel('Cumulative probability')
     matplotlib.pyplot.title(title)
