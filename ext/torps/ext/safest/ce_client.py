@@ -1,4 +1,5 @@
 import protobuf as ext
+import struct
 import itertools
 import socket
 import sys
@@ -11,6 +12,7 @@ logger = logging.getLogger("base")
 logger.setLevel(logging.DEBUG)
 
 class NodeInfo(object):
+  ''' Represents a node in the CoordinateEngine '''
 
   def __init__(self,nodeid):
     self._nodeid = nodeid
@@ -106,13 +108,15 @@ class CoordinateEngineClient(object):
                                     update_intvl,
                                     ping_intvl)
 
-    self.send(msg.SerializeToString())
+    self.send(msg.SerializeToString(),msg.ByteSize())
 
     self.initialized = True
 
-  def send(self,buf,data_cb = None):
-    self.socket.sendall(buf,data_cb)
-    self.wait_response()
+  def send(self,buf,buflen,data_cb = None, **data_kwargs):
+    tmpbuf = struct.pack("!I",buflen)
+    tmpbuf += buf
+    self.socket.sendall(tmpbuf)
+    self.wait_response(data_cb,**data_kwargs)
 
   def get_next_coordinates(self,network_id):
     """
@@ -125,8 +129,22 @@ class CoordinateEngineClient(object):
     req.get_network_id = network_id
 
     return self.send(req.SerializeToString(),
-                     CoordinateEngineClient.translate_coordinate_response,
+                     req.ByteSize(),
+                     self.translate_coordinate_response,
                      expected_network = network_id)
+
+  def read_msg_from_sock(self):
+    resp = self.socket.recv(4)
+    msglen = struct.unpack("!I",resp)[0]
+    self.log.debug("Read header indicating {0} byte message is next on the wire"
+                    .format(msglen))
+
+    resp = ""
+    while len(resp) < msglen:
+      resp += self.socket.recv(msglen - len(resp))
+      self.log.debug("Waiting for {0} more bytes".format(msglen - len(resp)))
+
+    return resp
 
   def wait_response(self,data_cb = None, **cb_args):
     """
@@ -141,7 +159,7 @@ class CoordinateEngineClient(object):
     This function will return ext.StatusMessage.OK or the
     return value of 'data_cb'.
     """
-    resp = self.socket.recv(256,socket.MSG_WAITALL)
+    resp = self.read_msg_from_sock()
 
     msg = ext.StatusMessage.ParseFromString(resp)
     if not msg:
@@ -159,7 +177,7 @@ class CoordinateEngineClient(object):
 
     elif msg.status == ext.StatusMessage.DATA_NEXT:
       self.log.debug("Server sent DATA_NEXT response. Listening")
-      resp = self.socket.recv(8192,socket.MSG_WAITALL)
+      resp = self.read_msg_from_sock()
       return data_cb(resp,**cb_args)
 
   @staticmethod

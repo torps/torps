@@ -1,4 +1,3 @@
-
 from ce_client import CoordinateEngineClient, NodeInfo
 from coordinate import Coordinate
 

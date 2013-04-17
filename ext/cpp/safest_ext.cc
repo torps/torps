@@ -8,7 +8,7 @@ using namespace cs;
     exit(1);     \
   } while (0)
 
-void 
+void
 CoordinateEngine::start( uint32_t port)
 {
   int one = 1;
@@ -30,7 +30,7 @@ CoordinateEngine::start( uint32_t port)
   addr.sin_addr.s_addr = INADDR_ANY;
 
   rc = bind(_mainsock,
-      (struct sockaddr *)&addr, 
+      (struct sockaddr *)&addr,
       sizeof(struct sockaddr_in));
   if (rc)
     perror_quit("bind");
@@ -89,19 +89,36 @@ CoordinateEngine::start( uint32_t port)
 }
 
 size_t
-read_sock(int sock, std::string &dst) 
+read_sock(int sock, std::string &dst)
 {
+  uint32_t msglen, *intptr, rcv = 0;
+  char tmpbuf[sizeof(uint32_t)];
   char buf[2048];
-  size_t rc;
+  int rc;
 
-  rc = recv(sock,buf,2048,0);
+  rc = recv(sock, tmpbuf, sizeof(uint32_t), MSG_WAITALL);
   if (rc <= 0) {
-    fprintf(stderr,"Failed to read from socket\n");
+    fprintf(stderr, "Failed to read message len\n");
     return rc;
   }
-  fprintf(stderr, "Read %lu bytes\n",rc);
 
-  dst.append(buf,rc);
+  intptr = (uint32_t *)tmpbuf;
+  msglen = ntohl(*intptr);
+  fprintf(stderr, "About to read %u byte message message\n",msglen);
+  dst.clear();
+
+  while ( rcv < msglen ) {
+    rc = recv(sock,buf,2048,0);
+    if (rc <= 0) {
+      fprintf(stderr,"Failed to read from socket\n");
+      return rc;
+    }
+    else {
+      rcv += rc;
+      fprintf(stderr, "Read %u bytes. %u remaining\n", rc,msglen - rcv);
+      dst.append(buf,rc);
+    }
+  }
 
   return dst.length();
 }
@@ -120,10 +137,15 @@ CoordinateEngine::send_response(int socket,
   msg.set_status(s);
 
   std::ostringstream obuf;
+  // Write the message size specifier
+  uint32_t msglen_n = htonl(msg.ByteSize());
+  obuf.write((const char *)&msglen_n,(long)sizeof(uint32_t));
+  fprintf(stderr, "Writing message of length %u\n", msg.ByteSize());
+
   msg.SerializeToOstream(&obuf);
   rc = send(socket,obuf.str().data(),obuf.str().size(),0);
 
-  if (rc != msg.ByteSize())
+  if (rc != (int)(msg.ByteSize() + sizeof(uint32_t)))
     perror_quit("send");
 }
 
@@ -141,7 +163,8 @@ CoordinateEngine::dispatch(int socket)
 
   if (!msg.ParseFromString(msgbuf)) {
     fprintf(stderr, "Failed to parse valid message from stream. "
-                    "May simply be incomplete thus far.\n");
+                    "May simply be incomplete thus far.\n"
+                    "msgbuf has %lu bytes\n", msgbuf.length());
     return -1;
   }
   msgbuf.clear();
@@ -155,6 +178,7 @@ CoordinateEngine::dispatch(int socket)
       else {
         /* Initialize and prepare the first step */
         rc = initialize(msg.init_data());
+        send_response(socket,torps::ext::StatusMessage::OK);
         pick_ping_targets();
         if (step_coordinates() < 0) {
           fprintf(stderr,"Failed to step coordinates correctly\n");
@@ -163,7 +187,6 @@ CoordinateEngine::dispatch(int socket)
         }
         prepare_response();
 
-        send_response(socket,torps::ext::StatusMessage::OK);
       }
       break;
 
@@ -330,6 +353,11 @@ void
 CoordinateEngine::write_coordinates(int socket)
 {
   std::ostringstream outbuf;
+
+  uint32_t msglen_n = htonl(prepared_response.ByteSize());
+  outbuf.write((const char *)&msglen_n,(long)sizeof(uint32_t));
+  fprintf(stderr, "Writing message of length %u\n",prepared_response.ByteSize());
+
   prepared_response.SerializeToOstream(&outbuf);
 
   send(socket,outbuf.str().data(),outbuf.str().size(),0);
