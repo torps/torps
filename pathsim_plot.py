@@ -93,21 +93,21 @@ def compromised_set_plot_rates(compromise_stats, out_dir, out_name):
     out_pathname = os.path.join(out_dir, out_filename)
     plot_cdf(frac_both_bad, line_labels, 'Fraction of paths',\
         'Fraction of connections with guard & exit compromised',\
-        'upper left', out_pathname)                  
+        'lower right', out_pathname)                  
         
     # cdf of exit bad
     out_filename = out_name + '.exit-comp-rates.cdf.pdf'
     out_pathname = os.path.join(out_dir, out_filename)                           
     plot_cdf(frac_exit_bad, line_labels, 'Fraction of paths',\
         'Fraction of connections with exit compromised',\
-        'upper left', out_pathname)
+        'lower right', out_pathname)
 
     # cdf of guard bad
     out_filename = out_name + '.guard-comp-rates.cdf.pdf' 
     out_pathname = os.path.join(out_dir, out_filename)                           
     plot_cdf(frac_guard_bad, line_labels, 'Fraction of paths',\
         'Fraction of connections with guard compromised',\
-        'upper left', out_pathname)
+        'lower right', out_pathname)
 
         
 def compromised_set_plot_times(start_time, end_time, compromise_stats,\
@@ -264,7 +264,7 @@ def compromised_top_relays_plot_rates(compromise_stats, out_dir, out_name):
         out_pathname = os.path.join(out_dir, out_filename)                           
         plot_cdf(num_exit_frac_both_bad, line_labels, 'Fraction of paths',\
             'Fraction of connections with guard & exit compromised',\
-            'upper left', out_pathname)  
+            'lower right', out_pathname)  
             
         # cdf of exit bad
         out_filename = out_name + '.' +\
@@ -272,7 +272,7 @@ def compromised_top_relays_plot_rates(compromise_stats, out_dir, out_name):
         out_pathname = os.path.join(out_dir, out_filename)                           
         plot_cdf(num_exit_frac_exit_bad, line_labels, 'Fraction of paths',\
             'Fraction of connections with exit compromised',\
-            'upper left', out_pathname)
+            'lower right', out_pathname)
 
         # cdf of guard bad
         out_filename = out_name + '.' +\
@@ -280,7 +280,7 @@ def compromised_top_relays_plot_rates(compromise_stats, out_dir, out_name):
         out_pathname = os.path.join(out_dir, out_filename)                           
         plot_cdf(num_exit_frac_guard_bad, line_labels, 'Fraction of paths',\
             'Fraction of connections with guard compromised',\
-            'upper left', out_pathname)
+            'lower right', out_pathname)
 
         if (num_guards == 0):
             num_guards = 1
