@@ -21,14 +21,16 @@ class NodeInfo(object):
   def from_Relay(cls,relay):
     """
     Creates a NodeInfo object from a readprofile.Relay
-    object. 
+    object.
     """
     try:
       ni = NodeInfo(relay.name)
       ni.congestion_distribution = relay.congestion
     except AttributeError as e:
-      raise TypeError("Expected an object of type 'readprofile.Relay', but "
+      raise TypeError("Expected an object that ducktypes 'readprofile.Relay', but "
                       "encountered an error while accessing it: {0}".format(e))
+
+    return ni
 
   @property
   def nodeid(self):
@@ -49,14 +51,14 @@ class NodeInfo(object):
 
     self.congest = dist[:]
 
+class CommunicationError(Exception):
+  pass
+
+class ParseError(Exception):
+  pass
+
 @singleton.Singleton
 class CoordinateEngineClient(object):
-
-  class CommunicationError(Exception):
-    pass
-
-  class ParseError(Exception):
-    pass
 
   def __init__(self):
     self.initialized = False
@@ -134,6 +136,8 @@ class CoordinateEngineClient(object):
 
   def read_msg_from_sock(self):
     resp = self.socket.recv(4)
+    if resp <= 0:
+      raise Exception("Lost connection to CoordinateEngine")
     msglen = struct.unpack("!I",resp)[0]
     self.log.debug("Read header indicating {0} byte message is next on the wire"
                     .format(msglen))
@@ -160,14 +164,15 @@ class CoordinateEngineClient(object):
     """
     resp = self.read_msg_from_sock()
 
-    msg = ext.StatusMessage.ParseFromString(resp)
-    if not msg:
-      raise self.CommunicationError("Received unparseable response from CoordinateEngine.")
+    msg = ext.StatusMessage()
+    msg.ParseFromString(resp)
+    if not msg.IsInitialized():
+      raise CommunicationError("Received unparseable response from CoordinateEngine.")
 
     if msg.status == ext.StatusMessage.ERR:
       if msg.HasField("msg"):
-        raise self.CommunicationError("CoordinateEngine returned error [{0}]".format(msg.msg))
-      raise self.CommunicationError("CoordinateEngine returned generic error.")
+        raise CommunicationError("CoordinateEngine returned error [{0}]".format(msg.msg))
+      raise CommunicationError("CoordinateEngine returned generic error.")
 
     elif msg.status == ext.StatusMessage.OK:
       if msg.HasField("msg"):
@@ -182,16 +187,17 @@ class CoordinateEngineClient(object):
   @staticmethod
   def translate_coordinate_response(data,**kwargs):
 
-    msg = ext.ControlMessage.ParseFromString(data)
-    if not msg:
-      raise CoordinateEngineClient.ParseError("Unable to parse coordinate response")
+    msg = ext.ControlMessage()
+    msg.ParseFromString(data)
+    if not msg.IsInitialized():
+      raise ParseError("Unable to parse coordinate response")
 
     if msg.type != ext.COORDS or not msg.HasField("update_data"):
-      raise CoordinateEngineClient.ParseError("Expected coordinate response but didn't receive one.")
+      raise ParseError("Expected coordinate response but didn't receive one.")
 
     coord_msg = msg.update_data
     if coord_msg.network_id != kwargs['expected_network']:
-      raise CoordinateEngineClient.ParseError("Coordinate response was for network {0}. Expected {1}."
+      raise ParseError("Coordinate response was for network {0}. Expected {1}."
                                               .format(coord_msg.network_id,kwargs['expected_network']))
 
     coords = list()
