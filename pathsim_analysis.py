@@ -313,9 +313,9 @@ def network_analysis_get_guards_and_exits(network_state_files, ip, port):
             # set empty statuses, even though previous should have been emptied
             hibernating_statuses = []
             
-        # don't maintain or use hibernating statuses for now
+        # don't bother to maintain or use hibernating statuses
         
-        # get initial entry guards with selection probability and their uptime
+        # get initial entry guards w/ selection prob., uptime, and other stats
         if init:
             init = False
             guards = filter_guards(cons_rel_stats, descriptors)
@@ -330,10 +330,14 @@ def network_analysis_get_guards_and_exits(network_state_files, ip, port):
                 rel_stat = cons_rel_stats[fprint]
                 if ((not need_fast) or (stem.Flag.FAST in rel_stat.flags)) and\
                    ((not need_stable) or (stem.Flag.STABLE in rel_stat.flags)):
+                   desc = descriptors[fprint]
                    initial_guards[fprint] = {\
                     'rel_stat':rel_stat,\
                     'prob':cum_weight-cum_weight_old,\
-                    'uptime':0}
+                    'uptime':1,
+                    'tot_average_bandwidth':desc.average_bandwidth,\
+                    'tot_burst_bandwidth':desc.burst_bandwidth,\
+                    'tot_observed_bandwidth':desc.observed_bandwidth}
                 cum_weight_old = cum_weight
         else:
             # apply criteria used in setting bad_since
@@ -341,7 +345,15 @@ def network_analysis_get_guards_and_exits(network_state_files, ip, port):
                 if (guard in cons_rel_stats) and\
                     (stem.Flag.RUNNING in cons_rel_stats[guard].flags) and\
                     (stem.Flag.GUARD in cons_rel_stats[guard].flags):
+                    desc = descriptors[guard]
                     initial_guards[guard]['uptime'] += 1
+                    initial_guards[guard]['tot_average_bandwidth'] +=\
+                        desc.average_bandwidth
+                    initial_guards[guard]['tot_burst_bandwidth'] +=\
+                        desc.burst_bandwidth
+                    initial_guards[guard]['tot_observed_bandwidth'] +=\
+                        desc.observed_bandwidth
+                    
 
         # get relays that exit to our dummy dest ip and port
         # with sum of weighted selection probabilities
@@ -353,15 +365,29 @@ def network_analysis_get_guards_and_exits(network_state_files, ip, port):
             if fprint not in exits_tot_bw:
                 exits_tot_bw[fprint] =\
                     {'tot_bw':0,\
-                    'nickname':cons_rel_stats[fprint].nickname,
-                    'max_prob':0,
-                    'min_prob':1}
+                    'nickname':cons_rel_stats[fprint].nickname,\
+                    'max_prob':0,\
+                    'min_prob':1,\
+                    'tot_cons_bw':0,\
+                    'tot_average_bandwidth':0,\
+                    'tot_burst_bandwidth':0,\
+                    'tot_observed_bandwidth':0,\
+                    'uptime':0}
             prob = cum_weight - cum_weight_old
             exits_tot_bw[fprint]['tot_bw'] += prob
             exits_tot_bw[fprint]['max_prob'] = \
                 max(exits_tot_bw[fprint]['max_prob'], prob)
             exits_tot_bw[fprint]['min_prob'] = \
-                min(exits_tot_bw[fprint]['min_prob'], prob)                
+                min(exits_tot_bw[fprint]['min_prob'], prob)
+            exits_tot_bw[fprint]['tot_cons_bw'] +=\
+                cons_rel_stats[fprint].bandwidth
+            exits_tot_bw[fprint]['tot_average_bandwidth'] +=\
+                descriptors[fprint].average_bandwidth
+            exits_tot_bw[fprint]['tot_burst_bandwidth'] +=\
+                descriptors[fprint].burst_bandwidth
+            exits_tot_bw[fprint]['tot_observed_bandwidth'] +=\
+                descriptors[fprint].observed_bandwidth
+            exits_tot_bw[fprint]['uptime'] += 1
             cum_weight_old = cum_weight
             
     return (initial_guards, exits_tot_bw)
@@ -378,12 +404,15 @@ def network_analysis_print_guards_and_exits(initial_guards, exits_tot_bw,\
     i = 1    
     print('Top initial guards comprising {0} total selection probability'.\
         format(guard_cum_prob))
-    print('#\tProb.\tUptime\tFingerprint\t\t\t\t\t\t\tNickname')
+    print('#\tProb.\tUptime\tCons. BW\tAvg. Observed BW\tFingerprint\t\t\t\t\t\t\tNickname')
     for fp, guard in initial_guards_items:
         if (cum_prob >= guard_cum_prob):
             break
-        print('{0}\t{1:.4f}\t{2}\t{3}\t{4}'.format(i, guard['prob'], \
-            guard['uptime'], fp, guard['rel_stat'].nickname))
+        avg_observed_bw = float(guard['tot_observed_bandwidth']) /\
+            float(guard['uptime'])
+        print('{0}\t{1:.4f}\t{2}\t{3}\t{4:.4f}\t{5}\t{6}'.format(i,\
+            guard['prob'], guard['uptime'], guard['rel_stat'].bandwidth,\
+            avg_observed_bw, fp, guard['rel_stat'].nickname))
         cum_prob += guard['prob']
         i += 1
 
@@ -393,11 +422,16 @@ def network_analysis_print_guards_and_exits(initial_guards, exits_tot_bw,\
     i = 1
     print('Top {0} exits to {1}:{2} by probability-weighted uptime'.\
         format(num_exits, ip, port))
-    print('#\ttot_bw\tmax_pr\tmin_pr\tFingerprint\t\t\t\t\t\t\tNickname')
+    print('#\tCum. prob.\tMax prob.\tMin prob.\tAvg. Cons. BW\tAvg. Observed BW\tFingerprint\t\t\t\t\t\t\tNickname')
     for fprint, bw_dict in exits_tot_bw_sorted[0:num_exits]:
-        print('{0}\t{1:.4f}\t{2:.4f}\t{3:.4f}\t{4}\t{5}'.\
+        avg_cons_bw = float(bw_dict['tot_cons_bw']) / float(bw_dict['uptime'])
+        avg_observed_bw = float(bw_dict['tot_observed_bandwidth'])/\
+            float(bw_dict['uptime'])
+        print(\
+        '{0}\t{1:.4f}\t{2:.4f}\t{3:.4f}\t{4:.4f}\t{5:.4f}\t{6}\t{7}\t{8}'.\
             format(i, bw_dict['tot_bw'], bw_dict['max_prob'],\
-                bw_dict['min_prob'], fprint, bw_dict['nickname']))
+                bw_dict['min_prob'], avg_cons_bw, avg_observed_bw,\
+                bw_dict['uptime'], fprint, bw_dict['nickname']))
         i += 1
         
         
