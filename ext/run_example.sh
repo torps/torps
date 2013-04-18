@@ -19,8 +19,9 @@ echo "Starting $CPP_ENGINE "
 $CPP_ENGINE $CPP_ENGINE_ARGS >/tmp/example.engine.out 2>/tmp/example.engine.err &
 engine_pid=$!
 
-
 # Run example.py 
+python $SCRIPT_DIR/setup.py develop
+python $SCRIPT_DIR/example.py
 
 echo "Killing engine [$engine_pid]"
 kill -9 $engine_pid
