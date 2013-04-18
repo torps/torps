@@ -205,7 +205,7 @@ CoordinateEngine::dispatch(int socket)
                       "No network ID sent with GET request");
       }
       else {
-        uint32_t network_id = ntohl(msg.get_network_id());
+        uint32_t network_id = msg.get_network_id();
         assert(network_id < network_count);
         fprintf(stderr, "Received GET requests for network %u\n", network_id);
         write_coordinates(socket, network_id);
