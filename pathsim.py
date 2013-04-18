@@ -1727,8 +1727,8 @@ range from start_year and start_month to end_year and end_month. Write the \
 matched descriptors for each consensus to \
 out_dir/processed_descriptors-year-month.\n\
 \tsimulate \
-[nsf dir] [# samples] [tracefile] [testing]: Do simulated path selections, \
-where\n\
+[nsf dir] [# samples] [tracefile] [testing] [num adv guard] [num adv exits]:\
+Do simulated path selections, where\n\
 \t\t nsf dir stores the network state files to use, \
 default: out/network-state-files\n\
 \t\t # samples is the number of simulations to execute, default: 1\n\
@@ -1826,7 +1826,7 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
             nickname = 'BadGuyGuard' + num_str
             flags = [stem.Flag.FAST, stem.Flag.GUARD, stem.Flag.RUNNING, \
                 stem.Flag.STABLE, stem.Flag.VALID]
-            bandwidth = 128000 #TBD more justifiably
+            bandwidth = 128000 # cons bw of top guard on 3/2/12
             address = '10.'+num_str+'.0.0' # avoid /16 conflicts
             or_port = 80
             micro_exit_policy = stem.exit_policy.MicroExitPolicy(\
@@ -1856,7 +1856,7 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
             nickname = 'BadGuyExit' + num_str
             flags = [stem.Flag.FAST, stem.Flag.EXIT, stem.Flag.RUNNING, \
                 stem.Flag.STABLE, stem.Flag.VALID]
-            bandwidth = 128000 #TBD more justifiably
+            bandwidth = 90000 # bit over top exit 3/2/12-4/30/12 (ZhangPoland1)
             # avoid /16 conflicts
             address = '10.'+str(num_adv_guards+i+1)+'.0.0' 
             or_port = 80
