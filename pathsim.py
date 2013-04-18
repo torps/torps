@@ -1727,10 +1727,16 @@ range from start_year and start_month to end_year and end_month. Write the \
 matched descriptors for each consensus to \
 out_dir/processed_descriptors-year-month.\n\
 \tsimulate \
-[nsf dir] [# samples] [tracefile] [testing]: Do a \
-bunch of simulated path selections using network state files \
-(produced by process_consensuses()) from [nsf dir], taking [# samples], making\
- [# reqs] web requests per hour, and printing debug info if [testing].\n\
+[nsf dir] [# samples] [tracefile] [testing]: Do simulated path selections, \
+where\n\
+\t\t nsf dir stores the network state files to use, \
+default: out/network-state-files\n\
+\t\t # samples is the number of simulations to execute, default: 1\n\
+\t\t tracefile indicates the user trace, default: traces.pickle\n\
+\t\t testing indicates that debug info will be printed, default: 0\n\
+\t\t num adv guards indicates the number of adversarial guards to add, \
+default: 0\n\
+\t\t num adv exits indicates the number of adversarial exits to add, default: 0\n\
 \tconcattraces \
 outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, irc.log, bittorrent.log: combine user session traces into a single object used by pathsim, and pickle it. The pickled object is input to the simulate command.'
     if (len(sys.argv) <= 1):
@@ -1779,7 +1785,9 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
         network_state_files_dir = sys.argv[2] if len(sys.argv) >= 3 else 'out/network-state-files'
         num_samples = int(sys.argv[3]) if len(sys.argv) >= 4 else 1
         tracefilename = sys.argv[4] if len(sys.argv) >= 5 else "traces.pickle"
-        _testing = True if len(sys.argv) >= 6 else False
+        _testing = (sys.argv[5] == '1') if len(sys.argv) >= 6 else False
+        num_adv_guards = int(sys.argv[6]) if len(sys.argv) >= 7 else 0
+        num_adv_exits = int(sys.argv[7]) if len(sys.argv) >= 8 else 0
         
         network_state_files = []
         for dirpath, dirnames, filenames in os.walk(network_state_files_dir,\
@@ -1811,7 +1819,6 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
         adv_relays = {}
         adv_descriptors = {}
         # choose adversarial guards to add to network
-        num_adv_guards = 4
         for i in xrange(num_adv_guards):
             # create consensus
             num_str = str(i+1)
@@ -1842,7 +1849,6 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
 
 
         # choose adversarial exits to add to network
-        num_adv_exits = 1
         for i in xrange(num_adv_exits):
             # create consensus
             num_str = str(i+1)
