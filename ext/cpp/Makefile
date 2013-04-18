@@ -38,6 +38,11 @@ $(TARGET): $(CMD_SRC)  $(OBJECTS) $(C_OBJECTS)
 	$(CXX) $(LDFLAGS) $(LIBS) $(C_OBJECTS) $(OBJECTS)
 	#glibtool --tag=CXX --mode=link $(CXX) -O2 -pg -g -O -o $@ $(LIBS) $(C_OBJECTS) $(OBJECTS) -Wall
 
+test: test_latency_hash
+
+test_latency_hash: latency_hash.o generic_hash.o test_latency_hash.o
+	$(CXX) $(CFLAGS) -o $@ $+
+
 clean:
 	-rm -f *.o
 	-rm -f $(TARGET)              
