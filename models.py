@@ -1,3 +1,8 @@
+from bisect import bisect_left
+from random import random, randint
+import cPickle as pickle
+import datetime
+
 class UserTraces(object):
     """
 Format:
@@ -11,7 +16,6 @@ where each line represents a new stream, TIME is the stream creation timestamp i
     """
     @staticmethod
     def from_pickle(filename):
-        import cPickle as pickle
         with open(filename, 'rb') as f: return pickle.load(f)
 
     def __init__(self, facebookf, gmailgchatf, gcalgdocsf, websearchf, ircf, bittorrentf):
@@ -25,7 +29,6 @@ where each line represents a new stream, TIME is the stream creation timestamp i
                     self.trace[key].append((seconds, ip, port))
 
     def save_pickle(self, filename):
-        import cPickle as pickle
         with open(filename, 'wb') as f: pickle.dump(self, f)
 
 
@@ -43,7 +46,6 @@ We collected session traces of approximately 20 minutes for each usage class. We
 -bittorrent      12pm-6am (18 sessions) Su-Sa
     """
     def __init__(self, usertraces, starttime, endtime):
-        import datetime
         self.model = {}
         self.schedule = {}
         day = 86400
@@ -103,41 +105,79 @@ We collected session traces of approximately 20 minutes for each usage class. We
     def get_streams(self, session):
         return self.model[session]
 
-def get_user_model(start_time, end_time, tracefilename=None, session="simple"):
-    streams = []
-    if session == "simple":
-        # simple user that makes a port 80 request /resolve every x / y seconds
-        num_requests = 6
-        http_request_wait = int(60 / num_requests) * 60
-        str_ip = '74.125.131.105' # www.google.com
-        for t in xrange(start_time, end_time, http_request_wait):
-            streams.append({'time':t,'type':'connect','ip':str_ip,'port':80})
-    else:
-        ut = UserTraces.from_pickle(tracefilename)
-        um = UserModel(ut, start_time, end_time)
-        streams = um.get_streams(session)
-    return streams
+class Relay():
 
-class CongestionTraces(object):
+    def __init__(self, name, isexit, isguard, weight):
+        self.name = name
+        self.isexit = isexit
+        self.isguard = isguard
+        self.weight = weight
+        self.congestion = []
+
+class CongestionProfile(object):
     """
     """
-    def __init__(self):
-        pass
+    def __init__(self, relay):
+
+        self.name = relay.name
+        self.isexit = relay.isexit
+        self.isguard = relay.isguard
+        self.weight = relay.weight
+
+        self.lenc = len(relay.congestion)
+        self.minc, self.maxc = 1000*min(relay.congestion), 1000*max(relay.congestion)
+        self.binsize = int((self.maxc-self.minc)/100.0)
+        self.breakpoints = range(self.minc, self.maxc, self.binsize)
+        self.bins = [0 for i in self.breakpoints]
+
+        for c in relay.congestion:
+            i = bisect_left(self.breakpoints, c*1000.0)
+            self.bins[i] += 1
+
+    def get_congestion(self):
+        # probabilistically choose a bin
+        x = random() * self.lenc
+        i = bisect_left(self.bins, x)
+        # draw a uniform value from its range
+        low = self.breakpoints[i]
+        high = low + self.binsize
+        return (randint(low, high) / 1000.0)
 
 class CongestionModel(object):
     """
     """
-    def __init__(self):
-        pass
+    def __init__(self, tracefilename):
 
-def get_congestion_model(tracefilename):
-    return
+        self.assigned = {}
+        self.profiles = {}
+
+        relays = None
+        with open(tracefilename, 'rb') as inf:
+            relays = pickle.load(inf)
+            for name in relays: self.profiles[name] = CongestionProfile(relays[name])
+
+    '''
+    Gets the relay profile with a consensus weight closest to the given
+    weight, taking into consideration the exit and guard flags.
+    Returns the match or None. (We currently have no guard-only profiles.)
+    '''
+    def find_match(self, weight, isexit=False, isguard=False):
+        match, dist = None, None
+        for name in self.profiles:
+            r = self.profiles[name]
+            if isexit != r.isexit or isguard != r.isguard: continue
+            d = abs(weight-r.weight)
+            if match is None or d < dist:
+                match = r
+                dist = d
+        return match
+
+    def get_congestion(self, name, weight, isexit=False, isguard=False):
+        if name not in self.assigned: self.assigned[name] = self.find_match(weight, isexit, isguard)
+        return self.assigned[name].get_congestion()
 
 class PropagationDelayModel(object):
     """
     """
-    def __init__(self):
+    def __init__(self, tracefilename):
         pass
-
-def get_propdelay_model(tracefilename):
-    return

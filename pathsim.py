@@ -9,6 +9,7 @@ import random
 import sys
 import collections
 import cPickle as pickle
+import argparse
 from models import *
 
 _testing = True
@@ -1152,7 +1153,7 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
             'covering':[]}
     
 def create_circuits(network_state_files, streams, num_samples, add_relays,\
-    add_descriptors):
+    add_descriptors, congmodel, pdelmodel):
     """Takes streams over time and creates circuits by interaction
     with create_circuit().
       Input:
@@ -1600,6 +1601,22 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
             cur_time += time_step
 
 
+def get_user_model(start_time, end_time, tracefilename=None, session="simple"):
+    streams = []
+    if session == "simple":
+        # simple user that makes a port 80 request /resolve every x / y seconds
+        num_requests = 6
+        http_request_wait = int(60 / num_requests) * 60
+        str_ip = '74.125.131.105' # www.google.com
+        for t in xrange(start_time, end_time, http_request_wait):
+            streams.append({'time':t,'type':'connect','ip':str_ip,'port':80})
+    else:
+        ut = UserTraces.from_pickle(tracefilename)
+        um = UserModel(ut, start_time, end_time)
+        streams = um.get_streams(session)
+    return streams
+
+
 if __name__ == '__main__':
     command = None
     usage = 'Usage: pathsim.py [command]\nCommands:\n\
@@ -1611,7 +1628,7 @@ range from start_year and start_month to end_year and end_month. Write the \
 matched descriptors for each consensus to \
 out_dir/processed_descriptors-year-month.\n\
 \tsimulate \
-[nsf dir] [# samples] [tracefile] [testing] [num adv guard] [num adv exits]: \
+[nsf dir] [# samples] [tracefile] [testing] [num adv guard] [num adv exits] [congestion data] [prop delay data]: \
 Do simulated path selections, where\n\
 \t\t nsf dir stores the network state files to use, \
 default: out/network-state-files\n\
@@ -1672,6 +1689,8 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
         _testing = (sys.argv[5] == '1') if len(sys.argv) >= 6 else False
         num_adv_guards = int(sys.argv[6]) if len(sys.argv) >= 7 else 0
         num_adv_exits = int(sys.argv[7]) if len(sys.argv) >= 8 else 0
+        congfilename = int(sys.argv[8]) if len(sys.argv) >= 9 else None
+        pdelfilename = int(sys.argv[9]) if len(sys.argv) >= 10 else None
         
         network_state_files = []
         for dirpath, dirnames, filenames in os.walk(network_state_files_dir,\
@@ -1699,6 +1718,8 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
         # "simple", "facebook", "gmailgchat", "gcalgdocs", "websearch", "irc", "bittorrent"
         streams = get_user_model(start_time, end_time, tracefilename,\
             session="simple")
+        congmodel = CongestionModel(congfilename)
+        pdelmodel = PropagationDelayModel(pdelfilename)
         
         adv_relays = {}
         adv_descriptors = {}
@@ -1764,7 +1785,7 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
 
         # simulate the circuits for these streams
         create_circuits(network_state_files, streams, num_samples, adv_relays,\
-            adv_descriptors)  
+            adv_descriptors, congmodel, pdelmodel)  
     elif (command == 'concattraces'): 
         if len(sys.argv) != 9: print usage; sys.exit(1)           
         ut = UserTraces(sys.argv[3], sys.argv[4], sys.argv[5], sys.argv[6], sys.argv[7], sys.argv[8])
