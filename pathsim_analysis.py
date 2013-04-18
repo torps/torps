@@ -404,13 +404,15 @@ def network_analysis_print_guards_and_exits(initial_guards, exits_tot_bw,\
     i = 1    
     print('Top initial guards comprising {0} total selection probability'.\
         format(guard_cum_prob))
-    print('#\tProb.\tUptime\tCons. BW\tAvg. Observed BW\tFingerprint\t\t\t\t\t\t\tNickname')
+    print('#\tProb.\tUptime\tCons. BW\tAvg. Avg. BW\tAvg. Observed BW\tFingerprint\t\t\t\t\t\t\tNickname')
     for fp, guard in initial_guards_items:
         if (cum_prob >= guard_cum_prob):
             break
+        avg_average_bw = float(guard['tot_average_bandwidth']) /\
+            float(guard['uptime'])
         avg_observed_bw = float(guard['tot_observed_bandwidth']) /\
             float(guard['uptime'])
-        print('{0}\t{1:.4f}\t{2}\t{3}\t{4:.4f}\t{5}\t{6}'.format(i,\
+        print('{0}\t{1:.4f}\t{2}\t{3}\t{4:.4f}\t{5:.4f}\t{6}\t{7}'.format(i,\
             guard['prob'], guard['uptime'], guard['rel_stat'].bandwidth,\
             avg_observed_bw, fp, guard['rel_stat'].nickname))
         cum_prob += guard['prob']
@@ -422,16 +424,19 @@ def network_analysis_print_guards_and_exits(initial_guards, exits_tot_bw,\
     i = 1
     print('Top {0} exits to {1}:{2} by probability-weighted uptime'.\
         format(num_exits, ip, port))
-    print('#\tCum. prob.\tMax prob.\tMin prob.\tAvg. Cons. BW\tAvg. Observed BW\tFingerprint\t\t\t\t\t\t\tNickname')
+    print('#\tCum. prob.\tMax prob.\tMin prob.\tAvg. Cons. BW\tAvg. Avg. BW\tAvg. Observed BW\tUptime\tFingerprint\t\t\t\t\t\t\tNickname')
     for fprint, bw_dict in exits_tot_bw_sorted[0:num_exits]:
         avg_cons_bw = float(bw_dict['tot_cons_bw']) / float(bw_dict['uptime'])
+        avg_average_bw = float(bw_dict['tot_average_bandwidth'])/\
+            float(bw_dict['uptime'])
         avg_observed_bw = float(bw_dict['tot_observed_bandwidth'])/\
             float(bw_dict['uptime'])
         print(\
-        '{0}\t{1:.4f}\t{2:.4f}\t{3:.4f}\t{4:.4f}\t{5:.4f}\t{6}\t{7}\t{8}'.\
+        '{0}\t{1:.4f}\t{2:.4f}\t{3:.4f}\t{4:.4f}\t{5:.4f}\t{6:.4f}\t{7}\t{8}\t{9}'.\
             format(i, bw_dict['tot_bw'], bw_dict['max_prob'],\
-                bw_dict['min_prob'], avg_cons_bw, avg_observed_bw,\
-                bw_dict['uptime'], fprint, bw_dict['nickname']))
+                bw_dict['min_prob'], avg_cons_bw, avg_average_bw,\
+                avg_observed_bw, bw_dict['uptime'], fprint,\
+                bw_dict['nickname']))
         i += 1
         
         
