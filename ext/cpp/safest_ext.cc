@@ -8,6 +8,12 @@ using namespace cs;
     exit(1);     \
   } while (0)
 
+
+CoordinateNetwork::~CoordinateNetwork()
+{
+  instances.erase(instances.begin(),instances.end());
+}
+
 void
 CoordinateEngine::start( uint32_t port)
 {
@@ -179,23 +185,34 @@ CoordinateEngine::dispatch(int socket)
         /* Initialize and prepare the first step */
         rc = initialize(msg.init_data());
         send_response(socket,torps::ext::StatusMessage::OK);
-        pick_ping_targets();
-        if (step_coordinates() < 0) {
-          fprintf(stderr,"Failed to step coordinates correctly\n");
-          send_response(socket,torps::ext::StatusMessage::ERR,
-                        "Failed to step coordinates correctly.");
+        /* Run all of the coordinate systems once */
+        for (uint32_t net_idx = 0; net_idx < network_count; net_idx++) {
+          pick_ping_targets(net_idx);
+          if (step_coordinates(net_idx) < 0) {
+            fprintf(stderr,"Failed to step coordinates correctly\n");
+            send_response(socket,torps::ext::StatusMessage::ERR,
+                          "Failed to step coordinates correctly.");
+          }
+          prepare_response(net_idx);
         }
-        prepare_response();
 
       }
       break;
 
     case torps::ext::GET:
-      send_response(socket,torps::ext::StatusMessage::DATA_NEXT);
-      write_coordinates(socket);
-      pick_ping_targets();
-      rc = step_coordinates();
-      prepare_response();
+      if (!msg.has_get_network_id()) {
+        send_response(socket,torps::ext::StatusMessage::ERR,
+                      "No network ID sent with GET request");
+      }
+      else {
+        uint32_t network_id = ntohl(msg.get_network_id());
+        assert(network_id < network_count);
+        fprintf(stderr, "Received GET requests for network %u\n", network_id);
+        write_coordinates(socket, network_id);
+        pick_ping_targets(network_id);
+        rc = step_coordinates(network_id);
+        prepare_response(network_id);
+      }
       break;
 
     case torps::ext::COORDS:
@@ -212,7 +229,7 @@ CoordinateEngine::dispatch(int socket)
 bool
 CoordinateEngine::is_initialized()
 {
-  if (instance_count == 0 || instances == 0) {
+  if (instance_count == 0 || network_count == 0) {
     return false;
   }
   return true;
@@ -221,15 +238,29 @@ CoordinateEngine::is_initialized()
 void
 CoordinateEngine::cleanup()
 {
-  delete[] instances;
+  networks.clear();
+  congest_distributions.clear();
+  latencies.clear();
+}
+
+/* Initialize a specific network instance */
+int
+CoordinateEngine::initialize_network(
+                   const torps::ext::CoordInit & msg,
+                   CoordinateNetwork *network)
+{
+  network->instance_count = instance_count;
+
   for (uint32_t i = 0; i < instance_count; i++) {
-    delete congest_distributions[i];
-    delete[] ping_targets[i];
-    delete[] latencies[i];
+    network->instances.push_back(new viv_instance_t);
+    viv_instance_initialize_existing(network->instances[i]);
+    snprintf(network->instances[i]->nodeid,
+              64,"%s",
+              msg.node_data(i).id().c_str());
+    network->ping_targets.push_back(new std::vector<uint32_t>());
   }
-  delete congest_distributions;
-  delete[] ping_targets;
-  delete[] latencies;
+
+  return 0;
 }
 
 /* Initialize the coordinate engine according to the parameters
@@ -240,42 +271,68 @@ CoordinateEngine::initialize(const torps::ext::CoordInit & msg)
   if (is_initialized()){
     cleanup();
   }
-  instance_count = msg.node_data_size();
-  instances = new viv_instance_t[instance_count];
-  congest_distributions = new CongestionDistribution*[instance_count];
 
-  latencies = new double*[instance_count];
-  ping_targets = new uint32_t*[instance_count];
-  node_pings_per_interval = msg.update_interval_seconds() / msg.ping_interval_seconds();
+  instance_count = msg.node_data_size();
+  network_count = msg.num_networks();
+
+  for (uint32_t network = 0; network < network_count; network++) {
+    networks.push_back(new CoordinateNetwork());
+    initialize_network(msg, networks[network]);
+  }
+
+  node_pings_per_interval = msg.update_interval_seconds()
+                                  / msg.ping_interval_seconds();
 
   for (uint32_t i = 0; i < instance_count; i++) {
-    viv_instance_initialize_existing(&instances[i]);
-    snprintf(instances[i].nodeid,64,"%s",msg.node_data(i).id().c_str());
-    congest_distributions[i] = new CongestionDistribution(msg.node_data(i));
-    ping_targets[i] = new uint32_t[node_pings_per_interval];
-    latencies[i] = new double[instance_count];
+    congest_distributions.insert(
+        std::make_pair(i, new CongestionDistribution(msg.node_data(i))));
+
   }
 
   for (int32_t i = 0; i < msg.latency_map_size(); i++) {
     uint32_t n1 = msg.latency_map(i).n1_idx();
     uint32_t n2 = msg.latency_map(i).n2_idx();
     assert(n1 < instance_count && n2 < instance_count);
-    latencies[n1][n2] = msg.latency_map(i).latency();
-    latencies[n2][n1] = msg.latency_map(i).latency();
+
+    /* Set n1 -> n2 */
+    if (latencies.find(n1) == latencies.end()) {
+      latencies.insert(
+          std::make_pair(n1,new lmap_inner_t));
+    }
+    latencies[n1]->insert(
+          std::make_pair(n2,msg.latency_map(i).latency()));
+
+    if (latencies.find(n2) == latencies.end()) {
+      latencies.insert(
+          std::make_pair(n2,new lmap_inner_t));
+    }
+    latencies[n2]->insert(
+        std::make_pair(n1,msg.latency_map(i).latency()));
   }
 
-  if (!instance_count || !instances || !node_pings_per_interval) {
+  if (!instance_count || networks.empty() || !node_pings_per_interval) {
     return -1;
   }
+
+  fprintf(stderr, "Initialized CoordinateEngine with %u networks.\n"
+                  "Each network has %u instances. Nodes will ping %u "
+                  "times per interval.\n",
+                  network_count, instance_count, node_pings_per_interval);
 
   return 0;
 }
 
 void
-CoordinateEngine::pick_ping_targets()
+CoordinateEngine::pick_ping_targets(uint32_t network_id)
 {
+//#error theres a bug here
+  CoordinateNetwork *network = networks[network_id];
+  std::vector<uint32_t> *targetList;
   fprintf(stderr,"Choosing ping targets for this round.");
   for (uint32_t i = 0; i < instance_count; i++) {
+    targetList = network->ping_targets[i];
+    targetList->clear();
+
     for (uint32_t j = 0; j < node_pings_per_interval; j++) {
       uint32_t choice;
       do {
@@ -283,47 +340,49 @@ CoordinateEngine::pick_ping_targets()
       } while(choice == i);
 
       assert(choice != i);
-      ping_targets[i][j] = choice;
+      targetList->push_back(choice);
     }
   }
 }
 
 int
-CoordinateEngine::step_coordinates()
+CoordinateEngine::step_coordinates(uint32_t network_id)
 {
   uint32_t pinging_node, target_idx, target_node;
   viv_coord_t *remote_coord;
   double remote_err;
   viv_sample_t *s;
   time_t timer;
+  CoordinateNetwork *network = networks[network_id];
 
   timer = time(0);
   for (target_idx = 0; target_idx < node_pings_per_interval; target_idx++) {
     for (pinging_node = 0; pinging_node < instance_count; pinging_node++) {
 
-      target_node = ping_targets[pinging_node][target_idx];
+      target_node = network->ping_targets[pinging_node]->at(target_idx);
       assert(target_node != pinging_node);
+      assert(target_node < instance_count);
       fprintf(stderr,"Iteration %d of %d. Stepping node '%s' (%d of %d).\n",
                     target_idx+1,
                     node_pings_per_interval,
-                    instances[pinging_node].nodeid,
+                    network->instances[pinging_node]->nodeid,
                     pinging_node+1,instance_count);
 
       double congestion = congest_distributions[pinging_node]->sample() +
                           congest_distributions[target_node]->sample();
 
-      double latency = latencies[pinging_node][target_node];
+      double latency = latencies[pinging_node]->at(target_node);
 
-      remote_coord = instances[target_node]._c;
-      remote_err = instances[target_node]._pred_err;
+      remote_coord = network->instances[target_node]->_c;
+      remote_err = network->instances[target_node]->_pred_err;
 
-      s = viv_record_ping_sample(&instances[pinging_node],
+      s = viv_record_ping_sample(network->instances[pinging_node],
                                  remote_coord,
                                  latency+ congestion,
                                  remote_err,
-                                 instances[target_node].nodeid);
+                                 network->instances[target_node]->nodeid);
 
-      viv_update( &instances[pinging_node], s);
+      viv_update( network->instances[pinging_node], s);
 
     }
   }
@@ -350,34 +409,37 @@ CoordinateEngine::coord_msg_from_viv_instance(
 }
 
 void
-CoordinateEngine::write_coordinates(int socket)
+CoordinateEngine::write_coordinates(int socket,uint32_t network_id)
 {
   std::ostringstream outbuf;
+  torps::ext::ControlMessage *msg = &(networks[network_id]->prepared_response);
 
-  uint32_t msglen_n = htonl(prepared_response.ByteSize());
+  uint32_t msglen_n = htonl(msg->ByteSize());
   outbuf.write((const char *)&msglen_n,(long)sizeof(uint32_t));
-  fprintf(stderr, "Writing message of length %u\n",prepared_response.ByteSize());
+  fprintf(stderr, "Writing message of length %u\n",msg->ByteSize());
 
-  prepared_response.SerializeToOstream(&outbuf);
+  msg->SerializeToOstream(&outbuf);
 
   send(socket,outbuf.str().data(),outbuf.str().size(),0);
 }
 
 void
-CoordinateEngine::prepare_response()
+CoordinateEngine::prepare_response(uint32_t network_id)
 {
   assert(is_initialized());
+  CoordinateNetwork *network = networks[network_id];
 
   torps::ext::CoordUpdate *coords = new torps::ext::CoordUpdate();
   torps::ext::Coordinate *coord;
+  coords->set_network_id(network_id);
 
   for (uint32_t i = 0; i < instance_count; i++) {
     coord = coords->add_coords();
-    coord_msg_from_viv_instance(coord,&instances[i]);
+    coord_msg_from_viv_instance(coord,network->instances[i]);
   }
 
-  prepared_response.set_allocated_update_data(coords);
-  prepared_response.set_type(torps::ext::COORDS);
+  network->prepared_response.set_allocated_update_data(coords);
+  network->prepared_response.set_type(torps::ext::COORDS);
 }
 
 CongestionDistribution::CongestionDistribution(const torps::ext::NodeSpecification &spec)
@@ -393,6 +455,21 @@ double
 CongestionDistribution::sample()
 {
   return values[rand() % bucket_count];
+}
+
+CoordinateEngine::CoordinateEngine()
+{
+  instance_count = 0;
+  network_count = 0;
+  default_opts.VivPingUseHeight = 0;
+  default_opts.VivProtectErrorWindow = 30;
+  default_opts.VivProtectCentroidWindow = 30;
+  default_opts.VivTimestep = 0.25;
+  default_opts.VivProtectCentroidRejectRate = 0.5;
+  default_opts.VivProtectErrorRejectRate = 0.5;
+  default_opts.VivMemorySize = 200;
+  default_opts.VivUnprotectedBootstrapCount = 200;
+  default_opts.VivMaxCoordDist = 0.0;
 }
 
 const options_t *
