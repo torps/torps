@@ -1,12 +1,13 @@
 TARGET = safest_ext
 TARGET_DIR = $(shell pwd)/
 export TARGET_DIR
-LIBS = ../message_spec/protobuf-2.5.0/src/libprotobuf.la -lstdc++
+LIBS = ../message_spec/protobuf-2.5.0/src/.libs/libprotobuf.a
 CMD_SRC = cmdline.cc main.cc
 SRC = message_spec.pb.cc safest_ext.cc container.c  tor_stubs.c vivaldinode.c $(CMD_SRC)
 CC = g++ -I.
-CPPFLAGS = -g -Wall -pg -I../message_spec/protobuf-2.5.0/src/ -O2 #-std=c++0x -O2
-PROD_CFLAGS = $(CFLAGS) -O2 #-std=c++0x 
+CXXFLAGS = -std=c++0x 
+CPPFLAGS = -I. -g -Wall -pg -I../message_spec/protobuf-2.5.0/src/ #-O2
+LDFLAGS = -pg -g -stdlib=libc++ -lz -Wall
 TESTDIR = test
 
 .PHONY: default all clean cmdline message_spec.pb.cc
@@ -34,12 +35,8 @@ HEADERS = $(wildcard *.h)
 .PRECIOUS: $(TARGET) $(OBJECTS) $(C_OBJECTS) message_spec.pb.cc
 
 $(TARGET): $(CMD_SRC)  $(OBJECTS) $(C_OBJECTS) 
-	glibtool --tag=CXX --mode=link gcc -O2 -pg -g -O -o $@ $(LIBS) $(C_OBJECTS) $(OBJECTS) -Wall
-
-production: $(CMD_SRC) $(OBJECTS)
-	$(CC) $(PROD_CFLAGS) -c $(CMD_SRC)
-	$(CC) $(PROD_CFLAGS) $(LIBS) $(OBJECTS) $(patsubst %.cc, %.o, $(CMD_SRC)) -Wall -o $(TARGET)
-
+	$(CXX) $(LDFLAGS) $(LIBS) $(C_OBJECTS) $(OBJECTS)
+	#glibtool --tag=CXX --mode=link $(CXX) -O2 -pg -g -O -o $@ $(LIBS) $(C_OBJECTS) $(OBJECTS) -Wall
 
 clean:
 	-rm -f *.o
