@@ -1360,7 +1360,7 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
             with open(ns_file, 'r') as nsf:
                 consensus = pickle.load(nsf)
                 new_descriptors = pickle.load(nsf)
-                new_hibernating_statuses = pickle.load(nsf)
+                hibernating_statuses = pickle.load(nsf)
                 
                 # set variables from consensus
                 cons_valid_after = timestamp(consensus.valid_after)            
@@ -1375,15 +1375,18 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
                         cons_rel_stats[relay] = consensus.relays[relay]
 
                 # include additional relays in consensus
+                if _testing:
+                    print('Adding {0} relays to consensus.'.format(\
+                        len(add_relays)))
                 for fprint, relay in add_relays.items():
                     if fprint in cons_rel_stats:
                         raise ValueError(\
                             'Added relay exists in consensus: {0}:{1}'.\
                                 format(relay.nickname, fprint))
                     cons_rel_stats[fprint] = relay
-                # include hibernating statuses for adde relays
-                hibernating_statuses = [(0, fp, False) for fp in add_relays]
-                hibernating_statuses.extend(new_hibernating_statuses)
+                # include hibernating statuses for added relays
+                hibernating_statuses.extend([(0, fp, False) \
+                    for fp in add_relays])
                         
                 # update descriptors
                 descriptors.update(new_descriptors)
@@ -1727,7 +1730,7 @@ range from start_year and start_month to end_year and end_month. Write the \
 matched descriptors for each consensus to \
 out_dir/processed_descriptors-year-month.\n\
 \tsimulate \
-[nsf dir] [# samples] [tracefile] [testing] [num adv guard] [num adv exits]:\
+[nsf dir] [# samples] [tracefile] [testing] [num adv guard] [num adv exits]: \
 Do simulated path selections, where\n\
 \t\t nsf dir stores the network state files to use, \
 default: out/network-state-files\n\
