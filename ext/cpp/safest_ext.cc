@@ -239,8 +239,8 @@ void
 CoordinateEngine::cleanup()
 {
   networks.clear();
-  congest_distributions.clear();
-  latencies.clear();
+  inthash_clear(&congest_distributions);
+  latency_hash_clear(&latencies);
 }
 
 /* Initialize a specific network instance */
@@ -284,30 +284,28 @@ CoordinateEngine::initialize(const torps::ext::CoordInit & msg)
                                   / msg.ping_interval_seconds();
 
   for (uint32_t i = 0; i < instance_count; i++) {
-    congest_distributions.insert(
-        std::make_pair(i, new CongestionDistribution(msg.node_data(i))));
-
+    inthash_insert(&congest_distributions, i, new CongestionDistribution(msg.node_data(i)));
   }
 
   for (int32_t i = 0; i < msg.latency_map_size(); i++) {
     uint32_t n1 = msg.latency_map(i).n1_idx();
     uint32_t n2 = msg.latency_map(i).n2_idx();
+    double latency = msg.latency_map(i).latency();
     assert(n1 < instance_count && n2 < instance_count);
 
     /* Set n1 -> n2 */
-    if (latencies.find(n1) == latencies.end()) {
-      latencies.insert(
-          std::make_pair(n1,new lmap_inner_t));
+    int rc;
+    rc = latency_hash_insert(&latencies,n1,n2,latency);
+    if (rc == LH_DUP_INSERT) {
+      fprintf(stderr,"Attempted to insert duplicate latency for %u -> %u",
+              n1,n2);
     }
-    latencies[n1]->insert(
-          std::make_pair(n2,msg.latency_map(i).latency()));
 
-    if (latencies.find(n2) == latencies.end()) {
-      latencies.insert(
-          std::make_pair(n2,new lmap_inner_t));
+    rc = latency_hash_insert(&latencies,n2,n1,latency);
+    if (rc == LH_DUP_INSERT) {
+      fprintf(stderr,"Attempted to insert duplicate latency for %u -> %u",
+              n1,n2);
     }
-    latencies[n2]->insert(
-        std::make_pair(n1,msg.latency_map(i).latency()));
   }
 
   if (!instance_count || networks.empty() || !node_pings_per_interval) {
@@ -349,6 +347,7 @@ int
 CoordinateEngine::step_coordinates(uint32_t network_id)
 {
   uint32_t pinging_node, target_idx, target_node;
+  int rc;
   viv_coord_t *remote_coord;
   double remote_err;
   viv_sample_t *s;
@@ -368,10 +367,19 @@ CoordinateEngine::step_coordinates(uint32_t network_id)
                     network->instances[pinging_node]->nodeid,
                     pinging_node+1,instance_count);
 
-      double congestion = congest_distributions[pinging_node]->sample() +
-                          congest_distributions[target_node]->sample();
+      CongestionDistribution * cdist;
+      double congestion =0.0;
 
-      double latency = latencies[pinging_node]->at(target_node);
+      rc = inthash_get(&congest_distributions,pinging_node,&cdist);
+      assert(rc == LH_OK);
+      congestion += cdist->sample();
+      rc = inthash_get(&congest_distributions,target_node,&cdist);
+      assert(rc == LH_OK);
+      congestion += cdist->sample();
+
+      double latency;
+      rc = latency_hash_get(&latencies,pinging_node,target_node, &latency);
+      assert(rc == LH_OK);
 
       remote_coord = network->instances[target_node]->_c;
       remote_err = network->instances[target_node]->_pred_err;

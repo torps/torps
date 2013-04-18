@@ -1,16 +1,18 @@
 TARGET = safest_ext
 TARGET_DIR = $(shell pwd)/
 export TARGET_DIR
-LIBS = ../message_spec/protobuf-2.5.0/src/.libs/libprotobuf.a
+LIBS = ../message_spec/protobuf-2.5.0/src/libprotobuf.la
 CMD_SRC = cmdline.cc main.cc
-SRC = message_spec.pb.cc safest_ext.cc container.c  tor_stubs.c vivaldinode.c $(CMD_SRC)
+SRC = message_spec.pb.cc safest_ext.cc container.c
+			generic_hash.c latency_hash.c
+			tor_stubs.c vivaldinode.c $(CMD_SRC)
 CC = g++ -I.
-CXXFLAGS = -std=c++0x 
-CPPFLAGS = -I. -g -Wall -pg -I../message_spec/protobuf-2.5.0/src/ #-O2
-LDFLAGS = -pg -g -stdlib=libc++ -lz -Wall
+CXXFLAGS =
+CPPFLAGS = -I. -g -Wall -pg -I../message_spec/protobuf-2.5.0/src/  -static #-O2 -static
+LDFLAGS = -pg -g -lz -Wall
 TESTDIR = test
 
-.PHONY: default all clean cmdline message_spec.pb.cc
+.PHONY: default all clean cmdline message_spec.pb.cc test
 
 default: $(TARGET)
 all: default
@@ -34,9 +36,9 @@ HEADERS = $(wildcard *.h)
 
 .PRECIOUS: $(TARGET) $(OBJECTS) $(C_OBJECTS) message_spec.pb.cc
 
-$(TARGET): $(CMD_SRC)  $(OBJECTS) $(C_OBJECTS) 
-	$(CXX) $(LDFLAGS) $(LIBS) $(C_OBJECTS) $(OBJECTS)
-	#glibtool --tag=CXX --mode=link $(CXX) -O2 -pg -g -O -o $@ $(LIBS) $(C_OBJECTS) $(OBJECTS) -Wall
+$(TARGET): $(CMD_SRC)  $(OBJECTS) $(C_OBJECTS)
+	#$(CXX) $(LDFLAGS) $(LIBS) $(C_OBJECTS) $(OBJECTS)
+	libtool --tag=CXX --mode=link $(CXX) $(LDFLAGS) $(CPPFLAGS) -o $@ $(LIBS) $(C_OBJECTS) $(OBJECTS) -Wall
 
 test: test_latency_hash
 
@@ -45,6 +47,6 @@ test_latency_hash: latency_hash.o generic_hash.o test_latency_hash.o
 
 clean:
 	-rm -f *.o
-	-rm -f $(TARGET)              
+	-rm -f $(TARGET)
 
 

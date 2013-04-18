@@ -10,7 +10,8 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <vector>
-#include <unordered_map>
+#include "latency_hash.h"
+#include "generic_hash.h"
 #include "message_spec.pb.h"
 #include "cpp_interface.hh"
 
@@ -91,12 +92,8 @@ namespace cs {
     /* The following are variables that hold global 
      * information about the latencies and congestion
      * in the networks */
-#define lmap_inner_t std::unordered_map<uint32_t,double>
-    typedef std::unordered_map<uint32_t,std::unordered_map<uint32_t,double> *>
-                latency_map_t;
-
-    latency_map_t latencies;
-    std::unordered_map<uint32_t, CongestionDistribution *> congest_distributions;
+    latency_hash_t *latencies;
+    inthash_t *congest_distributions;
 
     options_t default_opts;
 
