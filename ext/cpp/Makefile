@@ -3,12 +3,12 @@ TARGET_DIR = $(shell pwd)/
 export TARGET_DIR
 LIBS = ../message_spec/protobuf-2.5.0/src/libprotobuf.la
 CMD_SRC = cmdline.cc main.cc
-SRC = message_spec.pb.cc safest_ext.cc container.c
-			generic_hash.c latency_hash.c
+SRC = message_spec.pb.cc safest_ext.cc container.c  \
+			generic_hash.c latency_hash.c \
 			tor_stubs.c vivaldinode.c $(CMD_SRC)
 CC = g++ -I.
 CXXFLAGS =
-CPPFLAGS = -I. -g -Wall -pg -I../message_spec/protobuf-2.5.0/src/  -static #-O2 -static
+CPPFLAGS = -I. -g -Wall -pg -I../message_spec/protobuf-2.5.0/src/  -static -O2
 LDFLAGS = -pg -g -lz -Wall
 TESTDIR = test
 
