@@ -1535,7 +1535,7 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
                         None, port)
                     if _testing:                            
                         print('# exits for new need at port {0}: {1}'.\
-                            format(len(port_need_exits)))
+                            format(port, len(port_need_exits)))
                     port_need_exit_weights = get_position_weights(\
                         port_need_exits, cons_rel_stats, 'e',\
                         cons_bw_weights, cons_bwweightscale)
@@ -1641,7 +1641,7 @@ def get_user_model(start_time, end_time, tracefilename=None, session="simple"):
         http_request_wait = int(60 / num_requests) * 60
         str_ip = '74.125.131.105' # www.google.com
         for t in xrange(start_time, end_time, http_request_wait):
-            streams.append({'time':t,'type':'connect','ip':str_ip,'port':80})
+            streams.append({'time':t,'type':'connect','ip':str_ip,'port':443})
     else:
         ut = UserTraces.from_pickle(tracefilename)
         um = UserModel(ut, start_time, end_time)
