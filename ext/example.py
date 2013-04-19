@@ -18,11 +18,38 @@ def main():
   client.set_logger(logger)
   client.connect("localhost",7000)
   nodeinfo = [safest.NodeInfo.from_Relay(r) for r in relays]
+
+  """ 
+  The setup call will block until it has initialized all of
+  the networks by stepping them through the coordinate algorithm
+  once
+  """
   client.setup(n_networks,
               nodeinfo,
               latency_map,
               update_intvl = 3600,
               ping_intvl = 3)
+
+  coords_n1 = client.get_next_coordinates(0)
+  coord_1 = coords_n1[0]
+  coords_n1 = client.get_next_coordinates(0)
+  coord_2 = coords_n1[0]
+
+  coord_change = coord_1.distance(coord_2)
+  coords_n1 = client.get_next_coordinates(0)
+  coord_1 = coords_n1[0]
+  coords_n1 = client.get_next_coordinates(0)
+  coord_2 = coords_n1[0]
+
+  coord_change = coord_1.distance(coord_2)
+
+  print("Coordinate for {0} changed {1} between iteration 1 and 2.\n"
+        "Was previously {2}, now it is {3}"
+        .format(
+          coord_1.nodeid,
+          coord_change,
+          coord_1,
+          coord_2))
 
   coords_n1 = client.get_next_coordinates(1)
   coord_1 = coords_n1[0]
@@ -38,7 +65,6 @@ def main():
           coord_change,
           coord_1,
           coord_2))
-
 
 class Relay():
   """A copy of the Relay class from readprofile.py """
