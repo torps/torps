@@ -1661,12 +1661,13 @@ range from start_year and start_month to end_year and end_month. Write the \
 matched descriptors for each consensus to \
 out_dir/processed_descriptors-year-month.\n\
 \tsimulate \
-[nsf dir] [# samples] [tracefile] [testing] [num adv guard] [num adv exits] [congestion data] [prop delay data]: \
+[nsf dir] [# samples] [tracefile] [user model] [testing] [num adv guard] [num adv exits] [congestion data] [prop delay data]: \
 Do simulated path selections, where\n\
 \t\t nsf dir stores the network state files to use, \
 default: out/network-state-files\n\
 \t\t # samples is the number of simulations to execute, default: 1\n\
 \t\t tracefile indicates the user trace, default: traces.pickle\n\
+\t\t user model is one of "facebook", "gmailgchat", "gcalgdocs", "websearch", "irc", "bittorrent", "simple", default: "simple"\n\
 \t\t testing indicates that debug info will be printed, default: 0\n\
 \t\t num adv guards indicates the number of adversarial guards to add, \
 default: 0\n\
@@ -1719,11 +1720,12 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
         network_state_files_dir = sys.argv[2] if len(sys.argv) >= 3 else 'out/network-state-files'
         num_samples = int(sys.argv[3]) if len(sys.argv) >= 4 else 1
         tracefilename = sys.argv[4] if len(sys.argv) >= 5 else "traces.pickle"
-        _testing = (sys.argv[5] == '1') if len(sys.argv) >= 6 else False
-        num_adv_guards = int(sys.argv[6]) if len(sys.argv) >= 7 else 0
-        num_adv_exits = int(sys.argv[7]) if len(sys.argv) >= 8 else 0
-        congfilename = int(sys.argv[8]) if len(sys.argv) >= 9 else None
-        pdelfilename = int(sys.argv[9]) if len(sys.argv) >= 10 else None
+        usermodel = sys.argv[5] if len(sys.argv) >= 6 else 'simple'
+        _testing = (sys.argv[6] == '1') if len(sys.argv) >= 7 else False
+        num_adv_guards = int(sys.argv[7]) if len(sys.argv) >= 8 else 0
+        num_adv_exits = int(sys.argv[8]) if len(sys.argv) >= 9 else 0
+        congfilename = int(sys.argv[9]) if len(sys.argv) >= 10 else None
+        pdelfilename = int(sys.argv[10]) if len(sys.argv) >= 11 else None
         
         network_state_files = []
         for dirpath, dirnames, filenames in os.walk(network_state_files_dir,\
@@ -1750,7 +1752,7 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
         # available sessions:
         # "simple", "facebook", "gmailgchat", "gcalgdocs", "websearch", "irc", "bittorrent"
         streams = get_user_model(start_time, end_time, tracefilename,\
-            session="simple")
+            session=usermodel)
         congmodel = CongestionModel(congfilename)
         pdelmodel = PropagationDelayModel(pdelfilename)
         
