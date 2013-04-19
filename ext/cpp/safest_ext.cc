@@ -47,26 +47,15 @@ CoordinateEngine::start( uint32_t port)
 
   fprintf(stderr, "Waiting for connection on %u\n", port);
   socklen_t len;
-  _commsock = accept(_mainsock, (struct sockaddr *) &conn_addr, &len);
-
-  if (!_commsock) {
-    close(_mainsock);
-    perror_quit("accept");
-  }
-
-  char addrbuf[64];
-  fprintf(stderr,"Established connection with %s\n",
-                  inet_ntop(AF_INET,&conn_addr.sin_addr,addrbuf,len));
 
   struct pollfd poller[2];
   poller[0].fd = _mainsock;
-  poller[0].events = 0;
-  poller[1].fd = _commsock;
-  poller[1].events = POLLIN;
+  poller[0].events = POLLIN;
 
-  int sock_count = 2;
+  int sock_count = 1;
 
   while (1) {
+    fprintf(stderr, "Polling on %d sockets",sock_count);
     if (( rc = poll( poller,sock_count, -1) ) < 0)
       perror_quit("poll");
 
@@ -78,18 +67,52 @@ CoordinateEngine::start( uint32_t port)
       fprintf(stderr,"Error on main socket\n");
       exit(1);
     }
+    else if (poller[0].revents & POLLIN) {
+      if (sock_count == 2) {
+        fprintf(stderr, "We already have aconnection \n");
+        //We already have a connection
+        continue;
+      }
+      _commsock = accept(_mainsock, (struct sockaddr *) &conn_addr, &len);
 
-    if (poller[1].revents & (POLLHUP | POLLERR)) {
-      fprintf(stderr,"Socket error. Dying.\n");
-      exit(1);
+      if (!_commsock) {
+        close(_mainsock);
+        perror_quit("accept");
+      }
+      poller[1].fd = _commsock;
+      poller[1].events = (POLLIN |POLLNVAL | POLLHUP | POLLERR);
+      sock_count = 2;
+
+      char addrbuf[64];
+      fprintf(stderr,"Established connection with %s\n",
+                      inet_ntop(AF_INET,&conn_addr.sin_addr,addrbuf,len));
+      continue;
     }
-    else if (poller[1].revents & POLLNVAL) {
-      fprintf(stderr,"Socket not connected\n");
-      exit(1);
-    } else if (poller[1].revents & POLLIN) {
-      dispatch(poller[1].fd);
-    } else {
-      fprintf(stderr, "Poll returned unknown event\n");
+
+    if (sock_count > 1) {
+      fprintf(stderr,"Checking connected socket for data\n");
+
+      if (poller[1].revents & (POLLHUP | POLLERR)) {
+        fprintf(stderr,"Socket error. Dying.\n");
+        exit(1);
+      }
+      else if (poller[1].revents & POLLNVAL) {
+        fprintf(stderr,"Socket not connected\n");
+        exit(1);
+      } else if (poller[1].revents & POLLIN) {
+        rc = dispatch(poller[1].fd);
+        if (rc < 0) {
+          perror("recv");
+          break;
+        }
+        rc = dispatch(poller[1].fd);
+        if (rc == 0) {
+          sock_count = 1;
+          fprintf(stderr,"Lost client connection. Listening for a new one.\n");
+        }
+      } else {
+        fprintf(stderr, "Poll returned unknown event\n");
+      }
     }
   }
 }
