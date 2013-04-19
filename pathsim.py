@@ -19,17 +19,16 @@ class RouterStatusEntry:
     Represents a relay entry in a consensus document.
     Trim version of stem.descriptor.router_status_entry.RouterStatusEntry.
     """
-    def __init__(self, fingerprint, nickname, flags, bandwidth, address,\
-        or_port, exit_policy):
+    def __init__(self, fingerprint, nickname, flags, bandwidth):
         self.fingerprint = fingerprint
         self.nickname = nickname
         self.flags = flags
         self.bandwidth = bandwidth
         
         # not currently used, but potentially useful
-        self.address = address # IP address in consensus
-        self.or_port = or_port
-        self.exit_policy = exit_policy # micro exit policy
+#        self.address = address # IP address in consensus
+#        self.or_port = or_port
+#        self.exit_policy = exit_policy # micro exit policy
     
 
 class NetworkStatusDocument:
@@ -38,7 +37,7 @@ class NetworkStatusDocument:
     Trim version of stem.descriptor.networkstatus.NetworkStatusDocument.
     """
     def __init__(self, valid_after, fresh_until, bandwidth_weights, \
-        bwweightscale, relays, is_microdescriptor):
+        bwweightscale, relays):
         self.valid_after = valid_after
         self.fresh_until = fresh_until
         self.bandwidth_weights = bandwidth_weights
@@ -46,7 +45,7 @@ class NetworkStatusDocument:
         self.relays = relays
         
         # not currently used, but potentially useful
-        self.is_microdescriptor = is_microdescriptor
+#        self.is_microdescriptor = is_microdescriptor
 
 
 class ServerDescriptor:
@@ -55,8 +54,7 @@ class ServerDescriptor:
     Trim version of stem.descriptor.server_descriptor.ServerDescriptor.
     """
     def __init__(self, fingerprint, hibernating, nickname, family, address,\
-        exit_policy, or_port, uptime, average_bandwidth, burst_bandwidth,\
-        observed_bandwidth):
+        exit_policy):
         self.fingerprint = fingerprint
         self.hibernating = hibernating
         self.nickname = nickname
@@ -65,11 +63,11 @@ class ServerDescriptor:
         self.exit_policy = exit_policy
         
         # not currently used, but potentially useful
-        self.or_port = or_port
-        self.uptime = uptime
-        self.average_bandwidth = average_bandwidth
-        self.burst_bandwidth = burst_bandwidth
-        self.observed_bandwidth = observed_bandwidth
+#        self.or_port = or_port
+#        self.uptime = uptime
+#        self.average_bandwidth = average_bandwidth
+#        self.burst_bandwidth = burst_bandwidth
+#        self.observed_bandwidth = observed_bandwidth
 
 
 def timestamp(t):
@@ -159,7 +157,6 @@ def process_consensuses(in_dirs):
             cons_fresh_until = None
             cons_bw_weights = None
             cons_bwweightscale = None
-            cons_is_microdescriptor = None
             relays = {}
             num_not_found = 0
             num_found = 0
@@ -178,13 +175,9 @@ def process_consensuses(in_dirs):
                     ('bwweightscale' in r_stat.document.params):
                     cons_bwweightscale = r_stat.document.params[\
                             'bwweightscale']
-                if (cons_is_microdescriptor == None):
-                    cons_is_microdescriptor =\
-                        r_stat.document.is_microdescriptor
                 relays[r_stat.fingerprint] = RouterStatusEntry(\
                     r_stat.fingerprint, r_stat.nickname, \
-                    r_stat.flags, r_stat.bandwidth, r_stat.address,\
-                    r_stat.or_port, r_stat.exit_policy)
+                    r_stat.flags, r_stat.bandwidth)
 
                 # find most recent unexpired descriptor published before
                 # the publication time in the consensus
@@ -229,9 +222,7 @@ def process_consensuses(in_dirs):
                         ServerDescriptor(desc.fingerprint, \
                             desc.hibernating, desc.nickname, \
                             desc.family, desc.address, \
-                            desc.exit_policy, desc.or_port,\
-                            desc.uptime, desc.average_bandwidth,\
-                            desc.burst_bandwidth, desc.observed_bandwidth)                           
+                            desc.exit_policy)                           
                      
                     # store hibernating statuses
                     if (desc_time_fresh == None):
@@ -267,7 +258,7 @@ def process_consensuses(in_dirs):
                 (cons_fresh_until != None):
                 consensus = NetworkStatusDocument(cons_valid_after,\
                     cons_fresh_until, cons_bw_weights,\
-                    cons_bwweightscale, relays, cons_is_microdescriptor)    
+                    cons_bwweightscale, relays)    
                 hibernating_statuses.sort(key = lambda x: x[0],\
                     reverse=True)
                 outpath = os.path.join(desc_out_dir,\
@@ -1601,6 +1592,48 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
             cur_time += time_step
 
 
+def add_adv_guards(num_adv_guards, adv_relays, adv_descriptors, bandwidth):
+    """"Adds adversarial guards into add_relays and add_descriptors."""
+    for i in xrange(num_adv_guards):
+        # create consensus
+        num_str = str(i+1)
+        fingerprint = '0' * (40-len(num_str)) + num_str
+        nickname = 'BadGuyGuard' + num_str
+        flags = [stem.Flag.FAST, stem.Flag.GUARD, stem.Flag.RUNNING, \
+            stem.Flag.STABLE, stem.Flag.VALID]
+        adv_relays[fingerprint] = RouterStatusEntry(fingerprint, nickname,\
+            flags, bandwidth)
+            
+        # create descriptor
+        hibernating = False
+        family = {}
+        address = '10.'+num_str+'.0.0' # avoid /16 conflicts
+        exit_policy = stem.exit_policy.ExitPolicy('reject *:*')
+        adv_descriptors[fingerprint] = ServerDescriptor(fingerprint,\
+            hibernating, nickname, family, address, exit_policy)
+
+def add_adv_exits(num_adv_exits, adv_relays, adv_descriptors, bandwidth):
+    """"Adds adversarial exits into add_relays and add_descriptors."""
+    for i in xrange(num_adv_exits):
+        # create consensus
+        num_str = str(i+1)
+        fingerprint = 'F' * (40-len(num_str)) + num_str
+        nickname = 'BadGuyExit' + num_str
+        flags = [stem.Flag.FAST, stem.Flag.EXIT, stem.Flag.RUNNING, \
+            stem.Flag.STABLE, stem.Flag.VALID]
+        # avoid /16 conflicts
+        adv_relays[fingerprint] = RouterStatusEntry(fingerprint, nickname,\
+            flags, bandwidth)
+            
+        # create descriptor
+        hibernating = False
+        family = {}
+        address = '10.'+str(num_adv_guards+i+1)+'.0.0' 
+        exit_policy = stem.exit_policy.ExitPolicy('accept *:*')
+        adv_descriptors[fingerprint] = ServerDescriptor(fingerprint,\
+            hibernating, nickname, family, address, exit_policy)                
+                        
+
 def get_user_model(start_time, end_time, tracefilename=None, session="simple"):
     streams = []
     if session == "simple":
@@ -1724,64 +1757,12 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
         adv_relays = {}
         adv_descriptors = {}
         # choose adversarial guards to add to network
-        for i in xrange(num_adv_guards):
-            # create consensus
-            num_str = str(i+1)
-            fingerprint = '0' * (40-len(num_str)) + num_str
-            nickname = 'BadGuyGuard' + num_str
-            flags = [stem.Flag.FAST, stem.Flag.GUARD, stem.Flag.RUNNING, \
-                stem.Flag.STABLE, stem.Flag.VALID]
-            bandwidth = 128000 # cons bw of top guard on 3/2/12
-            address = '10.'+num_str+'.0.0' # avoid /16 conflicts
-            or_port = 80
-            micro_exit_policy = stem.exit_policy.MicroExitPolicy(\
-                'reject 1-65535')
-            adv_relays[fingerprint] = RouterStatusEntry(fingerprint, nickname,\
-                flags, bandwidth, address, or_port, micro_exit_policy)
-
-            # create descriptor
-            hibernating = False
-            family = {}
-            exit_policy = stem.exit_policy.ExitPolicy('reject *:*')
-            uptime = 60*60*24*31 # say, one month uptime
-            average_bandwidth = 1024*1024*1024 # 1 GBps, though unused
-            burst_bandwidth = 1024*1024*1024 # 1 GBps, though unused
-            observed_bandwidth = 1024*1024*1024 # 1 GBps, though unused
-            adv_descriptors[fingerprint] = ServerDescriptor(fingerprint,\
-                hibernating, nickname, family, address, exit_policy,\
-                or_port, uptime, average_bandwidth, burst_bandwidth,\
-                observed_bandwidth)
-
+        bandwidth = 128000 # cons bw of top guard on 3/2/12
+        add_adv_guards(num_adv_guards, adv_relays, adv_descriptors, bandwidth)
 
         # choose adversarial exits to add to network
-        for i in xrange(num_adv_exits):
-            # create consensus
-            num_str = str(i+1)
-            fingerprint = 'F' * (40-len(num_str)) + num_str
-            nickname = 'BadGuyExit' + num_str
-            flags = [stem.Flag.FAST, stem.Flag.EXIT, stem.Flag.RUNNING, \
-                stem.Flag.STABLE, stem.Flag.VALID]
-            bandwidth = 90000 # bit over top exit 3/2/12-4/30/12 (ZhangPoland1)
-            # avoid /16 conflicts
-            address = '10.'+str(num_adv_guards+i+1)+'.0.0' 
-            or_port = 80
-            micro_exit_policy = stem.exit_policy.MicroExitPolicy(\
-                'accept 1-65535')
-            adv_relays[fingerprint] = RouterStatusEntry(fingerprint, nickname,\
-                flags, bandwidth, address, or_port, micro_exit_policy)
-                
-            # create descriptor
-            hibernating = False
-            family = {}
-            exit_policy = stem.exit_policy.ExitPolicy('accept *:*')
-            uptime = 60*60*24*31 # say, one month uptime
-            average_bandwidth = 1024*1024*1024 # 1 GBps, though unused
-            burst_bandwidth = 1024*1024*1024 # 1 GBps, though unused
-            observed_bandwidth = 1024*1024*1024 # 1 GBps, though unused
-            adv_descriptors[fingerprint] = ServerDescriptor(fingerprint,\
-                hibernating, nickname, family, address, exit_policy,\
-                or_port, uptime, average_bandwidth, burst_bandwidth,\
-                observed_bandwidth)                
+        bandwidth = 90000 # bit over top exit 3/2/12-4/30/12 (ZhangPoland1)
+        add_adv_exits(num_adv_exits, adv_relays, adv_descriptors, bandwidth)
 
         # simulate the circuits for these streams
         create_circuits(network_state_files, streams, num_samples, adv_relays,\
