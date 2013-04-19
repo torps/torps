@@ -258,3 +258,26 @@ for stream in streams:
   # num: 164     
 ###### 
 ##########
+
+##### Turn trace streams with destination ip *.exit into resolve requests #####
+from pathsim import *
+import cPickle as pickle
+tracefile = 'in/traces.pickle'
+with open(tracefile) as f:
+    obj = pickle.load(f)
+
+models = ["facebook" , "gmailgchat", "gcalgdocs", "websearch", "irc",\
+    "bittorrent"]
+for key in models:
+    model_trace = obj.trace[key]
+    new_model_trace = []
+    for stream in model_trace:
+        if ('.exit' not in stream[1]):
+            new_model_trace.append(stream)
+        else:
+            ip_split = stream[1].split('.')
+            new_ip = ip_split[0]+'.'+ip_split[1]+'.'+\
+                ip_split[2]+'.'+ip_split[3]
+            new_model_trace.append((stream[0], new_ip, 0))
+    obj.trace[key] = new_model_trace
+##########    

@@ -986,7 +986,6 @@ at {0}'.format(stream['time']))
                 guard_expiration_max, stream_weighted_exits, weighted_middles,\
                 weighted_guards)
         elif (stream['type'] == 'resolve'):
-            stable = (stream['port'] in long_lived_ports)
             new_circ = create_circuit(cons_rel_stats,\
                 cons_valid_after, cons_fresh_until,\
                 cons_bw_weights, cons_bwweightscale,\

@@ -91,7 +91,12 @@ We collected session traces of approximately 20 minutes for each usage class. We
                     if currenttime < offset and seconds < offset: continue
                     currenttime = seconds-offset+starttime
                     if currenttime >= endtime: break
-                    self.model[key].append({'time':currenttime,'type':'connect','ip':ip,'port':port})
+                    if (port != 0):
+                        self.model[key].append({'time':currenttime,\
+                            'type':'connect','ip':ip,'port':port})
+                    else:
+                        self.model[key].append({'time':currenttime,\
+                            'type':'resolve','ip':ip,'port':port})
                 week += 1
 
     def schedule_session(self, key, trace, sessionstart):
