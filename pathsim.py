@@ -5,7 +5,7 @@ import os.path
 import stem.descriptor as sd
 import stem.descriptor.networkstatus as sdn
 import stem
-from random import random, randint
+from random import random, randint, choice
 import sys
 import collections
 import cPickle as pickle
@@ -1087,7 +1087,7 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
             circ_fast, circ_stable, guards, num_guards,\
             min_num_guards, exit_node, guard_expiration_min,\
             guard_expiration_max, circ_time, weighted_guards)   
-        guard_node = random.choice(circ_guards)
+        guard_node = choice(circ_guards)
         if (hibernating_status[guard_node]):
             if (not guards[guard_node]['made_contact']):
                 if _testing:
