@@ -1752,8 +1752,8 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
         # "simple", "facebook", "gmailgchat", "gcalgdocs", "websearch", "irc", "bittorrent"
         streams = get_user_model(start_time, end_time, tracefilename,\
             session=usermodel)
-        congmodel = CongestionModel(congfilename)
-        pdelmodel = PropagationDelayModel(pdelfilename)
+        #congmodel = CongestionModel(congfilename)
+        #pdelmodel = PropagationDelayModel(pdelfilename)
         
         adv_relays = {}
         adv_descriptors = {}
