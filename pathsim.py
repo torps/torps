@@ -5,7 +5,7 @@ import os.path
 import stem.descriptor as sd
 import stem.descriptor.networkstatus as sdn
 import stem
-import random
+from random import random, randint
 import sys
 import collections
 import cPickle as pickle
@@ -326,7 +326,7 @@ def get_bw_weight(flags, position, bw_weights):
 def select_weighted_node(weighted_nodes):
     """Takes (node,cum_weight) pairs where non-negative cum_weight increases,
     ending at 1. Use cum_weights as cumulative probablity to select a node."""
-    r = random.random()
+    r = random()
     
     begin = 0
     end = len(weighted_nodes)-1
@@ -702,7 +702,7 @@ def get_guards_for_circ(bw_weights, bwweightscale, cons_rel_stats,\
             if _testing:                
                 print('Need guard. Adding {0} [{1}]'.format(\
                     cons_rel_stats[new_guard].nickname, new_guard))
-            expiration = random.randint(guard_expiration_min,\
+            expiration = randint(guard_expiration_min,\
                 guard_expiration_max)
             guards[new_guard] = {'expires':(expiration+\
                 circ_time), 'bad_since':None, 'unreachable_since':None,\
@@ -721,7 +721,7 @@ def get_guards_for_circ(bw_weights, bwweightscale, cons_rel_stats,\
             if _testing:                
                 print('Need guard for circuit. Adding {0} [{1}]'.format(\
                     cons_rel_stats[new_guard].nickname, new_guard))
-            expiration = random.randint(guard_expiration_min,\
+            expiration = randint(guard_expiration_min,\
                 guard_expiration_max)
             guards[new_guard] = {'expires':(expiration+\
                 circ_time), 'bad_since':None, 'unreachable_since':None,\
