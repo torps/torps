@@ -152,6 +152,7 @@ class CongestionModel(object):
     """
     """
     def __init__(self, tracefilename):
+        if tracefilename is None: return None
 
         self.assigned = {}
         self.profiles = {}
@@ -178,6 +179,7 @@ class CongestionModel(object):
         return match
 
     def get_congestion(self, name, weight, isexit=False, isguard=False):
+        if isguard and not isexit: isexit = True
         if name not in self.assigned: self.assigned[name] = self.find_match(weight, isexit, isguard)
         return self.assigned[name].get_congestion()
 
@@ -185,4 +187,9 @@ class PropagationDelayModel(object):
     """
     """
     def __init__(self, tracefilename):
+        if tracefilename is None: return None
         pass
+
+    def get_prop_delay(self, ip1, ip2):
+        # return prop delay between ip1 and ip2, based on the model
+        return 100
