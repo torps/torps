@@ -1754,6 +1754,8 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
             session=usermodel)
         #congmodel = CongestionModel(congfilename)
         #pdelmodel = PropagationDelayModel(pdelfilename)
+        congmodel = None
+        pdelmodel = None
         
         adv_relays = {}
         adv_descriptors = {}
