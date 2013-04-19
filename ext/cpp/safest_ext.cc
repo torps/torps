@@ -263,6 +263,10 @@ CoordinateEngine::is_initialized()
 void
 CoordinateEngine::cleanup()
 {
+  for (std::vector<CoordinateNetwork *>::iterator i = networks.begin();
+       i != networks.end(); i++) {
+    delete(*i);
+  }
   networks.clear();
   inthash_clear(&congest_distributions);
   latency_hash_clear(&latencies);

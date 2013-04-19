@@ -517,6 +517,7 @@ char viv_update( viv_instance_t *node, viv_sample_t *sample)
     viv_coord2string(new_coord, coord_str, sizeof(coord_str) );
     viv_prot_update_buffers(node, sample);
     update_stability(node,viv_dist(new_coord,node->_c));
+    viv_coord_free(node->_c);
     node->_c = new_coord;
     node->_nsamples += 1;
     log_notice( LD_GENERAL, "Updated coordinate. "
@@ -526,6 +527,8 @@ char viv_update( viv_instance_t *node, viv_sample_t *sample)
                             node->_pred_err,node->stability);
   }
   else  {
+    if (new_coord)
+      viv_coord_free(new_coord);
     log_notice(LD_GENERAL,"Did not update coordinate.");
   }
   return res;
@@ -863,6 +866,9 @@ viv_prot_centroid_check(viv_instance_t *node, viv_sample_t *s)
   } else {
     log_notice(LD_GENERAL,"[CentroidProtect] Passed. Accepted. "cent_fmt,cent_fmt_args);
   }
+  viv_coord_free(new_centroid);
+  viv_coord_free(origin);
+  viv_coord_free(neighbor_centroid);
   return 1;
   #undef cent_fmt
   #undef cent_fmt_args
