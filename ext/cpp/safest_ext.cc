@@ -207,7 +207,6 @@ CoordinateEngine::dispatch(int socket)
       else {
         /* Initialize and prepare the first step */
         rc = initialize(msg.init_data());
-        send_response(socket,torps::ext::StatusMessage::OK);
         /* Run all of the coordinate systems once */
         for (uint32_t net_idx = 0; net_idx < network_count; net_idx++) {
           pick_ping_targets(net_idx);
@@ -218,6 +217,8 @@ CoordinateEngine::dispatch(int socket)
           }
           prepare_response(net_idx);
         }
+        //Don't respond until we've initialized.
+        send_response(socket,torps::ext::StatusMessage::OK, empty);
 
       }
       break;
@@ -228,6 +229,7 @@ CoordinateEngine::dispatch(int socket)
                       "No network ID sent with GET request");
       }
       else {
+        send_response(socket,torps::ext::StatusMessage::DATA_NEXT);
         uint32_t network_id = msg.get_network_id();
         assert(network_id < network_count);
         fprintf(stderr, "Received GET requests for network %u\n", network_id);
