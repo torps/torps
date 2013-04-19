@@ -420,7 +420,7 @@ CoordinateEngine::step_coordinates(uint32_t network_id)
 
   fprintf(stderr,"Completed iteration in %ld seconds\n",time(0)-timer);
 
-  return 0;
+  return 1; // ok
 }
 
 void
