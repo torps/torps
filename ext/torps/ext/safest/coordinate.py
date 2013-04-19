@@ -18,15 +18,12 @@ class Coordinate(object):
     coord._built = True
     return coord
 
-  def __str__(self):
-    return "{ {0}:{1}:{2} }".format(
-                  self.nodeid,
-                  [v for v in self.vectors],
-                  self.error)
-
-
   def __repr__(self):
-    return self.__dict__
+    if not self._built:
+      return "None"
+    return "%s" % ({"nodeid": self.nodeid,
+        "vectors": self.vectors[:],
+        "error":self.error })
 
   @property
   def nodeid(self):

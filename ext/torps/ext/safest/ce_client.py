@@ -117,22 +117,23 @@ class CoordinateEngineClient(object):
     tmpbuf = struct.pack("!I",buflen)
     tmpbuf += buf
     self.socket.sendall(tmpbuf)
-    self.wait_response(data_cb,**data_kwargs)
+    return self.wait_response(data_cb,**data_kwargs)
 
   def get_next_coordinates(self,network_id):
     """
     Requests and returns the next set of coordinates
     for all of the nodes in network 'network_id'.
     """
-
     req = ext.ControlMessage()
     req.type = ext.GET
     req.get_network_id = network_id
 
-    return self.send(req.SerializeToString(),
+    coords = self.send(req.SerializeToString(),
                      req.ByteSize(),
                      self.translate_coordinate_response,
                      expected_network = network_id)
+
+    return coords
 
   def read_msg_from_sock(self):
     resp = self.socket.recv(4)
@@ -182,7 +183,8 @@ class CoordinateEngineClient(object):
     elif msg.status == ext.StatusMessage.DATA_NEXT:
       self.log.debug("Server sent DATA_NEXT response. Listening")
       resp = self.read_msg_from_sock()
-      return data_cb(resp,**cb_args)
+      results = data_cb(resp,**cb_args)
+      return results
 
   @staticmethod
   def translate_coordinate_response(data,**kwargs):
