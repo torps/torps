@@ -9,7 +9,6 @@ logger.setLevel(logging.DEBUG)
 def main():
 
   relays = generate_random_relays(100)
-  assign_congestion(relays, 25)
   latency_map = generate_random_latency_map(relays)
 
   n_networks = 2
@@ -17,7 +16,6 @@ def main():
   client = safest.CoordinateEngineClient.Instance()
   client.set_logger(logger)
   client.connect("localhost",7000)
-  nodeinfo = [safest.NodeInfo.from_Relay(r) for r in relays]
 
   """ 
   The setup call will block until it has initialized all of
@@ -25,7 +23,7 @@ def main():
   once
   """
   client.setup(n_networks,
-              nodeinfo,
+              relays,
               latency_map,
               update_intvl = 3600,
               ping_intvl = 3)
@@ -89,13 +87,20 @@ def generate_random_relays(num):
   """
   generated = []
 
+  class FakeCongestionProfile(object):
+    name = None
+    def __init__(self):
+      pass
+
+  profiles = []
+  for i in xrange(50):
+    r = FakeCongestionProfile()
+    r.binsize = 10
+    r.bins = [random.randint(0,10) for x in xrange(0,100)]
+    profiles.append(r)
+
   for i in xrange(num):
-    r = Relay("relays{0}".format(i),
-              random.choice((True,False)),
-              random.choice((True,False)),
-              random.random()
-              )
-    generated.append(r)
+    generated.append((str(i),random.choice(profiles)))
 
   return generated
 
@@ -119,12 +124,12 @@ def generate_random_latency_map(relays, minval = 1, maxval = 20):
 
   """
   lmap = dict()
-  for r1,r2 in itertools.combinations(relays,2):
+  for r1,r2 in itertools.combinations(map(lambda x: x[0],relays),2):
     try:
-      lmap[r1.name][r2.name] = random.randint(minval,maxval)
+      lmap[r1][r2] = random.randint(minval,maxval)
     except KeyError:
-      lmap[r1.name] = dict()
-      lmap[r1.name][r2.name] = random.randint(minval,maxval)
+      lmap[r1] = dict()
+      lmap[r1][r2] = random.randint(minval,maxval)
 
   return lmap
 

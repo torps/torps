@@ -278,6 +278,7 @@ CoordinateEngine::initialize_network(
                    const torps::ext::CoordInit & msg,
                    CoordinateNetwork *network)
 {
+  CongestionDistribution *tmp;
   network->instance_count = instance_count;
 
   for (uint32_t i = 0; i < instance_count; i++) {
@@ -286,6 +287,13 @@ CoordinateEngine::initialize_network(
     snprintf(network->instances[i]->nodeid,
               64,"%s",
               msg.node_data(i).id().c_str());
+    network->instances[i]->congestion_ident = 
+                           msg.node_data(i).congestion_profile();
+
+    assert(LH_OK == inthash_get(&congest_distributions,
+                                network->instances[i]->congestion_ident,
+                                &tmp));
+
     network->ping_targets.push_back(new std::vector<uint32_t>());
   }
 
@@ -304,6 +312,15 @@ CoordinateEngine::initialize(const torps::ext::CoordInit & msg)
   instance_count = msg.node_data_size();
   network_count = msg.num_networks();
 
+  /* Load congestion profiles first so that we can error
+   * check the instance congestion identifiers */
+  for (int32_t i = 0; i < msg.congestion_profiles_size(); i++) {
+    /* Insert Congestion Profiles keyed by their identifier */
+    inthash_insert(&congest_distributions,
+                   msg.congestion_profiles(i).identifier(), 
+                   new CongestionDistribution(msg.congestion_profiles(i)));
+  }
+
   for (uint32_t network = 0; network < network_count; network++) {
     networks.push_back(new CoordinateNetwork());
     initialize_network(msg, networks[network]);
@@ -312,9 +329,6 @@ CoordinateEngine::initialize(const torps::ext::CoordInit & msg)
   node_pings_per_interval = msg.update_interval_seconds()
                                   / msg.ping_interval_seconds();
 
-  for (uint32_t i = 0; i < instance_count; i++) {
-    inthash_insert(&congest_distributions, i, new CongestionDistribution(msg.node_data(i)));
-  }
 
   for (int32_t i = 0; i < msg.latency_map_size(); i++) {
     uint32_t n1 = msg.latency_map(i).n1_idx();
@@ -377,6 +391,7 @@ CoordinateEngine::step_coordinates(uint32_t network_id)
 {
   uint32_t pinging_node, target_idx, target_node;
   int rc;
+  viv_instance_t *pinging_instance, *target_instance;
   viv_coord_t *remote_coord;
   double remote_err;
   viv_sample_t *s;
@@ -390,19 +405,23 @@ CoordinateEngine::step_coordinates(uint32_t network_id)
       target_node = network->ping_targets[pinging_node]->at(target_idx);
       assert(target_node != pinging_node);
       assert(target_node < instance_count);
+
+      pinging_instance = network->instances[pinging_node];
+      target_instance = network->instances[target_node];
+
       fprintf(stderr,"Iteration %d of %d. Stepping node '%s' (%d of %d).\n",
                     target_idx+1,
                     node_pings_per_interval,
-                    network->instances[pinging_node]->nodeid,
+                    pinging_instance->nodeid,
                     pinging_node+1,instance_count);
 
       CongestionDistribution * cdist;
       double congestion =0.0;
 
-      rc = inthash_get(&congest_distributions,pinging_node,&cdist);
+      rc = inthash_get(&congest_distributions,pinging_instance->congestion_ident,&cdist);
       assert(rc == LH_OK);
       congestion += cdist->sample();
-      rc = inthash_get(&congest_distributions,target_node,&cdist);
+      rc = inthash_get(&congest_distributions,target_instance->congestion_ident,&cdist);
       assert(rc == LH_OK);
       congestion += cdist->sample();
 
@@ -410,16 +429,16 @@ CoordinateEngine::step_coordinates(uint32_t network_id)
       rc = latency_hash_get(&latencies,pinging_node,target_node, &latency);
       assert(rc == LH_OK);
 
-      remote_coord = network->instances[target_node]->_c;
-      remote_err = network->instances[target_node]->_pred_err;
+      remote_coord = target_instance->_c;
+      remote_err = target_instance->_pred_err;
 
-      s = viv_record_ping_sample(network->instances[pinging_node],
+      s = viv_record_ping_sample(pinging_instance,
                                  remote_coord,
                                  latency+ congestion,
                                  remote_err,
-                                 network->instances[target_node]->nodeid);
+                                 target_instance->nodeid);
 
-      viv_update( network->instances[pinging_node], s);
+      viv_update( pinging_instance, s);
 
     }
   }
@@ -479,19 +498,49 @@ CoordinateEngine::prepare_response(uint32_t network_id)
   network->prepared_response.set_type(torps::ext::COORDS);
 }
 
-CongestionDistribution::CongestionDistribution(const torps::ext::NodeSpecification &spec)
+CongestionDistribution::CongestionDistribution(const torps::ext::CongestionProfile &spec)
 {
-  bucket_count = spec.congestion_dist_size();
-  values = new double[bucket_count];
-  for (int i = 0; i < bucket_count; i++) {
-    values[i] = spec.congestion_dist(i);
+  bucket_size = spec.binsize();
+  bucket_count = spec.binprobs_size();
+
+  uint32_t bin_iter = 0, bin_start = 0;
+  for (uint32_t i = 0; i < bucket_count; i++){
+    /* Each element in binprobs represents the probability
+     * of selecting that bin for congestion purposes.
+     * We're going to represent that at the granularity of 
+     * .000's by inserting a number into each of our 1000
+     * bins that represents what bin you should be in if you
+     * draw a random number from [0,1000].
+     */
+    uint32_t num_assigned_buckets = 1000 * spec.binprobs(i);
+    fprintf(stderr,"Assigning %.2f-%.2f probability of %d/1000\n",
+            (double)i*bucket_size,
+            ((double)((i+1)*bucket_size)) - .01,
+            num_assigned_buckets);
+
+    for (bin_iter = bin_start ; bin_iter - bin_start < num_assigned_buckets; bin_iter++) {
+      if (bin_iter == 1000) 
+        break;
+      bucket_selector[bin_iter] = i;
+    }
+    bin_start = bin_iter;
+
+    if (bin_iter == 1000)
+      assert(i == bucket_count - 1);
   }
 }
 
 double
 CongestionDistribution::sample()
 {
-  return values[rand() % bucket_count];
+  uint32_t selected_bin = bucket_selector[rand() % bucket_count];
+  assert(selected_bin <= bucket_count);
+
+  uint32_t random_in_range = rand() % (bucket_size * 1000);
+  double double_in_range = ((double)random_in_range) / 1000.0;
+   
+  return ((double)(bucket_size * selected_bin))  // offset to bucket
+         + double_in_range;                      // offset inside bucket
 }
 
 CoordinateEngine::CoordinateEngine()

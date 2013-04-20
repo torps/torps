@@ -38,14 +38,15 @@ namespace cs {
   class CongestionDistribution {
 
     public:
-    CongestionDistribution(const torps::ext::NodeSpecification &spec);
-    ~CongestionDistribution() { delete values; }
+    CongestionDistribution(const torps::ext::CongestionProfile &spec);
+    ~CongestionDistribution() {  }
 
     double sample();
 
     private:
-    int bucket_count;
-    double * values;
+    uint32_t bucket_count;
+    uint32_t bucket_size;
+    uint32_t bucket_selector[1000];
   };
 
   class CoordinateEngine {

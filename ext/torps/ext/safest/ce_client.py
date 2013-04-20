@@ -11,46 +11,6 @@ logging.basicConfig()
 logger = logging.getLogger("base")
 logger.setLevel(logging.DEBUG)
 
-class NodeInfo(object):
-  ''' Represents a node in the CoordinateEngine '''
-
-  def __init__(self,nodeid):
-    self._nodeid = nodeid
-
-  @classmethod
-  def from_Relay(cls,relay):
-    """
-    Creates a NodeInfo object from a readprofile.Relay
-    object.
-    """
-    try:
-      ni = NodeInfo(relay.name)
-      ni.congestion_distribution = relay.congestion
-    except AttributeError as e:
-      raise TypeError("Expected an object that ducktypes 'readprofile.Relay', but "
-                      "encountered an error while accessing it: {0}".format(e))
-
-    return ni
-
-  @property
-  def nodeid(self):
-    return self._nodeid
-
-  @property
-  def congestion_distribution(self):
-    return self.congest
-
-  @congestion_distribution.setter
-  def congestion_distribution(self,dist):
-    if not isinstance(dist, (list,tuple)):
-      raise TypeError("Congestion distributions are expected "
-                      "to be a list of numerical values.")
-
-    if not all(map(lambda x: isinstance(x,(int,long,float)),dist )):
-      raise TypeError("Not all passed values were numeric.")
-
-    self.congest = dist[:]
-
 class CommunicationError(Exception):
   pass
 
@@ -86,15 +46,13 @@ class CoordinateEngineClient(object):
     the coordinate system that needs to be emulated. 'num_networks' copies of
     the coordinate system will be instantiated for separate samples.
 
-    The most important argument is 'instances', which should
-    be a collection of NodeInfo objects, each of which contain
-    the id, and congestion distribution for one of the nodes
-    in the coordinate system.
+    The most important argument is :instances:, which should a collection of tuples
+    of the form (<nodeid>,<torps.CongestionProfile>).
 
     'latency_map' should be an adjacency list format designating the latency and
     links between pairs of nodes. For instances, {'n1': {'n2': 50 } } would
     designate a link between 'n1' and 'n2' with a cost of 50 milliseconds. The
-    keys of the dictionary should be NodeInfo nodeids.
+    keys of the dictionary should be nodeids as provided in :instances:.
 
     There are two additional parameters, 'update_intvl' and 'ping_intvl',
     which specify, in seconds, the length of the coordinate system update
@@ -214,6 +172,7 @@ class CoordinateEngineClient(object):
     In a separate function so that we can test it properly.
     """
     instance_idx_map = dict()
+    c_profiles = dict()
 
     init_msg = ext.ControlMessage()
     init_msg.type = ext.INIT
@@ -222,18 +181,29 @@ class CoordinateEngineClient(object):
     init_msg.init_data.ping_interval_seconds = ping_intvl
 
     for i,instance in enumerate(instances):
+      if not isinstance(instance,(tuple,list)):
+        raise TypeError("Expected instances to be tuples of the form (nodeid,congestion_profile)")
+      
+      nodeid = instance[0]
+      profile = instance[1]
+      if profile.name not in c_profiles:
+        c_profiles[profile.name] = len(c_profiles)
+        profile_buf = init_msg.init_data.congestion_profiles.add()
+        profile_buf.identifier = c_profiles[profile.name]
+        profile_buf.binsize = profile.binsize
+        total_count = sum(profile.bins)
+        for count in profile.bins:
+          profile_buf.binprobs.append(float(count)/float(total_count))
+
       nodespec = init_msg.init_data.node_data.add()
-      try:
-        nodespec.id = instance.nodeid
-        nodespec.congestion_dist.extend(instance.congestion_distribution)
-      except AttributeError:
-        raise TypeError("Expected 'instances' to be an iterable of NodeInfo objects")
-      instance_idx_map[instance.nodeid] = i
+      nodespec.id = nodeid
+      nodespec.congestion_profile = c_profiles[profile.name]
+      instance_idx_map[nodespec.id] = i
 
     if not isinstance(latency_map,(dict)):
       raise TypeError("'instances' should be a dictionary.")
 
-    required_latencies = set(itertools.combinations(map(lambda x: x.nodeid, instances),2))
+    required_latencies = set(itertools.combinations(map(lambda x: x[0], instances),2))
     for n1,n2,lat in self.__yield_latency_info(latency_map):
       if len(set([(n1,n2),(n2,n1)]) & required_latencies) == 0:
         continue

@@ -74,7 +74,9 @@ typedef struct VIV_NODE
 
     options_t options;
 
+    /*  These are specific to the CoordinateEngine */
     char nodeid[64];
+    uint32_t congestion_ident;
 
 } viv_instance_t;
 

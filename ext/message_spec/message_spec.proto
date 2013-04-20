@@ -1,4 +1,3 @@
-
 package torps.ext;
 
 enum Type {
@@ -17,9 +16,21 @@ message StatusMessage {
   optional string msg = 2;
 }
 
+message CongestionProfile {
+  /* A unique identifier for this profile */
+  required uint32 identifier = 1;
+  /* The size of each bin (a bin from 0-10 would be 10) */
+  required uint32 binsize = 2;
+  /* The probability of choosing each of the bins.
+   * The range is defined by definition from zero to 
+   * len(binprobs) * binsize 
+   */
+  repeated double binprobs = 3;
+}
+
 message NodeSpecification {
   required string id = 1;
-  repeated double congestion_dist = 2;
+  required uint32 congestion_profile = 2;
 }
 
 message LatencyInfo {
@@ -34,6 +45,7 @@ message CoordInit {
   optional uint32 ping_interval_seconds = 3 [default = 3];
   repeated NodeSpecification node_data = 4;
   repeated LatencyInfo latency_map = 5;
+  repeated CongestionProfile congestion_profiles=6;
   //The number of separate networks to instatiate.
   //All networks will be instantiated with the same
   //node information and latency.
