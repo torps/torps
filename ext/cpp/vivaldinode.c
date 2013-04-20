@@ -154,8 +154,8 @@ viv_sample_free( viv_sample_t *sample )
 {
   if ((--(sample->__refct)) > 0)
     return;
-  viv_coord_free( sample->_c );
-  _tor_free( sample );
+  tor_free( sample->_c );
+  tor_free( sample );
 }
 
 
@@ -177,7 +177,7 @@ void viv_node_free( viv_instance_t *node )
       });
   smartlist_free(node->prot_centroid_window);
 
-  _tor_free( node );
+  tor_free( node );
 }
 
 double viv_flatearth_dist(const viv_coord_t *a, const viv_coord_t *b)
@@ -434,8 +434,8 @@ viv_net_force( viv_instance_t *node, viv_sample_t *sample, double weight)
 #endif
 
     viv_plus( f, udir, f );
-    viv_coord_free( udir );
-    viv_coord_free( dir );
+    tor_free( udir );
+    tor_free( dir );
   }
   log_notice(LD_GENERAL,"Height vector force calculated as %0.2f. Will be multiplied by -1",f->_ht);
   f->_ht = -f->_ht;
@@ -469,7 +469,7 @@ viv_algorithm(viv_instance_t *node, viv_sample_t *s)
   viv_multiply_by_x( f, t );
   viv_coord_t *new_coord = viv_coord_init( );
   viv_plus( node->_c, f, new_coord );
-  viv_coord_free( f );
+  tor_free( f );
   //  _c = _c + (f * t);
 
   /* MICAH: is this next "if" correct? */
@@ -508,7 +508,7 @@ char viv_update( viv_instance_t *node, viv_sample_t *sample)
   log_notice(LD_GENERAL, "New candidate coord: %s",coord_str);
 
   if (!viv_prot_error_check(node,new_coord)){
-    viv_coord_free(new_coord);
+    tor_free(new_coord);
     res = 0;
   }
 
@@ -517,7 +517,7 @@ char viv_update( viv_instance_t *node, viv_sample_t *sample)
     viv_coord2string(new_coord, coord_str, sizeof(coord_str) );
     viv_prot_update_buffers(node, sample);
     update_stability(node,viv_dist(new_coord,node->_c));
-    viv_coord_free(node->_c);
+    tor_free(node->_c);
     node->_c = new_coord;
     node->_nsamples += 1;
     log_notice( LD_GENERAL, "Updated coordinate. "
@@ -528,7 +528,7 @@ char viv_update( viv_instance_t *node, viv_sample_t *sample)
   }
   else  {
     if (new_coord)
-      viv_coord_free(new_coord);
+      tor_free(new_coord);
     log_notice(LD_GENERAL,"Did not update coordinate.");
   }
   return res;
@@ -866,9 +866,9 @@ viv_prot_centroid_check(viv_instance_t *node, viv_sample_t *s)
   } else {
     log_notice(LD_GENERAL,"[CentroidProtect] Passed. Accepted. "cent_fmt,cent_fmt_args);
   }
-  viv_coord_free(new_centroid);
-  viv_coord_free(origin);
-  viv_coord_free(neighbor_centroid);
+  tor_free(new_centroid);
+  tor_free(origin);
+  tor_free(neighbor_centroid);
   return 1;
   #undef cent_fmt
   #undef cent_fmt_args
