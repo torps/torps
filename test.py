@@ -275,7 +275,16 @@ for stream in streams:
 # ips
     # num: 285
 # ports
-  # num: 164     
+  # num: 164  
+  
+  
+# Model streams / week
+# simple: 1008
+# fb: 47*4*5 = 940
+# websearch: 138*4*5 = 2760
+# bittorrent: 321*18*7 = 40446
+#  OR 321*18*2 = 11556  
+# typical (fb+gmail+gcalgdocs) = (47 + 40 + 17)*4*5 = 2000     
 ###### 
 ##########
 
@@ -319,7 +328,3 @@ for key in models:
 with open(out_tracefile, 'wb') as f:
     pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
 ##########    
-
-##### Examine user models #####
-
-##########

@@ -29,7 +29,7 @@ def compromised_set_process_log(compromised_relays, out_dir, out_name,\
             line = line[0:-1] # cut off final newline
             line_fields = line.split('\t')
             id = int(line_fields[0])
-            time = int(line_fields[1])
+            time = float(line_fields[1])
             guard_ip = line_fields[2]
             exit_ip = line_fields[4]
 
@@ -108,7 +108,7 @@ def compromised_top_relays_process_log(top_guards, top_exits, out_dir,\
             line = line[0:-1] # cut off final newline
             line_fields = line.split('\t')
             id = int(line_fields[0])
-            time = int(line_fields[1])
+            time = float(line_fields[1])
             guard_ip = line_fields[2]
             exit_ip = line_fields[4]
                     
