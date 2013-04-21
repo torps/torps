@@ -1,0 +1,71 @@
+package torps.ext;
+
+enum Type {
+  INIT = 1;
+  GET = 2;
+  COORDS = 3;
+}
+
+message StatusMessage {
+  enum Status {
+    OK = 1;
+    ERR = 2;
+    DATA_NEXT = 3; //Recv again, more data coming
+  }
+  required Status status = 1;
+  optional string msg = 2;
+}
+
+message CongestionProfile {
+  /* A unique identifier for this profile */
+  required uint32 identifier = 1;
+  /* The size of each bin (a bin from 0-10 would be 10) */
+  required uint32 binsize = 2;
+  /* The probability of choosing each of the bins.
+   * The range is defined by definition from zero to 
+   * len(binprobs) * binsize 
+   */
+  repeated double binprobs = 3;
+}
+
+message NodeSpecification {
+  required string id = 1;
+  required uint32 congestion_profile = 2;
+}
+
+message LatencyInfo {
+  required uint32 n1_idx = 1;
+  required uint32 n2_idx = 2;
+  required double latency = 3;
+}
+
+message CoordInit {
+  optional uint32 num_networks = 1 [default = 1]; 
+  required uint32 update_interval_seconds = 2;
+  optional uint32 ping_interval_seconds = 3 [default = 3];
+  repeated NodeSpecification node_data = 4;
+  repeated LatencyInfo latency_map = 5;
+  repeated CongestionProfile congestion_profiles=6;
+  //The number of separate networks to instatiate.
+  //All networks will be instantiated with the same
+  //node information and latency.
+}
+
+message Coordinate {
+  required string node_id = 1;
+  required int32 dim = 2;
+  required double error = 3;
+  repeated double vectors = 4;
+}
+
+message CoordUpdate {
+  required uint32 network_id = 1;
+  repeated Coordinate coords = 2;
+}
+
+message ControlMessage {
+  required Type type = 1;
+  optional CoordInit init_data = 2;
+  optional CoordUpdate update_data = 3;
+  optional uint32 get_network_id = 4; //The ID number for the network to get coordinates for.
+}

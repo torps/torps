@@ -129,38 +129,51 @@ class CongestionProfile(object):
         self.isguard = relay.isguard
         self.weight = relay.weight
 
+        # create 100 bins spanning congestion range
         self.lenc = len(relay.congestion)
         self.minc, self.maxc = 1000*min(relay.congestion), 1000*max(relay.congestion)
         self.binsize = int((self.maxc-self.minc)/100.0)
         self.breakpoints = range(self.minc, self.maxc, self.binsize)
-        self.bins = [0 for i in self.breakpoints]
+        self.bins = [0]*len(self.breakpoints)
+        self.cumul, self.total = [], 0.0
 
+        # use congestion values to count weight of each bin
         for c in relay.congestion:
             i = bisect_left(self.breakpoints, c*1000.0)
+            if i >= len(self.bins): i = len(self.bins)-1
             self.bins[i] += 1
 
+        # make CDF of the bin weights
+        for w in self.bins:
+            self.total += w
+            self.cumul.append(self.total)
+
     def get_congestion(self):
-        # probabilistically choose a bin
-        x = random() * self.lenc
-        i = bisect_left(self.bins, x)
+        '''returns milliseconds of congestion'''
+        # probabilistically choose a bin by sampling the bin weights CDF
+        x = random() * self.total
+        i = bisect_left(self.cumul, x)
         # draw a uniform value from its range
         low = self.breakpoints[i]
         high = low + self.binsize
-        return (randint(low, high) / 1000.0)
+        return randint(low, high) / 1000.0
 
 class CongestionModel(object):
     """
     """
     def __init__(self, tracefilename):
+        if tracefilename is None: return None
 
         self.assigned = {}
         self.profiles = {}
 
         relays = None
-        with open(tracefilename, 'rb') as inf:
-            relays = pickle.load(inf)
-            for name in relays: self.profiles[name] = CongestionProfile(relays[name])
-
+        try:
+            with open(tracefilename, 'rb') as inf:
+                relays = pickle.load(inf)
+                for name in relays: self.profiles[name] = CongestionProfile(relays[name])
+        except Exception:
+            return None
     '''
     Gets the relay profile with a consensus weight closest to the given
     weight, taking into consideration the exit and guard flags.
@@ -178,6 +191,7 @@ class CongestionModel(object):
         return match
 
     def get_congestion(self, name, weight, isexit=False, isguard=False):
+        if isguard and not isexit: isexit = True
         if name not in self.assigned: self.assigned[name] = self.find_match(weight, isexit, isguard)
         return self.assigned[name].get_congestion()
 
@@ -185,4 +199,12 @@ class PropagationDelayModel(object):
     """
     """
     def __init__(self, tracefilename):
-        pass
+        if tracefilename is None: return None
+        try:
+            pass
+        except Exception:
+            return None
+
+    def get_prop_delay(self, ip1, ip2):
+        # return prop delay between ip1 and ip2, based on the model
+        return 100

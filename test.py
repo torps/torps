@@ -194,6 +194,21 @@ for stream in streams:
 for stream in streams:
     print('[{0:.1f}]\t{1}:{2}'.format(stream[0], stream[1], stream[2]))
 
+# remove streams that duplicate an ip/24:port seen 10 minutes ago
+max_circuit_dirtiness = 10*60
+cover_time = float(max_circuit_dirtiness)/2
+ip_port_seen = {}
+streams_reduced = []
+for stream in streams:
+    ip_split = stream[1].split('.')
+    ip_24 = '.'.join(ip_split[0:3])
+    ip_port = ip_24 + ':' + str(stream[2])
+    if (ip_port in ip_port_seen) and\
+        (stream[0] - ip_port_seen[ip_port] < cover_time):
+        continue
+    else:
+        ip_port_seen[ip_port] = stream[0]
+        streams_reduced.append(stream)
 
 ### Results ###
 #start_time: 1330646400
@@ -201,6 +216,7 @@ for stream in streams:
 
 #facebook
 # num streams 3/12-4/12: 107081=1755.4/day
+# num streams reduced (5 min. window, /24): 47
 # num streams in trace: 637
 # num streams to .exit: 4
 # num streams to 9001 but not .exit: 0
@@ -212,18 +228,20 @@ for stream in streams:
   # [80, 9001, 443]
   # to non-exit: [80, 443]
   
-#gmailchat
-  # num streams in trace: 516
-  # num streams to .exit: 0
+#gmailgchat
+# num streams in trace: 516
+# num streams to .exit: 0
+# num streams reduced (5 min. window, /24): 40
 # ips
     # num: 70
 # ports
   # num: 2
   # [80, 443]
   
-#gcaldocs
-  # num streams in trace: 370
-  # num streams to .exit: 0
+#gcalgdocs
+# num streams in trace: 370
+# num streams to .exit: 0
+# num streams reduced (5 min. window, /24): 17
 # ips
     # num: 42
 # ports
@@ -231,8 +249,9 @@ for stream in streams:
   # [80, 443]  
   
 #websearch
-  # num streams in trace: 1343
-  # num streams to .exit: 0
+# num streams in trace: 1343
+# num streams to .exit: 0
+# num streams reduced (5 min. window, /24): 138
 # ips
     # num: 170
 # ports
@@ -240,8 +259,8 @@ for stream in streams:
   # [80, 443] 
   
 #irc
-  # num streams in trace: 1
-  # num streams to .exit: 0
+# num streams in trace: 1
+# num streams to .exit: 0
 # ips
     # num: 1
 # ports
@@ -249,9 +268,10 @@ for stream in streams:
   # [6697]  
      
 #bittorrent
-  # num streams in trace: 355
-  # num streams to .exit: 4
-  # num streams to 9001 but not .exit: 0
+# num streams in trace: 355
+# num streams to .exit: 4
+# num streams to 9001 but not .exit: 0
+# num streams reduced (5 min. window, /24): 321
 # ips
     # num: 285
 # ports
@@ -259,25 +279,43 @@ for stream in streams:
 ###### 
 ##########
 
-##### Turn trace streams with destination ip *.exit into resolve requests #####
+##### Process traces #####
+
+# Turn trace streams with destination ip *.exit into resolve requests
+# Filter out requests to same /24 and port within max_circuit_dirtiness/2
 from pathsim import *
 import cPickle as pickle
-tracefile = 'in/traces.pickle'
-with open(tracefile) as f:
+in_tracefile = 'in/traces.pickle'
+out_tracefile = 'in/traces_processed.pickle'
+with open(in_tracefile) as f:
     obj = pickle.load(f)
 
 models = ["facebook" , "gmailgchat", "gcalgdocs", "websearch", "irc",\
     "bittorrent"]
+max_circuit_dirtiness = 10*60
+cover_time = float(max_circuit_dirtiness)/2
 for key in models:
     model_trace = obj.trace[key]
     new_model_trace = []
+    ip_port_seen = {}
     for stream in model_trace:
         if ('.exit' not in stream[1]):
-            new_model_trace.append(stream)
+            # remove streams that duplicate an ip/24:port seen recently
+            ip_split = stream[1].split('.')
+            ip_24 = '.'.join(ip_split[0:3])
+            ip_port = ip_24 + ':' + str(stream[2])
+            if (ip_port in ip_port_seen) and\
+                (stream[0] - ip_port_seen[ip_port] < cover_time):
+                continue
+            else:
+                ip_port_seen[ip_port] = stream[0]
+                new_model_trace.append(stream)
         else:
             ip_split = stream[1].split('.')
-            new_ip = ip_split[0]+'.'+ip_split[1]+'.'+\
-                ip_split[2]+'.'+ip_split[3]
+            new_ip = '.'.join(ip_split[0:4])
             new_model_trace.append((stream[0], new_ip, 0))
     obj.trace[key] = new_model_trace
+
+with open(out_tracefile, 'wb') as f:
+    pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
 ##########    
