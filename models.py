@@ -72,7 +72,7 @@ We collected session traces of approximately 20 minutes for each usage class. We
             self.schedule[key] = []
             trace = usertraces.trace[key]
             sunmorn = 0
-            for morning in [sunmorn, sunmorn+day, sunmorn+day*2, sunmorn+day*3, sunmorn+day*4, sunmorn+day*5, sunmorn+day*6]:
+            for morning in [sunmorn, sunmorn+day*6]:
                 sessionend = self.schedule_session(key, trace, morning)
                 for i in xrange(17):
                     sessionend = self.schedule_session(key, trace, sessionend)
