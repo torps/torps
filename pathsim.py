@@ -345,11 +345,25 @@ def select_weighted_node(weighted_nodes):
                 begin = mid+1
                 mid = int((end+begin)/2)
 
-    
+
+def might_exit_to_port(descriptor, port):
+    """Returns if will exit to port for *some* ip.
+    Is conservative - never returns a false negative."""
+    for rule in descriptor.exit_policy:
+        if (port >= rule.min_port) and\
+                (port <= rule.max_port): # assumes full range for wildcard port
+            if rule.is_accept:
+                return True
+            else:
+                if (rule.is_address_wildcard()) or\
+                    (rule.get_masked_bits() == 0):
+                    return False
+    return True # default accept if no rule matches
+
+
 def can_exit_to_port(descriptor, port):
-    """Returns if there is *some* ip that relay will exit to port.
-    Derived from compare_unknown_tor_addr_to_addr_policy() in policies.c. That
-    function returns ACCEPT, PROBABLY_ACCEPT, REJECT, and PROBABLY_REJECT.
+    """Derived from compare_unknown_tor_addr_to_addr_policy() in policies.c.
+    That function returns ACCEPT, PROBABLY_ACCEPT, REJECT, and PROBABLY_REJECT.
     We ignore the PRABABLY status, as is done by Tor in the uses of
     compare_unknown_tor_addr_to_addr_policy() that we care about."""             
     for rule in descriptor.exit_policy:
@@ -373,39 +387,58 @@ def policy_is_reject_star(exit_policy):
             ((rule.is_address_wildcard()) or (rule.get_masked_bits == 0)):
             return True
     return True
+        
 
-    
-def filter_exits(cons_rel_stats, descriptors, fast, stable, internal, ip,\
-    port):
-    """Applies exit filter to relays.
+def exit_filter(exit, cons_rel_stats, descriptors, fast, stable, internal, ip,\
+    port, loose):
+    """Applies the criteria for choosing a relay as an exit.
     If internal, doesn't consider exit policy.
     If IP and port given, simply applies exit policy.
-    If just port given, uses exit policy to guess.
+    If just port given, guess as Tor does, with the option to be slightly more
+    loose than Tor and avoid false negatives (via loose=True).
     If IP and port not given, check policy for any allowed exiting. This
-      behavior is for SOCKS RESOLVE requests in particular."""
+    behavior is for SOCKS RESOLVE requests in particular."""
+    rel_stat = cons_rel_stats[exit]
+    desc = descriptors[exit]
+    if (stem.Flag.BADEXIT not in rel_stat.flags) and\
+        (stem.Flag.RUNNING in rel_stat.flags) and\
+        (stem.Flag.VALID in rel_stat.flags) and\
+        ((not fast) or (stem.Flag.FAST in rel_stat.flags)) and\
+        ((not stable) or (stem.Flag.STABLE in rel_stat.flags)):
+        if (internal):
+            # In an "internal" circuit final node is chosen just like a
+            # middle node (ignoring its exit policy).
+            return True
+        elif (ip != None):
+            return desc.exit_policy.can_exit_to(ip, port)
+        elif (port != None):
+            if (not loose):
+                return can_exit_to_port(desc, port)
+            else:
+                return might_exit_to_port(desc, port)
+        else:
+            return (not policy_is_reject_star(desc.exit_policy))
+
+
+def filter_exits(cons_rel_stats, descriptors, fast, stable, internal, ip,\
+    port):
+    """Applies exit filter to relays."""
     exits = []
     for fprint in cons_rel_stats:
-        rel_stat = cons_rel_stats[fprint] 
-        desc = descriptors[fprint]  
-        if (stem.Flag.BADEXIT not in rel_stat.flags) and\
-            (stem.Flag.RUNNING in rel_stat.flags) and\
-            (stem.Flag.VALID in rel_stat.flags) and\
-            ((not fast) or (stem.Flag.FAST in rel_stat.flags)) and\
-            ((not stable) or (stem.Flag.STABLE in rel_stat.flags)):
-            if (internal):
-                # In an "internal" circuit final node is chosen just like a
-                # middle node (ignoring its exit policy).
+        if exit_filter(fprint, cons_rel_stats, descriptors, fast, stable,\
+            internal, ip, port, False):
                 exits.append(fprint)
-            elif (ip != None):
-                if (desc.exit_policy.can_exit_to(ip, port)):
-                    exits.append(fprint)
-            elif (port != None):
-                if (can_exit_to_port(desc, port)):
-                    exits.append(fprint)
-            else:
-                if (not policy_is_reject_star(desc.exit_policy)):
-                    exits.append(fprint)
+    return exits
+    
 
+def filter_exits_loose(cons_rel_stats, descriptors, fast, stable, internal,\
+    ip, port):
+    """Applies loose exit filter to relays."""    
+    exits = []
+    for fprint in cons_rel_stats:
+        if exit_filter(fprint, cons_rel_stats, descriptors, fast, stable,\
+            internal, ip, port, True):
+                exits.append(fprint)
     return exits
 
     
@@ -439,29 +472,7 @@ def get_weighted_nodes(nodes, weights):
         cum_weight += weights[node]/total_weight
         weighted_nodes.append((node, cum_weight))
     
-    return weighted_nodes
-           
-
-def get_weighted_exits(bw_weights, bwweightscale, cons_rel_stats,\
-    descriptors, fast, stable, internal, ip, port):
-    """Returns list of (fprint,cum_weight) pairs for potential exits along with
-    cumulative selection probabilities for use in a circuit with the indicated
-    properties.
-    """    
-    # filter exit list
-    exits = filter_exits(cons_rel_stats, descriptors, fast,\
-        stable, internal, ip, port)
-                    
-    # create weights
-    weights = None
-    if (internal):
-        weights = get_position_weights(exits, cons_rel_stats, 'm',\
-                    bw_weights, bwweightscale)
-    else:
-        weights = get_position_weights(exits, cons_rel_stats, 'e',\
-            bw_weights, bwweightscale)
-            
-    return get_weighted_nodes(exits, weights)           
+    return weighted_nodes         
 
     
 def in_same_family(descriptors, node1, node2):
@@ -901,7 +912,7 @@ def timed_client_updates(cur_time, client_state, num_guards, min_num_guards,\
                     need['fast'], need['stable'], False, None, port,\
                     num_guards, min_num_guards, guard_expiration_min,\
                     guard_expiration_max, port_need_weighted_exits[port],\
-                    weighted_middles, weighted_guards)
+                    True, weighted_middles, weighted_guards)
                 client_state['clean_exit_circuits'].appendleft(new_circ)
                 
                 # cover this port and any others
@@ -983,8 +994,8 @@ at {0}'.format(stream['time']))
                 descriptors, hibernating_status, guards, stream['time'], True,\
                 stable, False, stream['ip'], stream['port'],\
                 num_guards, min_num_guards, guard_expiration_min,\
-                guard_expiration_max, stream_weighted_exits, weighted_middles,\
-                weighted_guards)
+                guard_expiration_max, stream_weighted_exits, False,\
+                weighted_middles, weighted_guards)
         elif (stream['type'] == 'resolve'):
             new_circ = create_circuit(cons_rel_stats,\
                 cons_valid_after, cons_fresh_until,\
@@ -992,8 +1003,8 @@ at {0}'.format(stream['time']))
                 descriptors, hibernating_status, guards, stream['time'], True,\
                 False, False, None, None,\
                 num_guards, min_num_guards, guard_expiration_min,\
-                guard_expiration_max, stream_weighted_exits, weighted_middles,\
-                weighted_guards)
+                guard_expiration_max, stream_weighted_exits, True,\
+                weighted_middles, weighted_guards)
         else:
             raise ValueError('Unrecognized stream in client_assign_stream(): \
 {0}'.format(stream['type']))        
@@ -1014,13 +1025,52 @@ stream.'.format(stream['time']))
 
     return stream_assigned
 
+    
+def select_exit_node(bw_weights, bwweightscale, cons_rel_stats, descriptors,\
+    fast, stable, internal, ip, port, weighted_exits=None, exits_exact=False):
+    """Chooses a valid exit node. To improve performance when simulating many
+    streams, we allow any input weighted_exits list to possibly include
+    relays that are invalid for the current circuit (thus we can create
+    weighted_exits less often by only considering the port instead of the
+    ip/port). Then we randomly select from that list until a suitable exit is
+    found.
+    """
+    if (weighted_exits == None):    
+        # filter exit list
+        exits = filter_exits(cons_rel_stats, descriptors, fast,\
+            stable, internal, ip, port)
+        # create weights
+        weights = None
+        if (internal):
+            weights = get_position_weights(exits, cons_rel_stats, 'm',\
+                        bw_weights, bwweightscale)
+        else:
+            weights = get_position_weights(exits, cons_rel_stats, 'e',\
+                bw_weights, bwweightscale)
+        weighted_exits = get_weighted_nodes(exits, weights)      
+        exits_exact = True
+    
+    if (exits_exact):
+        return select_weighted_node(weighted_exits)
+    else:
+        # select randomly until acceptable exit node is found
+        i = 1
+        while True:
+            exit_node = select_weighted_node(weighted_exits)
+            if _testing:
+                print('select_exit_node() made choice #{0}.'.format(i))
+            i += 1
+            if (exit_filter(exit_node, cons_rel_stats, descriptors, fast,\
+                stable, internal, ip, port, loose)):
+                return exit_node    
+
 
 def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
     cons_bw_weights, cons_bwweightscale, descriptors, hibernating_status,\
     guards, circ_time, circ_fast, circ_stable, circ_internal, circ_ip,\
     circ_port, num_guards, min_num_guards, guard_expiration_min,\
-    guard_expiration_max, weighted_exits=None, weighted_middles=None,\
-    weighted_guards=None):
+    guard_expiration_max, weighted_exits=None, exits_exact=False,\
+    weighted_middles=None, weighted_guards=None):
     """Creates path for requested circuit based on the input consensus
     statuses and descriptors.
     Inputs:
@@ -1038,9 +1088,14 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
         circ_internal: (bool) circuit is for name resolution or hidden service
         circ_ip: (str) IP address of destination (None if not known)
         circ_port: (int) desired TCP port (None if not known)
-        num_guards - guard_expiration_max: various Tor parameters
+        num_guards - guard_expiration_max: various Tor parameters        
         weighted_exits: (list) (middle, cum_weight) pairs for exit position
+        exits_exact: (bool) Is weighted_exits exact or does it need rechecking?
+            weighed_exits is special because exits are chosen first and thus
+            don't depend on the other circuit positions, and so potentially are        
+            precomputed exactly.
         weighted_middles: (list) (middle, cum_weight) pairs for middle position
+        weighted_guards: (list) (middle, cum_weight) pairs for middle position
     Output:
         circuit: (dict) a newly created circuit with keys
             'time': (int) seconds from time zero
@@ -1058,13 +1113,12 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
         raise ValueError('consensus not fresh for circ_time in create_circuit')
  
     # select exit node
-    if (weighted_exits == None):
-        weighted_exits = get_weighted_exits(cons_bw_weights, 
-            cons_bwweightscale, cons_rel_stats, descriptors, circ_fast,
-            circ_stable, circ_internal, circ_ip, circ_port)
     i = 1
     while (True):
-        exit_node = select_weighted_node(weighted_exits)
+        exit_node = select_exit_node(cons_bw_weights, cons_bwweightscale,\
+            cons_rel_stats, descriptors, circ_fast, circ_stable,\
+            circ_internal, circ_ip, circ_port, weighted_exits, exits_exact)
+#        exit_node = select_weighted_node(weighted_exits)
         if (not hibernating_status[exit_node]):
             break
         if _testing:
@@ -1414,6 +1468,11 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
                 cons_bwweightscale)
             port_need_weighted_exits[port] =\
                 get_weighted_nodes(port_need_exits, port_need_exit_weights)
+                
+        # Store filtered exits for streams based only on port.
+        # Conservative - never excludes a relay that exits to port for some ip.
+        # Use port of None to store exits for resolve circuits.
+        stream_port_weighted_exits = {}
 
         # filter middles and precompute cumulative weights
         potential_middles = filter(lambda x: middle_filter(x, cons_rel_stats,\
@@ -1542,32 +1601,43 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
                     port_need_weighted_exits[port] =\
                         get_weighted_nodes(port_need_exits,\
                             port_need_exit_weights)
-
-                # create weighted exits for this stream
-                stream_exits = None
-                if (stream['type'] == 'connect'):
-                    stable = (stream['port'] in long_lived_ports)
-                    stream_exits = filter_exits(cons_rel_stats,\
-                        descriptors, True, stable, False, stream['ip'],\
-                        stream['port'])                    
-                    if _testing:                        
-                        print('# exits for stream to {0} on port {1}: {2}'.\
-                            format(stream['ip'], stream['port'],
-                                len(stream_exits)))
-                elif (stream['type'] == 'resolve'):
-                    stream_exits = filter_exits(cons_rel_stats,\
-                        descriptors, True, False, False, None, None)                    
-                    if _testing:                        
-                        print('# exits for RESOLVE stream: {0}'.\
-                            format(len(stream_exits)))
+                            
+                # stream port for purposes of using precomputed exit lists
+                if (stream['type'] == 'resolve'):
+                    stream_port = None
                 else:
-                    raise ValueError('ERROR: Unrecognized stream type: {0}'.\
-                        format(stream['type']))
-                stream_exit_weights = get_position_weights(\
-                    stream_exits, cons_rel_stats, 'e', cons_bw_weights,\
-                    cons_bwweightscale)
-                stream_weighted_exits = get_weighted_nodes(\
-                    stream_exits, stream_exit_weights)                
+                    stream_port = stream['port']
+
+                # create weighted exits for this stream's port
+                if (stream_port not in stream_port_weighted_exits):
+                    if (stream['type'] == 'connect'):
+                        stable = (stream_port in long_lived_ports)
+                        stream_exits =\
+                            filter_exits_loose(cons_rel_stats,\
+                                descriptors, True, stable, False,\
+                                None, stream_port)
+                        if _testing:                        
+                            print('# loose exits for stream on port {0}: {1}'.\
+                                format(stream['port'], len(stream_exits)))
+                    elif (stream['type'] == 'resolve'):
+                        stream_exits =\
+                            filter_exits(cons_rel_stats, descriptors, True,\
+                                False, False, None, None)                    
+                        if _testing:                        
+                            print('# exits for RESOLVE stream: {0}'.\
+                                format(len(stream_exits)))
+                    else:
+                        raise ValueError(\
+                            'ERROR: Unrecognized stream type: {0}'.\
+                            format(stream['type']))
+                    stream_exit_weights = get_position_weights(\
+                        stream_exits, cons_rel_stats, 'e',\
+                        cons_bw_weights, cons_bwweightscale)
+                    stream_weighted_exits = get_weighted_nodes(\
+                        stream_exits, stream_exit_weights)
+                    stream_port_weighted_exits[stream_port] =\
+                        stream_weighted_exits
+                            
                 
                 # do client stream assignment
                 for client_state in client_states:
@@ -1582,7 +1652,8 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
                         cons_bw_weights, cons_bwweightscale,\
                         descriptors, hibernating_status, num_guards,\
                         min_num_guards, guard_expiration_min,\
-                        guard_expiration_max, stream_weighted_exits,\
+                        guard_expiration_max,\
+                        stream_port_weighted_exits[stream_port],\
                         weighted_middles, weighted_guards, long_lived_ports)
                     if (not _testing):
                         print_mapped_stream(client_state['id'],\
@@ -1641,7 +1712,7 @@ def get_user_model(start_time, end_time, tracefilename=None, session="simple"):
         http_request_wait = int(60 / num_requests) * 60
         str_ip = '74.125.131.105' # www.google.com
         for t in xrange(start_time, end_time, http_request_wait):
-            streams.append({'time':t,'type':'connect','ip':str_ip,'port':443})
+            streams.append({'time':t,'type':'connect','ip':str_ip,'port':80})
     else:
         ut = UserTraces.from_pickle(tracefilename)
         um = UserModel(ut, start_time, end_time)
