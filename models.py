@@ -43,7 +43,7 @@ We collected session traces of approximately 20 minutes for each usage class. We
 -gcal/gdocs    }
 -web search    }
 -irc             8am-5pm (27 sessions) M-F
--bittorrent      12pm-6am (18 sessions) Su-Sa
+-bittorrent      12pm-6am (18 sessions) Su & Sa
     """
     def __init__(self, usertraces, starttime, endtime):
         self.model = {}
