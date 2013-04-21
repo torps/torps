@@ -1794,8 +1794,8 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
         _testing = (sys.argv[6] == '1') if len(sys.argv) >= 7 else False
         num_adv_guards = int(sys.argv[7]) if len(sys.argv) >= 8 else 0
         num_adv_exits = int(sys.argv[8]) if len(sys.argv) >= 9 else 0
-        congfilename = int(sys.argv[9]) if len(sys.argv) >= 10 else None
-        pdelfilename = int(sys.argv[10]) if len(sys.argv) >= 11 else None
+        congfilename = sys.argv[9] if len(sys.argv) >= 10 else None
+        pdelfilename = sys.argv[10] if len(sys.argv) >= 11 else None
         
         network_state_files = []
         for dirpath, dirnames, filenames in os.walk(network_state_files_dir,\
@@ -1823,10 +1823,8 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
         # "simple", "facebook", "gmailgchat", "gcalgdocs", "websearch", "irc", "bittorrent"
         streams = get_user_model(start_time, end_time, tracefilename,\
             session=usermodel)
-        #congmodel = CongestionModel(congfilename)
-        #pdelmodel = PropagationDelayModel(pdelfilename)
-        congmodel = None
-        pdelmodel = None
+        congmodel = CongestionModel(congfilename)
+        pdelmodel = PropagationDelayModel(pdelfilename)
         
         adv_relays = {}
         adv_descriptors = {}

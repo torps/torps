@@ -1,0 +1,11 @@
+
+package "safest_ext"
+version "0.0.1"
+purpose "Standalone Vivaldi coordinate system"
+usage "safest_ext -p <port> "
+description "A tool that will run the Vivaldi coordinate system as a standalone entity"
+
+option "port" p
+       "The port to listen on"
+       int
+       required
