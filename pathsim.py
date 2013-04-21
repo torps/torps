@@ -1061,7 +1061,7 @@ def select_exit_node(bw_weights, bwweightscale, cons_rel_stats, descriptors,\
                 print('select_exit_node() made choice #{0}.'.format(i))
             i += 1
             if (exit_filter(exit_node, cons_rel_stats, descriptors, fast,\
-                stable, internal, ip, port, loose)):
+                stable, internal, ip, port, False)):
                 return exit_node    
 
 
