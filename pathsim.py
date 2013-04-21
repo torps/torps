@@ -1745,7 +1745,7 @@ default: out/network-state-files\n\
 \t\t num adv guards indicates the number of adversarial guards to add, \
 default: 0\n\
 \t\t num adv exits indicates the number of adversarial exits to add, default: 0\n\
-\t\adv time indicates timestamp after which adv relays added to consensuses\n\
+\t\tadv time indicates timestamp after which adv relays added to consensuses\n\
 \tconcattraces \
 outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, irc.log, bittorrent.log: combine user session traces into a single object used by pathsim, and pickle it. The pickled object is input to the simulate command.'
     if (len(sys.argv) <= 1):
