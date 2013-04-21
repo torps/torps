@@ -1197,7 +1197,7 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
             'covering':[]}
     
 def create_circuits(network_state_files, streams, num_samples, add_relays,\
-    add_descriptors, congmodel, pdelmodel):
+    add_descriptors, add_time, congmodel, pdelmodel):
     """Takes streams over time and creates circuits by interaction
     with create_circuit().
       Input:
@@ -1213,6 +1213,8 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
             add to all existing consensuses (as usual network state just
             continued for missing consensuses)
         add_descriptors: (dict: fprint->ServerDescriptor) add to descriptors
+        add_time: (int) timestamp after which specified relays will be added
+            to consensuses
     Output:
         [Prints circuit and guard selections of clients.]
     """
@@ -1315,20 +1317,21 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
                 for relay in consensus.relays:
                     if (relay in new_descriptors):
                         cons_rel_stats[relay] = consensus.relays[relay]
-
-                # include additional relays in consensus
-                if _testing:
-                    print('Adding {0} relays to consensus.'.format(\
-                        len(add_relays)))
-                for fprint, relay in add_relays.items():
-                    if fprint in cons_rel_stats:
-                        raise ValueError(\
-                            'Added relay exists in consensus: {0}:{1}'.\
-                                format(relay.nickname, fprint))
-                    cons_rel_stats[fprint] = relay
-                # include hibernating statuses for added relays
-                hibernating_statuses.extend([(0, fp, False) \
-                    for fp in add_relays])
+                        
+                if (add_time >= cons_valid_after):
+                    # include additional relays in consensus
+                    if _testing:
+                        print('Adding {0} relays to consensus.'.format(\
+                            len(add_relays)))
+                    for fprint, relay in add_relays.items():
+                        if fprint in cons_rel_stats:
+                            raise ValueError(\
+                                'Added relay exists in consensus: {0}:{1}'.\
+                                    format(relay.nickname, fprint))
+                        cons_rel_stats[fprint] = relay
+                    # include hibernating statuses for added relays
+                    hibernating_statuses.extend([(0, fp, False) \
+                        for fp in add_relays])
                         
                 # update descriptors
                 descriptors.update(new_descriptors)
@@ -1731,7 +1734,7 @@ range from start_year and start_month to end_year and end_month. Write the \
 matched descriptors for each consensus to \
 out_dir/processed_descriptors-year-month.\n\
 \tsimulate \
-[nsf dir] [# samples] [tracefile] [user model] [testing] [num adv guard] [num adv exits] [congestion data] [prop delay data]: \
+[nsf dir] [# samples] [tracefile] [user model] [testing] [num adv guard] [num adv exits] [adv time] [congestion data] [prop delay data]: \
 Do simulated path selections, where\n\
 \t\t nsf dir stores the network state files to use, \
 default: out/network-state-files\n\
@@ -1742,6 +1745,7 @@ default: out/network-state-files\n\
 \t\t num adv guards indicates the number of adversarial guards to add, \
 default: 0\n\
 \t\t num adv exits indicates the number of adversarial exits to add, default: 0\n\
+\t\adv time indicates timestamp after which adv relays added to consensuses\n\
 \tconcattraces \
 outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, irc.log, bittorrent.log: combine user session traces into a single object used by pathsim, and pickle it. The pickled object is input to the simulate command.'
     if (len(sys.argv) <= 1):
@@ -1794,8 +1798,9 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
         _testing = (sys.argv[6] == '1') if len(sys.argv) >= 7 else False
         num_adv_guards = int(sys.argv[7]) if len(sys.argv) >= 8 else 0
         num_adv_exits = int(sys.argv[8]) if len(sys.argv) >= 9 else 0
-        congfilename = sys.argv[9] if len(sys.argv) >= 10 else None
-        pdelfilename = sys.argv[10] if len(sys.argv) >= 11 else None
+        adv_time = int(sys.argv[9]) if len(sys.argv) >= 10 else 0
+        congfilename = sys.argv[10] if len(sys.argv) >= 11 else None
+        pdelfilename = sys.argv[11] if len(sys.argv) >= 12 else None
         
         network_state_files = []
         for dirpath, dirnames, filenames in os.walk(network_state_files_dir,\
@@ -1838,7 +1843,7 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
 
         # simulate the circuits for these streams
         create_circuits(network_state_files, streams, num_samples, adv_relays,\
-            adv_descriptors, congmodel, pdelmodel)  
+            adv_descriptors, adv_time, congmodel, pdelmodel)  
     elif (command == 'concattraces'): 
         if len(sys.argv) != 9: print usage; sys.exit(1)           
         ut = UserTraces(sys.argv[3], sys.argv[4], sys.argv[5], sys.argv[6], sys.argv[7], sys.argv[8])
