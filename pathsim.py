@@ -1321,8 +1321,6 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
                 if (add_time <= cons_valid_after):
                     # include additional relays in consensus
                     if _testing:
-                        print('add_time: {0}'.format(add_time))
-                        print('cons_valid_after: {0}'.format(cons_valid_after))
                         print('Adding {0} relays to consensus.'.format(\
                             len(add_relays)))
                     for fprint, relay in add_relays.items():
