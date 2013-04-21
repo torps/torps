@@ -1318,9 +1318,11 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
                     if (relay in new_descriptors):
                         cons_rel_stats[relay] = consensus.relays[relay]
                         
-                if (add_time >= cons_valid_after):
+                if (add_time <= cons_valid_after):
                     # include additional relays in consensus
                     if _testing:
+                        print('add_time: {0}'.format(add_time))
+                        print('cons_valid_after: {0}'.format(cons_valid_after))
                         print('Adding {0} relays to consensus.'.format(\
                             len(add_relays)))
                     for fprint, relay in add_relays.items():
@@ -1745,7 +1747,8 @@ default: out/network-state-files\n\
 \t\t num adv guards indicates the number of adversarial guards to add, \
 default: 0\n\
 \t\t num adv exits indicates the number of adversarial exits to add, default: 0\n\
-\t\tadv time indicates timestamp after which adv relays added to consensuses\n\
+\t\t adv time indicates timestamp after which adv relays added to\
+consensuses, default: 0\n\
 \tconcattraces \
 outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, irc.log, bittorrent.log: combine user session traces into a single object used by pathsim, and pickle it. The pickled object is input to the simulate command.'
     if (len(sys.argv) <= 1):
