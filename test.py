@@ -319,3 +319,7 @@ for key in models:
 with open(out_tracefile, 'wb') as f:
     pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
 ##########    
+
+##### Examine user models #####
+
+##########

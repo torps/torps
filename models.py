@@ -44,6 +44,7 @@ We collected session traces of approximately 20 minutes for each usage class. We
 -web search    }
 -irc             8am-5pm (27 sessions) M-F
 -bittorrent      12pm-6am (18 sessions) Su & Sa
+-typical         facebook + gmail/gchat + gcal/gdocs
     """
     def __init__(self, usertraces, starttime, endtime):
         self.model = {}
@@ -76,6 +77,12 @@ We collected session traces of approximately 20 minutes for each usage class. We
                 sessionend = self.schedule_session(key, trace, morning)
                 for i in xrange(17):
                     sessionend = self.schedule_session(key, trace, sessionend)
+                    
+        self.schedule["typical"] = []
+        self.schedule["typical"].extend(self.schedule["facebook"])
+        self.schedule["typical"].extend(self.schedule["gmailgchat"])
+        self.schedule["typical"].extend(self.schedule["gcalgdocs"])
+        self.schedule["typical"].sort(key = lambda x: x[0])
 
         # then build the model during the requested interval
         startd = datetime.datetime.fromtimestamp(starttime)
