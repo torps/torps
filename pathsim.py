@@ -859,7 +859,7 @@ def timed_client_updates(cur_time, client_state, num_guards, min_num_guards,\
     cons_rel_stats, cons_valid_after,\
     cons_fresh_until, cons_bw_weights, cons_bwweightscale, descriptors,\
     hibernating_status, port_need_weighted_exits, weighted_middles,\
-    weighted_guards):
+    weighted_guards, congmodel, pdelmodel):
     """Performs updates to client state that occur on a time schedule."""
     
     if _testing:
@@ -911,7 +911,8 @@ def timed_client_updates(cur_time, client_state, num_guards, min_num_guards,\
                     descriptors, hibernating_status, guards, cur_time,\
                     need['fast'], need['stable'], False, None, port,\
                     num_guards, min_num_guards, guard_expiration_min,\
-                    guard_expiration_max, port_need_weighted_exits[port],\
+                    guard_expiration_max, congmodel, pdelmodel,\
+                    port_need_weighted_exits[port],\
                     True, weighted_middles, weighted_guards)
                 client_state['clean_exit_circuits'].appendleft(new_circ)
                 
@@ -930,7 +931,7 @@ def client_assign_stream(client_state, stream, cons_rel_stats,\
     cons_valid_after, cons_fresh_until, cons_bw_weights, cons_bwweightscale,\
     descriptors, hibernating_status, num_guards, min_num_guards,\
     guard_expiration_min, guard_expiration_max, stream_weighted_exits,\
-    weighted_middles, weighted_guards, long_lived_ports):
+    weighted_middles, weighted_guards, long_lived_ports, congmodel, pdelmodel):
     """Assigns a stream to a circuit for a given client."""
         
     guards = client_state['guards']
@@ -994,7 +995,8 @@ at {0}'.format(stream['time']))
                 descriptors, hibernating_status, guards, stream['time'], True,\
                 stable, False, stream['ip'], stream['port'],\
                 num_guards, min_num_guards, guard_expiration_min,\
-                guard_expiration_max, stream_weighted_exits, False,\
+                guard_expiration_max, congmodel, pdelmodel,\
+                stream_weighted_exits, False,\
                 weighted_middles, weighted_guards)
         elif (stream['type'] == 'resolve'):
             new_circ = create_circuit(cons_rel_stats,\
@@ -1003,7 +1005,8 @@ at {0}'.format(stream['time']))
                 descriptors, hibernating_status, guards, stream['time'], True,\
                 False, False, None, None,\
                 num_guards, min_num_guards, guard_expiration_min,\
-                guard_expiration_max, stream_weighted_exits, True,\
+                guard_expiration_max, congmodel, pdelmodel,\
+                stream_weighted_exits, True,\
                 weighted_middles, weighted_guards)
         else:
             raise ValueError('Unrecognized stream in client_assign_stream(): \
@@ -1069,8 +1072,8 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
     cons_bw_weights, cons_bwweightscale, descriptors, hibernating_status,\
     guards, circ_time, circ_fast, circ_stable, circ_internal, circ_ip,\
     circ_port, num_guards, min_num_guards, guard_expiration_min,\
-    guard_expiration_max, weighted_exits=None, exits_exact=False,\
-    weighted_middles=None, weighted_guards=None):
+    guard_expiration_max, congmodel, pdelmodel, weighted_exits=None,\
+    exits_exact=False, weighted_middles=None, weighted_guards=None):
     """Creates path for requested circuit based on the input consensus
     statuses and descriptors.
     Inputs:
@@ -1088,7 +1091,9 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
         circ_internal: (bool) circuit is for name resolution or hidden service
         circ_ip: (str) IP address of destination (None if not known)
         circ_port: (int) desired TCP port (None if not known)
-        num_guards - guard_expiration_max: various Tor parameters        
+        num_guards - guard_expiration_max: various Tor parameters
+        congmodel: congestion model
+        pdelmodel: propagation delay model
         weighted_exits: (list) (middle, cum_weight) pairs for exit position
         exits_exact: (bool) Is weighted_exits exact or does it need rechecking?
             weighed_exits is special because exits are chosen first and thus
@@ -1104,9 +1109,9 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
             'internal': (bool) is internal (e.g. for hidden service)
             'dirty_time': (int) timestamp of time dirtied, None if clean
             'path': (tuple) list in-order fingerprints for path's nodes
-            'cons_rel_stats': (dict) relay stats for active consensus
             'covering': (list) ports with needs covered by circuit        
     """
+#            'cons_rel_stats': (dict) relay stats for active consensus
     
     if (circ_time < cons_valid_after) or\
         (circ_time >= cons_fresh_until):
@@ -1193,7 +1198,7 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
             'internal':circ_internal,\
             'dirty_time':None,\
             'path':(guard_node, middle_node, exit_node),\
-            'cons_rel_stats':cons_rel_stats,\
+#            'cons_rel_stats':cons_rel_stats,\
             'covering':[]}
     
 def create_circuits(network_state_files, streams, num_samples, add_relays,\
@@ -1372,18 +1377,6 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
                 if (hs[2]):
                     print('{0} was hibernating at start of consensus period.'.\
                         format(cons_rel_stats[hs[1]].nickname))
-        # TMP
-        # quick check: relays in cons_rel_stats should have hibernating status
-#        for relay in cons_rel_stats:
-#            if (relay not in hibernating_status):
-#                hstat = None
-#                for hs in hibernating_statuses:
-#                    if (hs[1] == relay):
-#                        hstat = hs
-#                        break
-#                raise ValueError('Problem with {0}.\n In cons_rel_stats: {1}\n\
-#In descriptors: {2}\n In hibernating_status: {3}\nLeft in hibernating_statuses: {4}'.format(relay, relay in cons_rel_stats, relay in descriptors, \
-#relay in hibernating_status, hstat))
         
         if (init == True): # first period in simulation
             # seed port need
@@ -1392,8 +1385,7 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
                 'stable':False, 'cover_num':port_need_cover_num}
             for client_state in client_states:
                 client_state['port_needs_covered'][80] = 0
-            init = False
-        
+            init = False        
         
         # Update client state based on relay status changes in new consensus by
         #  updating guard list and killing existing circuits.
@@ -1536,7 +1528,7 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
                     cons_valid_after, cons_fresh_until, cons_bw_weights,\
                     cons_bwweightscale, descriptors, hibernating_status,\
                     port_need_weighted_exits, weighted_middles,\
-                    weighted_guards)
+                    weighted_guards, congmodel, pdelmodel)
                     
             if _testing:
                 for client_state in client_states:
@@ -1657,7 +1649,8 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
                         min_num_guards, guard_expiration_min,\
                         guard_expiration_max,\
                         stream_port_weighted_exits[stream_port],\
-                        weighted_middles, weighted_guards, long_lived_ports)
+                        weighted_middles, weighted_guards, long_lived_ports,\
+                        congmodel, pdelmodel)
                     if (not _testing):
                         print_mapped_stream(client_state['id'],\
                             stream_assigned, stream, descriptors)

@@ -284,7 +284,7 @@ for stream in streams:
 # websearch: 138*4*5 = 2760
 # bittorrent: 321*18*7 = 40446
 #  OR 321*18*2 = 11556  
-# typical (fb+gmail+gcalgdocs) = (47 + 40 + 17)*4*5 = 2000     
+# typical (fb+gmail+gcalgdocs) = (47 + 40 + 17)*4*5 = 2080     
 ###### 
 ##########
 
