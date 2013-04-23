@@ -1836,8 +1836,9 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
         num_adv_guards = int(sys.argv[7]) if len(sys.argv) >= 8 else 0
         num_adv_exits = int(sys.argv[8]) if len(sys.argv) >= 9 else 0
         adv_time = int(sys.argv[9]) if len(sys.argv) >= 10 else 0
-        congfilename = sys.argv[10] if len(sys.argv) >= 11 else None
-        pdelfilename = sys.argv[11] if len(sys.argv) >= 12 else None
+        path_sel_alg = sys.argv[10] if len(sys.argv) >= 10 else 'tor'
+        congfilename = sys.argv[11] if len(sys.argv) >= 12 else None
+        pdelfilename = sys.argv[12] if len(sys.argv) >= 13 else None
         
         network_state_files = []
         for dirpath, dirnames, filenames in os.walk(network_state_files_dir,\
@@ -1877,10 +1878,19 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
         # choose adversarial exits to add to network
         bandwidth = 90000 # bit over top exit 3/2/12-4/30/12 (ZhangPoland1)
         add_adv_exits(num_adv_exits, adv_relays, adv_descriptors, bandwidth)
-
+        
+        
+        if (path_sel_alg == 'cat'):
+            create_circuit = congestion_aware_pathsim.create_circuit
+            client_assign_stream = \
+                congestion_aware_pathsim.client_assign_stream
+        elif (path_sel_alg == 'vcs'):
+            create_circuits = vcs_pathsim.create_circuits
+            create_circuit = vcs_pathsim.create_circuit
+            
         # simulate the circuits for these streams
-        create_circuits(network_state_files, streams, num_samples, adv_relays,\
-            adv_descriptors, adv_time, congmodel, pdelmodel)  
+        create_circuits(network_state_files, streams, num_samples,
+            adv_relays, adv_descriptors, adv_time, congmodel, pdelmodel)              
     elif (command == 'concattraces'): 
         if len(sys.argv) != 9: print usage; sys.exit(1)           
         ut = UserTraces(sys.argv[3], sys.argv[4], sys.argv[5], sys.argv[6], sys.argv[7], sys.argv[8])
