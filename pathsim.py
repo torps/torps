@@ -936,7 +936,7 @@ def get_network_state(ns_file, add_time, add_relays):
         
         
 def set_initial_hibernating_status(hibernating_status, hibernating_statuses,
-    cur_period_start):
+    cur_period_start, cons_rel_stats):
     """Reads hibernating statuses and updates initial relay status."""
     while (hibernating_statuses) and\
         (hibernating_statuses[-1][0] <= cur_period_start):
@@ -1556,7 +1556,7 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
 
         # set initial hibernating status
         set_initial_hibernating_status(hibernating_status,
-            hibernating_statuses, cur_period_start)
+            hibernating_statuses, cur_period_start, cons_rel_stats)
         
         if (init == True): # first period in simulation
             # seed port need
