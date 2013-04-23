@@ -4,8 +4,12 @@
 # Filter out requests to same /24 and port within max_circuit_dirtiness/2
 from pathsim import *
 import cPickle as pickle
-in_tracefile = 'in/traces.pickle'
-out_tracefile = 'in/traces_processed.pickle'
+import sys
+
+if len(sys.argv) != 3: print "USAGE: " + sys.argv[0] + " in/users.traces.pickle out/users.traces.processed.pickle";sys.exit()
+
+in_tracefile = sys.argv[1]#'in/traces.pickle'
+out_tracefile = sys.argv[2]#'in/traces_processed.pickle'
 with open(in_tracefile) as f:
     obj = pickle.load(f)
 
