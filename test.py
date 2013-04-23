@@ -87,58 +87,6 @@ for hs in hibernating_statuses:
 ######
 
 
-##### Aggregate relays that appear in consensus with descriptor 3/12-3/13 #####
-import json
-import pickle
-from pathsim import *
-in_dir = 'out/network-state-2012-03--2013-03'
-#in_dir = 'network-state-2012-03--04'
-out_file = 'out/relays.2012-03--2013--03.json'
-#out_file = 'relays.2012-03--04.json'
-network_state_files = []
-for dirpath, dirnames, filenames in os.walk(in_dir, followlinks=True):
-    for filename in filenames:
-        if (filename[0] != '.'):
-            network_state_files.append(os.path.join(dirpath,filename))
-
-# aggregate relays in consensuses with descriptors
-relays = {}
-network_state_files.sort(key = lambda x: os.path.basename(x))
-num_addresses = 0
-for ns_file in network_state_files:
-    print('Reading {0}'.format(os.path.basename(ns_file)))
-    with open(ns_file, 'r') as nsf:
-        consensus = pickle.load(nsf)
-        descriptors = pickle.load(nsf)
-    for relay in consensus.relays:
-        if (relay in descriptors):
-            if relay in relays:
-                if (descriptors[relay].address not in relays[relay]['a']):
-                    relays[relay]['a'].append(descriptors[relay].address)
-                    num_addresses += 1                    
-            else:
-                relays[relay] = {\
-                    'n':consensus.relays[relay].nickname,\
-                    'f':consensus.relays[relay].fingerprint,\
-                    'a':[descriptors[relay].address],\
-                    'r':True}
-                num_addresses += 1
-print('Num relays: {0}'.format(len(relays)))
-print('Num addresses: {0}'.format(num_addresses))
-
-# turn relays dict into {'relays':[relay dict]} and write to disk
-relays_list = []
-for rel_fp, rel_dict in relays.items():
-    relays_list.append(rel_dict)
-relays_out = {'relays':relays_list}
-with open(out_file, 'w') as f:
-    json.dump(relays_out, f, indent=4)
-# {"relays":[
-# {"n":"PelmenTorRelay","f":"3CE26C7E299224F958BBC6BF76101CD2AF42CEDE","a":["2.93.158.149"],"r":false},
-# {"n":"darwinfish","f":"9DD5F90D641D835C4FCA7153148B156E6FD49CEE","a":["46.4.106.18"],"r":true}
-# ]
-# }                
-##########
 
 ##### Examine user traces #####
 # "facebook"
@@ -286,45 +234,3 @@ for stream in streams:
 #  OR 321*18*2 = 11556  
 # typical (fb+gmail+gcalgdocs) = (47 + 40 + 17)*4*5 = 2080     
 ###### 
-##########
-
-##### Process traces #####
-
-# Turn trace streams with destination ip *.exit into resolve requests
-# Filter out requests to same /24 and port within max_circuit_dirtiness/2
-from pathsim import *
-import cPickle as pickle
-in_tracefile = 'in/traces.pickle'
-out_tracefile = 'in/traces_processed.pickle'
-with open(in_tracefile) as f:
-    obj = pickle.load(f)
-
-models = ["facebook" , "gmailgchat", "gcalgdocs", "websearch", "irc",\
-    "bittorrent"]
-max_circuit_dirtiness = 10*60
-cover_time = float(max_circuit_dirtiness)/2
-for key in models:
-    model_trace = obj.trace[key]
-    new_model_trace = []
-    ip_port_seen = {}
-    for stream in model_trace:
-        if ('.exit' not in stream[1]):
-            # remove streams that duplicate an ip/24:port seen recently
-            ip_split = stream[1].split('.')
-            ip_24 = '.'.join(ip_split[0:3])
-            ip_port = ip_24 + ':' + str(stream[2])
-            if (ip_port in ip_port_seen) and\
-                (stream[0] - ip_port_seen[ip_port] < cover_time):
-                continue
-            else:
-                ip_port_seen[ip_port] = stream[0]
-                new_model_trace.append(stream)
-        else:
-            ip_split = stream[1].split('.')
-            new_ip = '.'.join(ip_split[0:4])
-            new_model_trace.append((stream[0], new_ip, 0))
-    obj.trace[key] = new_model_trace
-
-with open(out_tracefile, 'wb') as f:
-    pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
-##########    

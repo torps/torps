@@ -298,8 +298,7 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
 def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
     cons_bw_weights, cons_bwweightscale, descriptors, hibernating_status,\
     guards, circ_time, circ_fast, circ_stable, circ_internal, circ_ip,\
-    circ_port, num_guards, min_num_guards, guard_expiration_min,\
-    guard_expiration_max, congmodel, pdelmodel, weighted_exits=None,\
+    circ_port, congmodel, pdelmodel, weighted_exits=None,\
     exits_exact=False, weighted_middles=None, weighted_guards=None):
     """Creates path for requested circuit based on the input consensus
     statuses and descriptors. Uses congestion-aware path selection.
@@ -318,7 +317,6 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
         circ_internal: (bool) circuit is for name resolution or hidden service
         circ_ip: (str) IP address of destination (None if not known)
         circ_port: (int) desired TCP port (None if not known)
-        num_guards - guard_expiration_max: various Tor parameters
         congmodel: congestion model
         pdelmodel: propagation delay model
         weighted_exits: (list) (middle, cum_weight) pairs for exit position
@@ -377,9 +375,8 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
             # get first <= num_guards guards suitable for circuit
             circ_guards = pathsim.get_guards_for_circ(cons_bw_weights,\
                 cons_bwweightscale, cons_rel_stats, descriptors,\
-                circ_fast, circ_stable, guards, num_guards,\
-                min_num_guards, exit_node, guard_expiration_min,\
-                guard_expiration_max, circ_time, weighted_guards)   
+                circ_fast, circ_stable, guards,\
+                exit_node, circ_time, weighted_guards)   
             guard_node = choice(circ_guards)
             if (hibernating_status[guard_node]):
                 if (not guards[guard_node]['made_contact']):
@@ -441,7 +438,7 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
             'stable':circ_stable,\
             'internal':circ_internal,\
             'dirty_time':None,\
-            'path':(best_circ),\
+            'path':best_circ,\
 #            'cons_rel_stats':cons_rel_stats,\
             'covering':[],\
             'avg_ping':None}

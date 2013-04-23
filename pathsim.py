@@ -70,6 +70,45 @@ class ServerDescriptor:
 #        self.observed_bandwidth = observed_bandwidth
 
 
+class TorOptions:
+    """Stores parameters set by Tor."""
+    
+    num_guards = 3
+    min_num_guards = 2
+    guard_expiration_min = 30*24*3600 # min time until guard removed from list
+    guard_expiration_max = 60*24*3600 # max time until guard removed from list 
+    default_bwweightscale = 10000   
+    
+    # max age of a dirty circuit to which new streams can be assigned
+    # set by MaxCircuitDirtiness option in Tor (default: 10 min.)
+    max_circuit_dirtiness = 10*60
+    
+    # max age of a clean circuit
+    # set by CircuitIdleTimeout in Tor (default: 60 min.)
+    circuit_idle_timeout = 60*60
+    
+    # max number of preemptive clean circuits
+    # given with "#define MAX_UNUSED_OPEN_CIRCUITS 14" in Tor's circuituse.c
+    max_unused_open_circuits = 14
+    
+    # long-lived ports (taken from path-spec.txt)
+    long_lived_ports = [21, 22, 706, 1863, 5050, 5190, 5222, 5223, 6667,\
+        6697, 8300]
+        
+    # observed port creates a need active for a limited amount of time
+    # given with "#define PREDICTED_CIRCS_RELEVANCE_TIME 60*60" in rephist.c
+    # need expires after an hour
+    port_need_lifetime = 60*60 
+
+    # time a guard can stay down until it is removed from list    
+    # set by #define ENTRY_GUARD_REMOVE_AFTER (30*24*60*60) in entrynodes.c
+    guard_down_time = 30*24*60*60 # time guard can be down until is removed
+    
+    # needs that apply to all samples
+    # min coverage given with "#define MIN_CIRCUITS_HANDLING_STREAM 2" in or.h
+    port_need_cover_num = 2
+    ### End Tor parameters ###
+
 def timestamp(t):
     """Returns UNIX timestamp"""
     td = t - datetime.datetime(1970, 1, 1)
@@ -678,12 +717,13 @@ def get_new_guard(bw_weights, bwweightscale, cons_rel_stats, descriptors,\
     return guard_node
 
 def get_guards_for_circ(bw_weights, bwweightscale, cons_rel_stats,\
-    descriptors, fast, stable, guards, num_guards,\
-    min_num_guards, exit, guard_expiration_min, guard_expiration_max,\
+    descriptors, fast, stable, guards,\
+    exit,\
     circ_time, weighted_guards=None):
     """Obtains needed number of live guards that will work for circuit.
     Chooses new guards if needed, and *modifies* guard list by adding them."""
-    # Get live guards then add new ones until num_guards reached, where live is
+    # Get live guards then add new ones until TorOptions.num_guards reached,
+    # where live is
     #  - bad_since isn't set
     #  - unreachable_since isn't set without retry
     #  - has descriptor, though create_circuits should ensure descriptor exists
@@ -694,7 +734,7 @@ def get_guards_for_circ(bw_weights, bwweightscale, cons_rel_stats,\
     # Rules derived from Tor source: choose_random_entry_impl() in entrynodes.c
     
     # add guards if not enough in list
-    if (len(guards) < num_guards):
+    if (len(guards) < TorOptions.num_guards):
         # Oddly then only count the number of live ones
         # Slightly depart from Tor code by not considering the circuit's
         # fast or stable flags when finding live guards.
@@ -706,15 +746,15 @@ def get_guards_for_circ(bw_weights, bwweightscale, cons_rel_stats,\
                                 ((guards[x]['unreachable_since'] == None) or\
                                  guard_is_time_to_retry(guards[x],circ_time)),\
                             guards)
-        for i in range(num_guards - len(live_guards)):
+        for i in range(TorOptions.num_guards - len(live_guards)):
             new_guard = get_new_guard(bw_weights, bwweightscale,\
                 cons_rel_stats, descriptors, guards,\
                 weighted_guards)
             if _testing:                
                 print('Need guard. Adding {0} [{1}]'.format(\
                     cons_rel_stats[new_guard].nickname, new_guard))
-            expiration = randint(guard_expiration_min,\
-                guard_expiration_max)
+            expiration = randint(TorOptions.guard_expiration_min,\
+                TorOptions.guard_expiration_max)
             guards[new_guard] = {'expires':(expiration+\
                 circ_time), 'bad_since':None, 'unreachable_since':None,\
                 'last_attempted':0, 'made_contact':False}
@@ -725,15 +765,15 @@ def get_guards_for_circ(bw_weights, bwweightscale, cons_rel_stats,\
         guards)
     # add new guards while there aren't enough for this circuit
     # adding is done without reference to the circuit - how Tor does it
-    while (len(guards_for_circ) < min_num_guards):
+    while (len(guards_for_circ) < TorOptions.min_num_guards):
             new_guard = get_new_guard(bw_weights, bwweightscale,\
                 cons_rel_stats, descriptors, guards,\
                 weighted_guards)
             if _testing:                
                 print('Need guard for circuit. Adding {0} [{1}]'.format(\
                     cons_rel_stats[new_guard].nickname, new_guard))
-            expiration = randint(guard_expiration_min,\
-                guard_expiration_max)
+            expiration = randint(TorOptions.guard_expiration_min,\
+                TorOptions.guard_expiration_max)
             guards[new_guard] = {'expires':(expiration+\
                 circ_time), 'bad_since':None, 'unreachable_since':None,\
                 'last_attempted':0, 'made_contact':False}
@@ -741,8 +781,8 @@ def get_guards_for_circ(bw_weights, bwweightscale, cons_rel_stats,\
                 fast, stable, exit, circ_time, guards)):
                 guards_for_circ.append(new_guard)
 
-    # return first num_guards usable guards
-    return guards_for_circ[0:num_guards]
+    # return first TorOptions.num_guards usable guards
+    return guards_for_circ[0:TorOptions.num_guards]
 
 
 def circuit_covers_port_need(circuit, descriptors, port, need):
@@ -771,7 +811,7 @@ def print_mapped_stream(client_id, circuit, stream, descriptors):
         stream['time'], guard_ip, middle_ip, exit_ip, dest_ip,\
         circuit['path'][0], circuit['path'][1], circuit['path'][2]))
 
-def circuit_supports_stream(circuit, stream, long_lived_ports, descriptors):
+def circuit_supports_stream(circuit, stream, descriptors):
     """Returns if stream can run over circuit (which is assumed live)."""
 
     if (stream['type'] == 'connect'):
@@ -784,7 +824,7 @@ def circuit_supports_stream(circuit, stream, long_lived_ports, descriptors):
         if (desc.exit_policy.can_exit_to(stream['ip'], stream['port'])) and\
             (not circuit['internal']) and\
             ((circuit['stable']) or\
-                (stream['port'] not in long_lived_ports)):
+                (stream['port'] not in TorOptions.long_lived_ports)):
             return True
         else:
             return False
@@ -851,11 +891,158 @@ def kill_circuits_by_relay(client_state, relay_down_fn, msg):
             uncover_circuit_ports(circuit, client_state['port_needs_covered'])
     client_state['clean_exit_circuits'] = new_clean_exit_circuits
 
+
+def get_network_state(ns_file, add_time, add_relays):
+    """Reads in network state file and added relays, returns needed values."""
+    if _testing:
+        print('Using file {0}'.format(ns_file))
+
+    cons_rel_stats = {}
+    with open(ns_file, 'r') as nsf:
+        consensus = pickle.load(nsf)
+        new_descriptors = pickle.load(nsf)
+        hibernating_statuses = pickle.load(nsf)
+        
+    # set variables from consensus
+    cons_valid_after = timestamp(consensus.valid_after)            
+    cons_fresh_until = timestamp(consensus.fresh_until)
+    cons_bw_weights = consensus.bandwidth_weights
+    if (consensus.bwweightscale == None):
+        cons_bwweightscale = TorOptions.default_bwweightscale
+    else:
+        cons_bwweightscale = consensus.bwweightscale
+    for relay in consensus.relays:
+        if (relay in new_descriptors):
+            cons_rel_stats[relay] = consensus.relays[relay]
+            
+    if (add_time <= cons_valid_after):
+        # include additional relays in consensus
+        if _testing:
+            print('Adding {0} relays to consensus.'.format(\
+                len(add_relays)))
+        for fprint, relay in add_relays.items():
+            if fprint in cons_rel_stats:
+                raise ValueError(\
+                    'Added relay exists in consensus: {0}:{1}'.\
+                        format(relay.nickname, fprint))
+            cons_rel_stats[fprint] = relay
+        # include hibernating statuses for added relays
+        hibernating_statuses.extend([(0, fp, False) \
+            for fp in add_relays])
+    
+    return (cons_valid_after, cons_fresh_until, cons_bw_weights,
+        cons_bwweightscale, cons_rel_stats, hibernating_statuses,
+        new_descriptors)
+        
+        
+def set_initial_hibernating_status(hibernating_status, hibernating_statuses,
+    cur_period_start):
+    """Reads hibernating statuses and updates initial relay status."""
+    while (hibernating_statuses) and\
+        (hibernating_statuses[-1][0] <= cur_period_start):
+        hs = hibernating_statuses.pop()
+        if (hs[1] in hibernating_status) and _testing:
+            print('Reset hibernating of {0}:{1} to {2}.'.format(\
+                cons_rel_stats[hs[1]].nickname, hs[1], hs[2]))
+        hibernating_status[hs[1]] = hs[2]
+        if _testing:
+            if (hs[2]):
+                print('{0} was hibernating at start of consensus period.'.\
+                    format(cons_rel_stats[hs[1]].nickname))        
+                                
+
+def period_client_update(client_state, cons_rel_stats, cons_fresh_until,\
+    cons_valid_after):
+    """Updates client state for new consensus period."""
+    if _testing:
+        print('Updating state for client {0} given new consensus.'.\
+            format(client_state['id']))
+            
+    # Update guard list
+    # Tor does this stuff whenever a descriptor is obtained        
+    guards = client_state['guards']                
+    for guard, guard_props in guards.items():
+        # set guard as down if (following Tor's
+        # entry_guard_set_status)
+        # - not in current nodelist (!node check)
+        #   - note that a node can appear the nodelist but not
+        #     in consensus if it has an existing descriptor
+        #     in routerlist (unclear to me when this gets purged)
+        # - Running flag not set
+        #   - note that all nodes not in current consensus get
+        #     *all* their node flags set to zero
+        # - Guard flag not set [and not a bridge])
+        # note that hibernating *not* considered here
+        if (guard_props['bad_since'] == None):
+            if (guard not in cons_rel_stats) or\
+                (stem.Flag.RUNNING not in\
+                 cons_rel_stats[guard].flags) or\
+                (stem.Flag.GUARD not in\
+                 cons_rel_stats[guard].flags):
+                if _testing:
+                    print('Putting down guard {0}'.format(guard))
+                guard_props['bad_since'] = cons_valid_after
+        else:
+            if (guard in cons_rel_stats) and\
+                (stem.Flag.RUNNING not in\
+                 cons_rel_stats[guard].flags) and\
+                (stem.Flag.GUARD not in\
+                 cons_rel_stats[guard].flags):
+                if _testing:
+                    print('Bringing up guard {0}'.format(guard))
+                guard_props['bad_since'] = None
+        # remove if down time including this period exceeds limit
+        if (guard_props['bad_since'] != None):
+            if (cons_fresh_until-guard_props['bad_since'] >=\
+                TorOptions.guard_down_time):
+                if _testing:
+                    print('Guard down too long, removing: {0}'.\
+                        format(guard))
+                del guards[guard]
+                continue
+        # expire old guards
+        if (guard_props['expires'] <= cons_valid_after):
+            if _testing:
+                print('Expiring guard: {0}'.format(guard))
+            del guards[guard]
+    
+    # Kill circuits using relays that now appear to be "down", where
+    #  down is not in consensus or without Running flag.            
+    kill_circuits_by_relay(client_state, \
+        lambda r: (r not in cons_rel_stats) or \
+            (stem.Flag.RUNNING not in cons_rel_stats[r].flags),\
+            'is down')    
+            
+            
+def timed_updates(cur_time, port_needs_global, client_states,
+    hibernating_statuses, hibernating_status, cons_rel_stats):
+    """Perform timing-based updates that apply to all clients."""            
+    # expire port needs
+    for port, need in port_needs_global.items():
+        if (need['expires'] != None) and\
+            (need['expires'] <= cur_time):
+            del port_needs_global[port]
+            for client_state in client_states:
+                del client_state['port_needs_covered'][port]
+                
+    # update hibernating status
+    while (hibernating_statuses) and\
+        (hibernating_statuses[-1][0] <= cur_time):
+        hs = hibernating_statuses.pop()
+        if _testing:
+            if (hs[1] in cons_rel_stats):
+                if hs[2]:
+                    print('{0}:{1} started hibernating.'.\
+                        format(cons_rel_stats[hs[1]].nickname, hs[1]))
+                else:
+                    print('{0}:{1} stopped hibernating.'.\
+                        format(cons_rel_stats[hs[1]].nickname, hs[1]))
+            
+        hibernating_status[hs[1]] = hs[2]
             
 
-def timed_client_updates(cur_time, client_state, num_guards, min_num_guards,\
-    guard_expiration_min, guard_expiration_max, max_circuit_dirtiness,\
-    circuit_idle_timeout, max_unused_open_circuits, port_needs_global,\
+def timed_client_updates(cur_time, client_state,\
+    port_needs_global,\
     cons_rel_stats, cons_valid_after,\
     cons_fresh_until, cons_bw_weights, cons_bwweightscale, descriptors,\
     hibernating_status, port_need_weighted_exits, weighted_middles,\
@@ -869,7 +1056,7 @@ def timed_client_updates(cur_time, client_state, num_guards, min_num_guards,\
     # kill old dirty circuits
     while (len(client_state['dirty_exit_circuits'])>0) and\
             (client_state['dirty_exit_circuits'][-1]['dirty_time'] <=\
-                cur_time - max_circuit_dirtiness):
+                cur_time - TorOptions.max_circuit_dirtiness):
         if _testing:
             print('Killed dirty exit circuit at time {0} w/ dirty time \
 {1}'.format(cur_time, client_state['dirty_exit_circuits'][-1]['dirty_time']))
@@ -878,7 +1065,7 @@ def timed_client_updates(cur_time, client_state, num_guards, min_num_guards,\
     # kill old clean circuits
     while (len(client_state['clean_exit_circuits'])>0) and\
             (client_state['clean_exit_circuits'][-1]['time'] <=\
-                cur_time - circuit_idle_timeout):
+                cur_time - TorOptions.circuit_idle_timeout):
         if _testing:
             print('Killed clean exit circuit at time {0} w/ time \
 {1}'.format(cur_time, client_state['clean_exit_circuits'][-1]['time']))
@@ -890,7 +1077,8 @@ def timed_client_updates(cur_time, client_state, num_guards, min_num_guards,\
     kill_circuits_by_relay(client_state, \
         lambda r: hibernating_status[r], 'is hibernating')
                   
-    # cover uncovered ports while fewer than max_unused_open_circuits clean
+    # cover uncovered ports while fewer than
+    # TorOptions.max_unused_open_circuits clean
     for port, need in port_needs_global.items():
         if (client_state['port_needs_covered'][port] < need['cover_num']):
             # we need to make new circuits
@@ -904,14 +1092,13 @@ def timed_client_updates(cur_time, client_state, num_guards, min_num_guards,\
             while (client_state['port_needs_covered'][port] <\
                     need['cover_num']) and\
                 (len(client_state['clean_exit_circuits']) < \
-                    max_unused_open_circuits):
+                    TorOptions.max_unused_open_circuits):
                 new_circ = create_circuit(cons_rel_stats,\
                     cons_valid_after, cons_fresh_until,\
                     cons_bw_weights, cons_bwweightscale,\
                     descriptors, hibernating_status, guards, cur_time,\
                     need['fast'], need['stable'], False, None, port,\
-                    num_guards, min_num_guards, guard_expiration_min,\
-                    guard_expiration_max, congmodel, pdelmodel,\
+                    congmodel, pdelmodel,\
                     port_need_weighted_exits[port],\
                     True, weighted_middles, weighted_guards)
                 client_state['clean_exit_circuits'].appendleft(new_circ)
@@ -925,13 +1112,93 @@ def timed_client_updates(cur_time, client_state, num_guards, min_num_guards,\
                             descriptors, pt, nd)):
                         client_state['port_needs_covered'][pt] += 1
                         new_circ['covering'].append(pt)
+                        
+                        
+def stream_update_port_needs(stream, port_needs_global, client_states,
+    descriptors, cons_rel_stats, cons_bw_weights, cons_bwweightscale):
+    """Updates port needs based on input stream.
+    If new port, returns updated list of exits filtered for port."""
+    if (stream['type'] == 'resolve'):
+        # as in Tor, treat RESOLVE requests as port 80 for
+        #  prediction (see rep_hist_note_used_resolve())
+        port = 80
+    else:
+        port = stream['port']
+    if (port in port_needs_global):
+        if (port_needs_global[port]['expires'] != None) and\
+            (port_needs_global[port]['expires'] <\
+                stream['time'] + TorOptions.port_need_lifetime):
+            port_needs_global[port]['expires'] =\
+                stream['time'] + TorOptions.port_need_lifetime
+        return None
+    else:
+        port_needs_global[port] = {
+            'expires':(stream['time']+TorOptions.port_need_lifetime),
+            'fast':True,
+            'stable':(port in TorOptions.long_lived_ports),
+            'cover_num':TorOptions.port_need_cover_num}
+        # adjust cover counts for the new port need
+        for client_state in client_states:
+            client_state['port_needs_covered'][port] = 0
+            for circuit in client_state['clean_exit_circuits']:
+                if (circuit_covers_port_need(circuit,\
+                        descriptors, port,\
+                        port_needs_global[port])):
+                    client_state['port_needs_covered'][port]\
+                        += 1
+                    circuit['covering'].append(port)
+        # precompute exit list and weights for new port need
+        port_need_exits = filter_exits(cons_rel_stats,\
+            descriptors, port_needs_global[port]['fast'],\
+            port_needs_global[port]['stable'], False,\
+            None, port)
+        if _testing:                            
+            print('# exits for new need at port {0}: {1}'.\
+                format(port, len(port_need_exits)))
+        port_need_exit_weights = get_position_weights(\
+            port_need_exits, cons_rel_stats, 'e',\
+            cons_bw_weights, cons_bwweightscale)
+        pn_weighted_exits = \
+            get_weighted_nodes(port_need_exits, port_need_exit_weights)
+        return pn_weighted_exits 
+        
+        
+def get_stream_port_weighted_exits(stream_port, stream,
+    cons_rel_stats, descriptors, cons_bw_weights, cons_bwweightscale): 
+    """Returns weighted exit list for port of stream."""
+    if (stream['type'] == 'connect'):
+        stable = (stream_port in TorOptions.long_lived_ports)
+        stream_exits =\
+            filter_exits_loose(cons_rel_stats,\
+                descriptors, True, stable, False,\
+                None, stream_port)
+        if _testing:                        
+            print('# loose exits for stream on port {0}: {1}'.\
+                format(stream_port, len(stream_exits)))
+    elif (stream['type'] == 'resolve'):
+        stream_exits =\
+            filter_exits(cons_rel_stats, descriptors, True,\
+                False, False, None, None)                    
+        if _testing:                        
+            print('# exits for RESOLVE stream: {0}'.\
+                format(len(stream_exits)))
+    else:
+        raise ValueError(\
+            'ERROR: Unrecognized stream type: {0}'.\
+            format(stream['type']))
+    stream_exit_weights = get_position_weights(\
+        stream_exits, cons_rel_stats, 'e',\
+        cons_bw_weights, cons_bwweightscale)
+    stream_weighted_exits = get_weighted_nodes(\
+        stream_exits, stream_exit_weights)
+    return stream_weighted_exits                               
         
         
 def client_assign_stream(client_state, stream, cons_rel_stats,\
     cons_valid_after, cons_fresh_until, cons_bw_weights, cons_bwweightscale,\
-    descriptors, hibernating_status, num_guards, min_num_guards,\
-    guard_expiration_min, guard_expiration_max, stream_weighted_exits,\
-    weighted_middles, weighted_guards, long_lived_ports, congmodel, pdelmodel):
+    descriptors, hibernating_status,\
+    stream_weighted_exits,\
+    weighted_middles, weighted_guards, congmodel, pdelmodel):
     """Assigns a stream to a circuit for a given client."""
         
     guards = client_state['guards']
@@ -939,8 +1206,9 @@ def client_assign_stream(client_state, stream, cons_rel_stats,\
 
     # try to use a dirty circuit
     for circuit in client_state['dirty_exit_circuits']:
-        if circuit_supports_stream(circuit, stream,\
-            long_lived_ports, descriptors):
+        if (circuit['dirty_time'] > \
+                stream['time'] - TorOptions.max_circuit_dirtiness) and\
+            circuit_supports_stream(circuit, stream, descriptors):
             stream_assigned = circuit
             if _testing:                                
                 if (stream['type'] == 'connect'):
@@ -958,8 +1226,7 @@ def client_assign_stream(client_state, stream, cons_rel_stats,\
         new_clean_exit_circuits = collections.deque()
         while (len(client_state['clean_exit_circuits']) > 0):
             circuit = client_state['clean_exit_circuits'].popleft()
-            if (circuit_supports_stream(circuit, stream,\
-                long_lived_ports, descriptors)):
+            if (circuit_supports_stream(circuit, stream, descriptors)):
                 stream_assigned = circuit
                 circuit['dirty_time'] = stream['time']
                 client_state['dirty_exit_circuits'].appendleft(circuit)
@@ -988,14 +1255,13 @@ at {0}'.format(stream['time']))
     if (stream_assigned == None):
         new_circ = None
         if (stream['type'] == 'connect'):
-            stable = (stream['port'] in long_lived_ports)
+            stable = (stream['port'] in TorOptions.long_lived_ports)
             new_circ = create_circuit(cons_rel_stats,\
                 cons_valid_after, cons_fresh_until,\
                 cons_bw_weights, cons_bwweightscale,\
                 descriptors, hibernating_status, guards, stream['time'], True,\
                 stable, False, stream['ip'], stream['port'],\
-                num_guards, min_num_guards, guard_expiration_min,\
-                guard_expiration_max, congmodel, pdelmodel,\
+                congmodel, pdelmodel,\
                 stream_weighted_exits, False,\
                 weighted_middles, weighted_guards)
         elif (stream['type'] == 'resolve'):
@@ -1004,8 +1270,7 @@ at {0}'.format(stream['time']))
                 cons_bw_weights, cons_bwweightscale,\
                 descriptors, hibernating_status, guards, stream['time'], True,\
                 False, False, None, None,\
-                num_guards, min_num_guards, guard_expiration_min,\
-                guard_expiration_max, congmodel, pdelmodel,\
+                congmodel, pdelmodel,\
                 stream_weighted_exits, True,\
                 weighted_middles, weighted_guards)
         else:
@@ -1071,8 +1336,8 @@ def select_exit_node(bw_weights, bwweightscale, cons_rel_stats, descriptors,\
 def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
     cons_bw_weights, cons_bwweightscale, descriptors, hibernating_status,\
     guards, circ_time, circ_fast, circ_stable, circ_internal, circ_ip,\
-    circ_port, num_guards, min_num_guards, guard_expiration_min,\
-    guard_expiration_max, congmodel, pdelmodel, weighted_exits=None,\
+    circ_port,\
+    congmodel, pdelmodel, weighted_exits=None,\
     exits_exact=False, weighted_middles=None, weighted_guards=None):
     """Creates path for requested circuit based on the input consensus
     statuses and descriptors.
@@ -1091,7 +1356,6 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
         circ_internal: (bool) circuit is for name resolution or hidden service
         circ_ip: (str) IP address of destination (None if not known)
         circ_port: (int) desired TCP port (None if not known)
-        num_guards - guard_expiration_max: various Tor parameters
         congmodel: congestion model
         pdelmodel: propagation delay model
         weighted_exits: (list) (middle, cum_weight) pairs for exit position
@@ -1140,12 +1404,12 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
     # creation attempt. If the circuit fails at a new guard, that guard
     # gets removed from the list.
     while True:
-        # get first <= num_guards guards suitable for circuit
+        # get first <= TorOptions.num_guards guards suitable for circuit
         circ_guards = get_guards_for_circ(cons_bw_weights,\
             cons_bwweightscale, cons_rel_stats, descriptors,\
-            circ_fast, circ_stable, guards, num_guards,\
-            min_num_guards, exit_node, guard_expiration_min,\
-            guard_expiration_max, circ_time, weighted_guards)   
+            circ_fast, circ_stable, guards,\
+            exit_node,\
+            circ_time, weighted_guards)   
         guard_node = choice(circ_guards)
         if (hibernating_status[guard_node]):
             if (not guards[guard_node]['made_contact']):
@@ -1224,43 +1488,6 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
         [Prints circuit and guard selections of clients.]
     """
     
-    ### Tor parameters ###
-    num_guards = 3
-    min_num_guards = 2
-    guard_expiration_min = 30*24*3600 # min time until guard removed from list
-    guard_expiration_max = 60*24*3600 # max time until guard removed from list    
-    
-    # max age of a dirty circuit to which new streams can be assigned
-    # set by MaxCircuitDirtiness option in Tor (default: 10 min.)
-    max_circuit_dirtiness = 10*60
-    
-    # max age of a clean circuit
-    # set by CircuitIdleTimeout in Tor (default: 60 min.)
-    circuit_idle_timeout = 60*60
-    
-    # max number of preemptive clean circuits
-    # given with "#define MAX_UNUSED_OPEN_CIRCUITS 14" in Tor's circuituse.c
-    max_unused_open_circuits = 14
-    
-    # long-lived ports (taken from path-spec.txt)
-    long_lived_ports = [21, 22, 706, 1863, 5050, 5190, 5222, 5223, 6667,\
-        6697, 8300]
-        
-    # observed port creates a need active for a limited amount of time
-    # given with "#define PREDICTED_CIRCS_RELEVANCE_TIME 60*60" in rephist.c
-    # need expires after an hour
-    port_need_lifetime = 60*60 
-
-    # time a guard can stay down until it is removed from list    
-    # set by #define ENTRY_GUARD_REMOVE_AFTER (30*24*60*60) in entrynodes.c
-    guard_down_time = 30*24*60*60 # time guard can be down until is removed
-    
-    # needs that apply to all samples
-    # min coverage given with "#define MIN_CIRCUITS_HANDLING_STREAM 2" in or.h
-    port_need_cover_num = 2
-    ### End Tor parameters ###
-    
-    
     ### Simulation variables ###
     cur_period_start = None
     cur_period_end = None
@@ -1287,6 +1514,7 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
                             'port_needs_covered':port_needs_covered,
                             'clean_exit_circuits':collections.deque(),
                             'dirty_exit_circuits':collections.deque()})
+    ### End simulation variables ###
     
     if (not _testing):
         print('Sample\tTimestamp\tGuard IP\tMiddle IP\tExit IP\tDestination\
@@ -1296,59 +1524,24 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
     for ns_file in network_state_files:
         # read in network states            
         if (ns_file != None):
-            if _testing:
-                print('Using file {0}'.format(ns_file))
-        
-            cons_valid_after = None
-            cons_fresh_until = None
-            cons_bw_weights = None
-            cons_bwweightscale = None        
-            cons_rel_stats = {}
-            hibernating_statuses = None
+            (cons_valid_after, cons_fresh_until, cons_bw_weights,
+            cons_bwweightscale, cons_rel_stats, hibernating_statuses,
+            new_descriptors) = get_network_state(ns_file, add_time, add_relays)
+
+            # clear hibernating status to ensure updates come from ns_file
             hibernating_status = {}
-            with open(ns_file, 'r') as nsf:
-                consensus = pickle.load(nsf)
-                new_descriptors = pickle.load(nsf)
-                hibernating_statuses = pickle.load(nsf)
-                
-                # set variables from consensus
-                cons_valid_after = timestamp(consensus.valid_after)            
-                cons_fresh_until = timestamp(consensus.fresh_until)
-                cons_bw_weights = consensus.bandwidth_weights
-                if (consensus.bwweightscale == None):
-                    cons_bwweightscale = 10000
-                else:
-                    cons_bwweightscale = consensus.bwweightscale
-                for relay in consensus.relays:
-                    if (relay in new_descriptors):
-                        cons_rel_stats[relay] = consensus.relays[relay]
                         
-                if (add_time <= cons_valid_after):
-                    # include additional relays in consensus
-                    if _testing:
-                        print('Adding {0} relays to consensus.'.format(\
-                            len(add_relays)))
-                    for fprint, relay in add_relays.items():
-                        if fprint in cons_rel_stats:
-                            raise ValueError(\
-                                'Added relay exists in consensus: {0}:{1}'.\
-                                    format(relay.nickname, fprint))
-                        cons_rel_stats[fprint] = relay
-                    # include hibernating statuses for added relays
-                    hibernating_statuses.extend([(0, fp, False) \
-                        for fp in add_relays])
-                        
-                # update descriptors
-                descriptors.update(new_descriptors)
+            # update descriptors
+            descriptors.update(new_descriptors)
         else:
             # gap in consensuses, just advance an hour, keeping network state            
             cons_valid_after += 3600
             cons_fresh_until += 3600
             # set empty statuses, even though previous should have been emptied
             hibernating_statuses = []            
-            
             if _testing:
-                print('Filling in consensus gap from {0} to {1}'.format(cons_valid_after, cons_fresh_until))            
+                print('Filling in consensus gap from {0} to {1}'.\
+                format(cons_valid_after, cons_fresh_until))            
 
         # update simulation period                
         if (cur_period_start == None):
@@ -1362,93 +1555,25 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
         cur_period_end = cons_fresh_until  
 
         # set initial hibernating status
-        while (hibernating_statuses) and\
-            (hibernating_statuses[-1][0] <= cur_period_start):
-            hs = hibernating_statuses.pop()
-            if (hs[1] in hibernating_statuses) and _testing:
-                if (hs[2]):
-                    print('Reset hibernating of {0}:{1} to True.'.format(\
-                        cons_rel_stats[hs[1]].nickname, hs[1]))
-                else:
-                    print('Reset hibernating of {0}:{1} to False.'.format(\
-                        cons_rel_stats[hs[1]].nickname, hs[1]))
-            hibernating_status[hs[1]] = hs[2]
-            if _testing:
-                if (hs[2]):
-                    print('{0} was hibernating at start of consensus period.'.\
-                        format(cons_rel_stats[hs[1]].nickname))
+        set_initial_hibernating_status(hibernating_status,
+            hibernating_statuses, cur_period_start)
         
         if (init == True): # first period in simulation
             # seed port need
             port_needs_global[80] = \
-                {'expires':(cur_period_start+port_need_lifetime), 'fast':True,\
-                'stable':False, 'cover_num':port_need_cover_num}
+                {'expires':(cur_period_start+TorOptions.port_need_lifetime),
+                'fast':True, 'stable':False,
+                'cover_num':TorOptions.port_need_cover_num}
             for client_state in client_states:
                 client_state['port_needs_covered'][80] = 0
             init = False        
         
         # Update client state based on relay status changes in new consensus by
-        #  updating guard list and killing existing circuits.
+        # updating guard list and killing existing circuits.
         for client_state in client_states:
-            if _testing:
-                print('Updating state for client {0} given new consensus.'.\
-                    format(client_state['id']))
-                    
-            # Update guard list
-            # Tor does this stuff whenever a descriptor is obtained        
-            guards = client_state['guards']                
-            for guard, guard_props in guards.items():
-                # set guard as down if (following Tor's
-                # entry_guard_set_status)
-                # - not in current nodelist (!node check)
-                #   - note that a node can appear the nodelist but not
-                #     in consensus if it has an existing descriptor
-                #     in routerlist (unclear to me when this gets purged)
-                # - Running flag not set
-                #   - note that all nodes not in current consensus get
-                #     *all* their node flags set to zero
-                # - Guard flag not set [and not a bridge])
-                # note that hibernating *not* considered here
-                if (guard_props['bad_since'] == None):
-                    if (guard not in cons_rel_stats) or\
-                        (stem.Flag.RUNNING not in\
-                         cons_rel_stats[guard].flags) or\
-                        (stem.Flag.GUARD not in\
-                         cons_rel_stats[guard].flags):
-                        if _testing:
-                            print('Putting down guard {0}'.format(guard))
-                        guard_props['bad_since'] = cons_valid_after
-                else:
-                    if (guard in cons_rel_stats) and\
-                        (stem.Flag.RUNNING not in\
-                         cons_rel_stats[guard].flags) and\
-                        (stem.Flag.GUARD not in\
-                         cons_rel_stats[guard].flags):
-                        if _testing:
-                            print('Bringing up guard {0}'.format(guard))
-                        guard_props['bad_since'] = None
-                # remove if down time including this period exceeds limit
-                if (guard_props['bad_since'] != None):
-                    if (cons_fresh_until-guard_props['bad_since'] >=\
-                        guard_down_time):
-                        if _testing:
-                            print('Guard down too long, removing: {0}'.\
-                                format(guard))
-                        del guards[guard]
-                        continue
-                # expire old guards
-                if (guard_props['expires'] <= cons_valid_after):
-                    if _testing:
-                        print('Expiring guard: {0}'.format(guard))
-                    del guards[guard]
-            
-            # Kill circuits using relays that now appear to be "down", where
-            #  down is not in consensus or without Running flag.            
-            kill_circuits_by_relay(client_state, \
-                lambda r: (r not in cons_rel_stats) or \
-                    (stem.Flag.RUNNING not in cons_rel_stats[r].flags),\
-                    'is down')
-                              
+            period_client_update(client_state, cons_rel_stats,\
+                cons_fresh_until, cons_valid_after)
+
         # filter exits for port needs and compute their weights
         # do this here to avoid repeating per client
         port_need_weighted_exits = {}
@@ -1494,36 +1619,14 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
         # for simplicity, step through time one minute at a time
         time_step = 60
         cur_time = cur_period_start
-        while (cur_time < cur_period_end):    
-            # expire port needs
-            for port, need in port_needs_global.items():
-                if (need['expires'] != None) and\
-                    (need['expires'] <= cur_time):
-                    del port_needs_global[port]
-                    for client_state in client_states:
-                        del client_state['port_needs_covered'][port]
-                        
-            # update hibernating status
-            while (hibernating_statuses) and\
-                (hibernating_statuses[-1][0] <= cur_time):
-                hs = hibernating_statuses.pop()
-                if _testing:
-                    if (hs[1] in cons_rel_stats):
-                        if hs[2]:
-                            print('{0}:{1} started hibernating.'.\
-                                format(cons_rel_stats[hs[1]].nickname, hs[1]))
-                        else:
-                            print('{0}:{1} stopped hibernating.'.\
-                                format(cons_rel_stats[hs[1]].nickname, hs[1]))
-                    
-                hibernating_status[hs[1]] = hs[2]
-            
-            # do timed client updates
+        while (cur_time < cur_period_end):
+            # do updates that apply to all clients    
+            timed_updates(cur_time, port_needs_global, client_states,
+                hibernating_statuses, hibernating_status, cons_rel_stats)
+
+            # do timed individual client updates
             for client_state in client_states:
                 timed_client_updates(cur_time, client_state,\
-                    num_guards, min_num_guards, guard_expiration_min,\
-                    guard_expiration_max, max_circuit_dirtiness,\
-                    circuit_idle_timeout, max_unused_open_circuits,\
                     port_needs_global, cons_rel_stats,\
                     cons_valid_after, cons_fresh_until, cons_bw_weights,\
                     cons_bwweightscale, descriptors, hibernating_status,\
@@ -1554,85 +1657,23 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
                 stream = streams[stream_idx]
                 
                 # add need/extend expiration for ports in streams
-                if (stream['type'] == 'resolve'):
-                    # as in Tor, treat RESOLVE requests as port 80 for
-                    #  prediction (see rep_hist_note_used_resolve())
-                    port = 80
-                else:
-                    port = stream['port']
-                if (port in port_needs_global):
-                    if (port_needs_global[port]['expires'] != None) and\
-                        (port_needs_global[port]['expires'] <\
-                            stream['time'] + port_need_lifetime):
-                        port_needs_global[port]['expires'] =\
-                            stream['time'] + port_need_lifetime
-                else:
-                    port_needs_global[port] = {
-                        'expires':(stream['time']+port_need_lifetime),
-                        'fast':True,
-                        'stable':(port in long_lived_ports),
-                        'cover_num':port_need_cover_num}
-                    # adjust cover counts for the new port need
-                    for client_state in client_states:
-                        client_state['port_needs_covered'][port] = 0
-                        for circuit in client_state['clean_exit_circuits']:
-                            if (circuit_covers_port_need(circuit,\
-                                    descriptors, port,\
-                                    port_needs_global[port])):
-                                client_state['port_needs_covered'][port]\
-                                    += 1
-                                circuit['covering'].append(port)
-                    # precompute exit list and weights for new port need
-                    port_need_exits = filter_exits(cons_rel_stats,\
-                        descriptors, port_needs_global[port]['fast'],\
-                        port_needs_global[port]['stable'], False,\
-                        None, port)
-                    if _testing:                            
-                        print('# exits for new need at port {0}: {1}'.\
-                            format(port, len(port_need_exits)))
-                    port_need_exit_weights = get_position_weights(\
-                        port_need_exits, cons_rel_stats, 'e',\
-                        cons_bw_weights, cons_bwweightscale)
-                    port_need_weighted_exits[port] =\
-                        get_weighted_nodes(port_need_exits,\
-                            port_need_exit_weights)
+                pn_weighted_exits = stream_update_port_needs(stream,
+                    port_needs_global, client_states, descriptors,
+                    cons_rel_stats, cons_bw_weights, cons_bwweightscale)
+                if (pn_weighted_exits != None):
+                    port_need_weighted_exits[port] = pn_weighted_exits
                             
                 # stream port for purposes of using precomputed exit lists
                 if (stream['type'] == 'resolve'):
                     stream_port = None
                 else:
                     stream_port = stream['port']
-
                 # create weighted exits for this stream's port
                 if (stream_port not in stream_port_weighted_exits):
-                    if (stream['type'] == 'connect'):
-                        stable = (stream_port in long_lived_ports)
-                        stream_exits =\
-                            filter_exits_loose(cons_rel_stats,\
-                                descriptors, True, stable, False,\
-                                None, stream_port)
-                        if _testing:                        
-                            print('# loose exits for stream on port {0}: {1}'.\
-                                format(stream['port'], len(stream_exits)))
-                    elif (stream['type'] == 'resolve'):
-                        stream_exits =\
-                            filter_exits(cons_rel_stats, descriptors, True,\
-                                False, False, None, None)                    
-                        if _testing:                        
-                            print('# exits for RESOLVE stream: {0}'.\
-                                format(len(stream_exits)))
-                    else:
-                        raise ValueError(\
-                            'ERROR: Unrecognized stream type: {0}'.\
-                            format(stream['type']))
-                    stream_exit_weights = get_position_weights(\
-                        stream_exits, cons_rel_stats, 'e',\
-                        cons_bw_weights, cons_bwweightscale)
-                    stream_weighted_exits = get_weighted_nodes(\
-                        stream_exits, stream_exit_weights)
                     stream_port_weighted_exits[stream_port] =\
-                        stream_weighted_exits
-                            
+                        get_stream_port_weighted_exits(stream_port, stream,
+                        cons_rel_stats, descriptors,
+                        cons_bw_weights, cons_bwweightscale)
                 
                 # do client stream assignment
                 for client_state in client_states:
@@ -1645,11 +1686,9 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
                         client_state, stream, cons_rel_stats,\
                         cons_valid_after, cons_fresh_until,\
                         cons_bw_weights, cons_bwweightscale,\
-                        descriptors, hibernating_status, num_guards,\
-                        min_num_guards, guard_expiration_min,\
-                        guard_expiration_max,\
+                        descriptors, hibernating_status,\
                         stream_port_weighted_exits[stream_port],\
-                        weighted_middles, weighted_guards, long_lived_ports,\
+                        weighted_middles, weighted_guards,\
                         congmodel, pdelmodel)
                     if (not _testing):
                         print_mapped_stream(client_state['id'],\
@@ -1727,7 +1766,7 @@ range from start_year and start_month to end_year and end_month. Write the \
 matched descriptors for each consensus to \
 out_dir/processed_descriptors-year-month.\n\
 \tsimulate \
-[nsf dir] [# samples] [tracefile] [user model] [testing] [num adv guard] [num adv exits] [adv time] [congestion data] [prop delay data]: \
+[nsf dir] [# samples] [tracefile] [user model] [testing] [num adv guard] [num adv exits] [adv time] [path selection alg]: \
 Do simulated path selections, where\n\
 \t\t nsf dir stores the network state files to use, \
 default: out/network-state-files\n\
@@ -1740,6 +1779,10 @@ default: 0\n\
 \t\t num adv exits indicates the number of adversarial exits to add, default: 0\n\
 \t\t adv time indicates timestamp after which adv relays added to\
 consensuses, default: 0\n\
+\t\t path selection alg is one of\n\
+\t\t\t tor: uses Tor path selection, is default\n\
+\t\t\t cat [congfile] [pdelfile]: uses congestion-aware tor with congfile is the congestion input file and pdelfile as the propagation delay input\n\
+\t\t\t vcs: uses the virtual-coordinate system.\n\
 \tconcattraces \
 outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, irc.log, bittorrent.log: combine user session traces into a single object used by pathsim, and pickle it. The pickled object is input to the simulate command.'
     if (len(sys.argv) <= 1):
