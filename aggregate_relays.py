@@ -1,11 +1,18 @@
-##### Aggregate relays that appear in consensus with descriptor 3/12-3/13 #####
+##### Aggregate relays that appear in consensus with descriptor 4/12-3/13 #####
+
+## if using in pypy, i needed this first so it would grab networkx and stem correctly
+## export PYTHONPATH=/usr/lib/python2.7/site-packages/:/home/rob/research/orsec/stem-install/lib/python2.7/site-packages
+
 import json
-import pickle
+import cPickle as pickle
 from pathsim import *
-in_dir = 'out/network-state-2012-03--2013-03'
-#in_dir = 'network-state-2012-03--04'
-out_file = 'out/relays.2012-03--2013--03.json'
-#out_file = 'relays.2012-03--04.json'
+from networkx import Graph
+from itertools import product
+from time import time
+
+in_dir = 'network-state-2012-04--2013-03'
+out_file = 'relaypairs.2012-04--2013-03.json'
+
 network_state_files = []
 for dirpath, dirnames, filenames in os.walk(in_dir, followlinks=True):
     for filename in filenames:
@@ -13,40 +20,56 @@ for dirpath, dirnames, filenames in os.walk(in_dir, followlinks=True):
             network_state_files.append(os.path.join(dirpath,filename))
 
 # aggregate relays in consensuses with descriptors
-relays = {}
-network_state_files.sort(key = lambda x: os.path.basename(x))
-num_addresses = 0
+g = Graph()
+network_state_files.sort(key = lambda x: os.path.basename(x), reverse=True)
+nsf_len = len(network_state_files)
+nsf_i = 0
+start = time()
+lapstamp = start
+lapstotal, lapslen = 0.0, 0
+chkpntend = os.path.basename(network_state_files[0])[0:10]
 for ns_file in network_state_files:
-    print('Reading {0}'.format(os.path.basename(ns_file)))
-    with open(ns_file, 'r') as nsf:
+    fname = os.path.basename(ns_file)
+    stamp = time()
+    lapstotal += (stamp-lapstamp)
+    lapslen += 1
+    lapstamp = stamp
+
+    # print progress information
+    sys.stdout.write('\r[{1}/{2}][{0}%][hr elap. {3}][hr rem. {4}]: {5}'.format("%.3f" % (nsf_i * 100.0 / nsf_len), nsf_i+1, nsf_len, "%.3f" % ((stamp-start)/3600.0), "%.3f" % ((lapstotal/lapslen)*(nsf_len-nsf_i)/3600.0), fname))
+    sys.stdout.flush()
+
+    with open(ns_file, 'rb') as nsf:
         consensus = pickle.load(nsf)
         descriptors = pickle.load(nsf)
+
+    ips = {}
+    # filter all relays in this consensus to those that
+    # have a descriptor, are running, and are fast
     for relay in consensus.relays:
         if (relay in descriptors):
-            if relay in relays:
-                if (descriptors[relay].address not in relays[relay]['a']):
-                    relays[relay]['a'].append(descriptors[relay].address)
-                    num_addresses += 1                    
-            else:
-                relays[relay] = {\
-                    'n':consensus.relays[relay].nickname,\
-                    'f':consensus.relays[relay].fingerprint,\
-                    'a':[descriptors[relay].address],\
-                    'r':True}
-                num_addresses += 1
-print('Num relays: {0}'.format(len(relays)))
-print('Num addresses: {0}'.format(num_addresses))
+            sd = descriptors[relay] # server descriptor
+            rse = consensus.relays[relay] # router status entry
+            if "Running" in rse.flags and "Fast" in rse.flags:
+                if relay not in ips: ips[relay] = []
+                ips[relay].append(sd.address)
+    # build edges between every relay that could have been
+    # selected in a path together
+    for r1 in ips:
+        for r2 in ips:
+            if r1 is r2: continue
+            g.add_edges_from(product(ips[r1], ips[r2]))                    
+    nsf_i += 1
+    # check if we should do a checkpoint and save our progress
+    if nsf_i == nsf_len or "01-00-00-00" in fname:
+        chkpntstart = fname[0:10]
+        with open("relaypairs.{0}--{1}.json".format(chkpntstart, chkpntend), 'wb') as f: json.dump(g.edges(), f)
 
-# turn relays dict into {'relays':[relay dict]} and write to disk
-relays_list = []
-for rel_fp, rel_dict in relays.items():
-    relays_list.append(rel_dict)
-relays_out = {'relays':relays_list}
-with open(out_file, 'w') as f:
-    json.dump(relays_out, f, indent=4)
-# {"relays":[
-# {"n":"PelmenTorRelay","f":"3CE26C7E299224F958BBC6BF76101CD2AF42CEDE","a":["2.93.158.149"],"r":false},
-# {"n":"darwinfish","f":"9DD5F90D641D835C4FCA7153148B156E6FD49CEE","a":["46.4.106.18"],"r":true}
-# ]
-# }                
+print ""
+print('Num addresses: {0}'.format(g.number_of_nodes()))
+print('Num unique pairs: {0}'.format(g.number_of_edges()))
+
+# write final graph to disk
+with open(out_file, 'wb') as f: json.dump(g.edges(), f)
 ##########
+
