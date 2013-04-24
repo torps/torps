@@ -307,9 +307,14 @@ def network_analysis_get_guards_and_exits(network_state_files, slim):
                         cons_bwweightscale = \
                             consensus.params['bwweightscale']
                 
-                for relay in consensus.relays:
-                    if (relay in descriptors):
-                        cons_rel_stats[relay] = consensus.relays[relay]
+                if slim:
+                    for relay in consensus.relays:
+                        if (relay in descriptors):
+                            cons_rel_stats[relay] = consensus.relays[relay]
+                else:
+                    for relay in consensus.routers:
+                        if (relay in descriptors):
+                            cons_rel_stats[relay] = consensus.routers[relay]                
         else:
             if (cons_valid_after == None) or (cons_fresh_until == None):
                 raise ValueError('Network status files begin with "None".')
