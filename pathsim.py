@@ -11,13 +11,14 @@ import collections
 import cPickle as pickle
 import argparse
 from models import *
+import process_consensuses
 
 _testing = True
 
 class RouterStatusEntry:
     """
     Represents a relay entry in a consensus document.
-    Trim version of stem.descriptor.router_status_entry.RouterStatusEntry.
+    Slim version of stem.descriptor.router_status_entry.RouterStatusEntry.
     """
     def __init__(self, fingerprint, nickname, flags, bandwidth):
         self.fingerprint = fingerprint
@@ -35,7 +36,7 @@ class RouterStatusEntry:
 class NetworkStatusDocument:
     """
     Represents a consensus document.
-    Trim version of stem.descriptor.networkstatus.NetworkStatusDocument.
+    Slim version of stem.descriptor.networkstatus.NetworkStatusDocument.
     """
     def __init__(self, valid_after, fresh_until, bandwidth_weights, \
         bwweightscale, relays):
@@ -53,7 +54,7 @@ class NetworkStatusDocument:
 class ServerDescriptor:
     """
     Represents a server descriptor.
-    Trim version of stem.descriptor.server_descriptor.ServerDescriptor.
+    Slim version of stem.descriptor.server_descriptor.ServerDescriptor.
     """
     def __init__(self, fingerprint, hibernating, nickname, family, address,\
         exit_policy):
@@ -75,6 +76,8 @@ class ServerDescriptor:
 
 class TorOptions:
     """Stores parameters set by Tor."""
+    # given by #define ROUTER_MAX_AGE (60*60*48) in or.h    
+    router_max_age = 60*60*48    
     
     num_guards = 3
     min_num_guards = 2
@@ -110,7 +113,7 @@ class TorOptions:
     # needs that apply to all samples
     # min coverage given with "#define MIN_CIRCUITS_HANDLING_STREAM 2" in or.h
     port_need_cover_num = 2
-    ### End Tor parameters ###
+    
 
 def timestamp(t):
     """Returns UNIX timestamp"""
@@ -144,185 +147,6 @@ def pad_network_state_files(network_state_files):
             network_state_files_padded.append(nsf)
         nsf_date = new_nsf_date                                    
     return network_state_files_padded
-
-
-
-def process_consensuses(in_dirs):
-    """For every input consensus, finds the descriptors published most recently before the descriptor times listed for the relays in that consensus, records state changes indicated by descriptors published during the consensus fresh period, and writes out pickled consensus and descriptor objects with the relevant information.
-        Inputs:
-            in_dirs: list of (consensus in dir, descriptor in dir, \
-                processed descriptor out dir) triples *in order*
-    """
-    descriptors = {}
-    # given by #define ROUTER_MAX_AGE (60*60*48) in or.h
-    router_max_age = 60*60*48
-    def skip_listener(path, exception):
-        print('ERROR [{0}]: {1}'.format(path.encode('ascii', 'ignore'), exception.__unicode__().encode('ascii','ignore')))
-        
-    # read all descriptors into memory        
-    for in_consensuses_dir, in_descriptors, desc_out_dir in in_dirs:
-        num_descriptors = 0    
-        num_relays = 0
-
-        print('Reading descriptors from: {0}'.format(in_descriptors))
-        with sdr.DescriptorReader(in_descriptors, validate=True) as reader:
-            reader.register_skip_listener(skip_listener)
-            for desc in reader:
-                if (num_descriptors % 10000 == 0):
-                    print('{0} descriptors processed.'.format(num_descriptors))
-                num_descriptors += 1
-                if (desc.fingerprint not in descriptors):
-                    descriptors[desc.fingerprint] = {}
-                    num_relays += 1
-                descriptors[desc.fingerprint][timestamp(desc.published)] = desc
-        print('#descriptors: {0}; #relays:{1}'.\
-            format(num_descriptors,num_relays)) 
-
-        # output pickled consensuses, dict of most recent descriptors, and 
-        # list of hibernation status changes
-        num_consensuses = 0
-        pathnames = []
-        for dirpath, dirnames, fnames in os.walk(in_consensuses_dir):
-            for fname in fnames:
-                pathnames.append(os.path.join(dirpath,fname))
-        pathnames.sort()
-        for pathname in pathnames:
-            filename = os.path.basename(pathname)
-            if (filename[0] == '.'):
-                continue
-            
-            print('Processing consensus file {0}'.format(filename))
-            cons_f = open(pathname, 'rb')
-            descriptors_out = {}
-            hibernating_statuses = [] # (time, fprint, hibernating)
-            cons_valid_after = None
-            cons_fresh_until = None
-            cons_bw_weights = None
-            cons_bwweightscale = None
-            relays = {}
-            num_not_found = 0
-            num_found = 0
-            for r_stat in sd.parse_file(cons_f, validate=True):
-                if (cons_valid_after == None):
-                    cons_valid_after = r_stat.document.valid_after
-                    # compute timestamp version once here
-                    valid_after_ts = timestamp(cons_valid_after)
-                if (cons_fresh_until == None):
-                    cons_fresh_until = r_stat.document.fresh_until
-                    # compute timestamp version once here
-                    fresh_until_ts = timestamp(cons_fresh_until)
-                if (cons_bw_weights == None):
-                    cons_bw_weights = r_stat.document.bandwidth_weights
-                if (cons_bwweightscale == None) and \
-                    ('bwweightscale' in r_stat.document.params):
-                    cons_bwweightscale = r_stat.document.params[\
-                            'bwweightscale']
-                relays[r_stat.fingerprint] = RouterStatusEntry(\
-                    r_stat.fingerprint, r_stat.nickname, \
-                    r_stat.flags, r_stat.bandwidth)
-
-                # find most recent unexpired descriptor published before
-                # the publication time in the consensus
-                # and status changes in fresh period (i.e. hibernation)
-                pub_time = timestamp(r_stat.published)
-                desc_time = 0
-                descs_while_fresh = []
-                desc_time_fresh = None
-                # get all descriptors with this fingerprint
-                if (r_stat.fingerprint in descriptors):
-                    for t,d in descriptors[r_stat.fingerprint].items():
-                        # update most recent desc seen before cons pubtime
-                        # allow pubtime after valid_after but not fresh_until
-                        if (valid_after_ts-t <\
-                            router_max_age) and\
-                            (t <= pub_time) and (t > desc_time) and\
-                            (t <= fresh_until_ts):
-                            desc_time = t
-                        # store fresh-period descs for hibernation tracking
-                        if (t >= valid_after_ts) and \
-                            (t <= fresh_until_ts):
-                            descs_while_fresh.append((t,d))                                
-                        # find most recent hibernating stat before fresh period
-                        # prefer most-recent descriptor before fresh period
-                        # but use oldest after valid_after if necessary
-                        if (desc_time_fresh == None):
-                            desc_time_fresh = t
-                        elif (desc_time_fresh < valid_after_ts):
-                            if (t > desc_time_fresh) and\
-                                (t <= valid_after_ts):
-                                desc_time_fresh = t
-                        else:
-                            if (t < desc_time_fresh):
-                                desc_time_fresh = t
-
-                # output best descriptor if found
-                if (desc_time != 0):
-                    num_found += 1
-                    # store discovered recent descriptor
-                    desc = descriptors[r_stat.fingerprint][desc_time]
-                    descriptors_out[r_stat.fingerprint] = \
-                        ServerDescriptor(desc.fingerprint, \
-                            desc.hibernating, desc.nickname, \
-                            desc.family, desc.address, \
-                            desc.exit_policy)                           
-                     
-                    # store hibernating statuses
-                    if (desc_time_fresh == None):
-                        raise ValueError('Descriptor error for {0}:{1}.\n Found  descriptor before published date {2}: {3}\nDid not find descriptor for initial hibernation status for fresh period starting {4}.'.format(r_stat.nickname, r_stat.fingerprint, pub_time, desc_time, valid_after_ts))
-                    desc = descriptors[r_stat.fingerprint][desc_time_fresh]
-                    cur_hibernating = desc.hibernating
-                    # setting initial status
-                    hibernating_statuses.append((0, desc.fingerprint,\
-                        cur_hibernating))
-                    if (cur_hibernating):
-                        print('{0}:{1} was hibernating at consenses period start'.format(desc.nickname, desc.fingerprint))
-                    descs_while_fresh.sort(key = lambda x: x[0])
-                    for (t,d) in descs_while_fresh:
-                        if (d.hibernating != cur_hibernating):
-                            cur_hibernating = d.hibernating                                   
-                            hibernating_statuses.append(\
-                                (t, d.fingerprint, cur_hibernating))
-                            if (cur_hibernating):
-                                print('{0}:{1} started hibernating at {2}'\
-                                    .format(d.nickname, d.fingerprint, t))
-                            else:
-                                print('{0}:{1} stopped hibernating at {2}'\
-                                    .format(d.nickname, d.fingerprint, t))                   
-                else:
-#                            print(\
-#                            'Descriptor not found for {0}:{1}:{2}'.format(\
-#                                r_stat.nickname,r_stat.fingerprint, pub_time))
-                    num_not_found += 1
-                    
-            # output pickled consensus, recent descriptors, and
-            # hibernating status changes
-            if (cons_valid_after != None) and\
-                (cons_fresh_until != None):
-                consensus = NetworkStatusDocument(cons_valid_after,\
-                    cons_fresh_until, cons_bw_weights,\
-                    cons_bwweightscale, relays)    
-                hibernating_statuses.sort(key = lambda x: x[0],\
-                    reverse=True)
-                outpath = os.path.join(desc_out_dir,\
-                    cons_valid_after.strftime(\
-                        '%Y-%m-%d-%H-%M-%S-network_state'))
-                f = open(outpath, 'wb')
-                pickle.dump(consensus, f, pickle.HIGHEST_PROTOCOL)
-                pickle.dump(descriptors_out,f,pickle.HIGHEST_PROTOCOL)
-                pickle.dump(hibernating_statuses,f,pickle.HIGHEST_PROTOCOL)
-                f.close()
-
-                print('Wrote descriptors for {0} relays.'.\
-                    format(num_found))
-                print('Did not find descriptors for {0} relays\n'.\
-                    format(num_not_found))
-            else:
-                print('Problem parsing {0}.'.format(filename))             
-            num_consensuses += 1
-            
-            cons_f.close()
-                
-        print('# consensuses: {0}'.format(num_consensuses))
 
 
 def get_bw_weight(flags, position, bw_weights):
@@ -1474,7 +1298,7 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
     with create_circuit().
       Input:
         network_state_files: list of filenames with network statuses
-            as produced by process_consensuses        
+            as produced by process_consensuses.process_consensuses()
         streams: *ordered* list of streams, where a stream is a dict with keys
             'time': timestamp of when stream request occurs 
             'type': 'connect' for SOCKS CONNECT, 'resolve' for SOCKS RESOLVE
@@ -1762,12 +1586,12 @@ if __name__ == '__main__':
     command = None
     usage = 'Usage: pathsim.py [command]\nCommands:\n\
 \tprocess \
-[start_year] [start_month] [end_year] [end_month] [in_dir] [out_dir]:\
+[start_year] [start_month] [end_year] [end_month] [in_dir] [out_dir] [slim]:\
  match relays in each consensus in in_dir/consensuses-year-month with \
 descriptors in in_dir/server-descriptors-year-month, where year and month \
 range from start_year and start_month to end_year and end_month. Write the \
 matched descriptors for each consensus to \
-out_dir/processed_descriptors-year-month.\n\
+out_dir/processed_descriptors-year-month. Use slim classes if slim=1\n\
 \tsimulate \
 [nsf dir] [# samples] [tracefile] [user model] [testing] [num adv guard] [num adv exits] [adv time] [path selection alg]: \
 Do simulated path selections, where\n\
@@ -1796,7 +1620,7 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
     if (command != 'process') and (command != 'simulate') and (command != 'concattraces'):
         print(usage)
     elif (command == 'process'):
-        if (len(sys.argv) < 8):
+        if (len(sys.argv) < 9):
             print(usage)
             sys.exit(1)
         start_year = int(sys.argv[2])
@@ -1805,6 +1629,7 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
         end_month = int(sys.argv[5])
         in_dir = sys.argv[6]
         out_dir = sys.argv[7]
+        slim = (sys.argv[8] == '1')
 
         in_dirs = []
         month = start_month
@@ -1828,7 +1653,7 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
                 in_dirs.append((cons_dir, desc_dir, desc_out_dir))
                 month += 1
             month = 1
-        process_consensuses(in_dirs)
+        process_consensuses.process_consensuses(in_dirs, slim, False)
     elif (command == 'simulate'):
         # get lists of consensuses and the related processed-descriptor files 
         network_state_files_dir = sys.argv[2] if len(sys.argv) >= 3 else 'out/network-state-files'
