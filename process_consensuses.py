@@ -94,7 +94,7 @@ def process_consensuses(in_dirs, slim, filtered):
                         cons_bwweightscale = r_stat.document.params[\
                                 'bwweightscale']
                 if slim:
-                    relays[r_stat.fingerprint] = RouterStatusEntry(\
+                    relays[r_stat.fingerprint] = pathsim.RouterStatusEntry(\
                         r_stat.fingerprint, r_stat.nickname, \
                         r_stat.flags, r_stat.bandwidth)
                 else:
@@ -142,7 +142,7 @@ def process_consensuses(in_dirs, slim, filtered):
                     desc = descriptors[r_stat.fingerprint][desc_time]
                     if slim:
                         descriptors_out[r_stat.fingerprint] = \
-                            ServerDescriptor(desc.fingerprint, \
+                            pathsim.ServerDescriptor(desc.fingerprint, \
                                 desc.hibernating, desc.nickname, \
                                 desc.family, desc.address, \
                                 desc.exit_policy)
@@ -182,8 +182,8 @@ def process_consensuses(in_dirs, slim, filtered):
             if (cons_valid_after != None) and\
                 (cons_fresh_until != None):
                 if slim:
-                    consensus = NetworkStatusDocument(cons_valid_after,\
-                        cons_fresh_until, cons_bw_weights,\
+                    consensus = pathsim.NetworkStatusDocument(\
+                        cons_valid_after, cons_fresh_until, cons_bw_weights,\
                         cons_bwweightscale, relays)
                 hibernating_statuses.sort(key = lambda x: x[0],\
                     reverse=True)
