@@ -10,6 +10,7 @@ import pathsim
 from random import choice
 import stem
 import collections
+from models import *
 
 ### Congestion-aware Tor parameters ###
 client_ip = '74.125.131.105' # www.google.com
