@@ -100,7 +100,7 @@ def process_consensuses(in_dirs, slim, filtered):
                 else:
                     if (consensus == None):
                         consensus = r_stat.document
-                        consensus.routers = {} # ensure is empty
+                        consensus.routers = {} # should be empty - ensure
                     consensus.routers[r_stat.fingerprint] = r_stat
 
                 # find most recent unexpired descriptor published before
