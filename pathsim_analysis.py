@@ -301,7 +301,7 @@ def network_analysis_get_guards_and_exits(network_state_files):
                     cons_bwweightscale = \
                         consensus.params['bwweightscale']
                 
-                for relay in consensus.relays:
+                for relay in consensus.routers:
                     if (relay in descriptors):
                         cons_rel_stats[relay] = consensus.relays[relay]
         else:
