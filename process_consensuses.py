@@ -13,6 +13,10 @@ def process_consensuses(in_dirs, slim, filtered):
     def skip_listener(path, exception):
         print('ERROR [{0}]: {1}'.format(path.encode('ascii', 'ignore'), exception.__unicode__().encode('ascii','ignore')))
         
+    if slim:
+        print('Outputting slim classes.')
+        print('Filtering relays for FAST and RUNNING.')
+        
     # read all descriptors into memory        
     for in_consensuses_dir, in_descriptors, desc_out_dir in in_dirs:
         num_descriptors = 0    
