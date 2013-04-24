@@ -87,147 +87,150 @@ for hs in hibernating_statuses:
 ######
 
 
-##### Aggregate relays that appear in consensus with descriptor 3/12-3/13 #####
-import json
-import pickle
-from pathsim import *
-in_dir = 'out/network-state-2012-03--2013-03'
-#in_dir = 'network-state-2012-03--04'
-out_file = 'out/relays.2012-03--2013--03.json'
-#out_file = 'relays.2012-03--04.json'
-network_state_files = []
-for dirpath, dirnames, filenames in os.walk(in_dir, followlinks=True):
-    for filename in filenames:
-        if (filename[0] != '.'):
-            network_state_files.append(os.path.join(dirpath,filename))
 
-# aggregate relays in consensuses with descriptors
-relays = {}
-network_state_files.sort(key = lambda x: os.path.basename(x))
-num_addresses = 0
-for ns_file in network_state_files:
-    print('Reading {0}'.format(os.path.basename(ns_file)))
-    with open(ns_file, 'r') as nsf:
-        consensus = pickle.load(nsf)
-        descriptors = pickle.load(nsf)
-    for relay in consensus.relays:
-        if (relay in descriptors):
-            if relay in relays:
-                if (descriptors[relay].address not in relays[relay]['a']):
-                    relays[relay]['a'].append(descriptors[relay].address)
-                    num_addresses += 1                    
-            else:
-                relays[relay] = {\
-                    'n':consensus.relays[relay].nickname,\
-                    'f':consensus.relays[relay].fingerprint,\
-                    'a':[descriptors[relay].address],\
-                    'r':True}
-                num_addresses += 1
-print('Num relays: {0}'.format(len(relays)))
-print('Num addresses: {0}'.format(num_addresses))
+##### Examine user traces #####
+# "facebook"
+# "gmailgchat"
+# "gcalgdocs"
+# "websearch"
+# "irc"
+# "bittorrent"
 
-# turn relays dict into {'relays':[relay dict]} and write to disk
-relays_list = []
-for rel_fp, rel_dict in relays.items():
-    relays_list.append(rel_dict)
-relays_out = {'relays':relays_list}
-with open(out_file, 'w') as f:
-    json.dump(relays_out, f, indent=4)
-# {"relays":[
-# {"n":"PelmenTorRelay","f":"3CE26C7E299224F958BBC6BF76101CD2AF42CEDE","a":["2.93.158.149"],"r":false},
-# {"n":"darwinfish","f":"9DD5F90D641D835C4FCA7153148B156E6FD49CEE","a":["46.4.106.18"],"r":true}
-# ]
-# }                
-##########
+tracefile = 'in/traces.pickle'
+tracename = 'bittorrent'
 
-##### Find top exit and guard consensus bandwidths #####
-in_dir = 'out/new/ns-2012-03-02--04'
-pathnames = []
-for dirpath, dirnames, fnames in os.walk(in_dir):
-    for fname in fnames:
-        pathnames.append(os.path.join(dirpath,fname))
-pathnames.sort()
+#streams =   get_user_model(start_time, end_time, 'in/traces.pickle', tracename)
 
-relays = {}
+f = open(tracefile)
+obj = pickle.load(f)
+f.close()
 
-for pathname in pathnames:
-    with open(pathname) as f:
-        consensus = pickle.load(f)
-        descriptors = pickle.load(nsf)
+streams = obj.trace[tracename]
 
-    for fprint, relay in consensus.relays.items():
-        if (fprint in descriptors):
-            desc = descriptors[fprint]
-            if (fprint not in relays):
-                relays[fprint] = {'nickname':relay.nickname,\
-                    'fingerprint':fprint,\
-                    'bandwidth':relay.bandwidth,\
-                    'average_bandwidth':desc.average_bandwidth,\
-                    'burst_bandwidth':desc.burst_bandwidth,\
-                    'observed_bandwidth':desc.observed_bandwidth)]
-            else:
-                relays[fprint].append((relay.bandwidth,\
-                    desc.average_bandwidth, desc.burst_bandwidth,\
-                    desc.observed_bandwidth))
-            self.bandwidth = bandwidth
-                    
-        self.average_bandwidth = average_bandwidth
-        self.burst_bandwidth = burst_bandwidth
-        self.observed_bandwidth = observed_bandwidth 
-class RouterStatusEntry:
-    """
-    Represents a relay entry in a consensus document.
-    Trim version of stem.descriptor.router_status_entry.RouterStatusEntry.
-    """
-    def __init__(self, fingerprint, nickname, flags, bandwidth, address,\
-        or_port, exit_policy):
-        self.fingerprint = fingerprint
-        self.nickname = nickname
-        self.flags = flags
-        self.bandwidth = bandwidth
-        
-        # not currently used, but potentially useful
-        self.address = address # IP address in consensus
-        self.or_port = or_port
-        self.exit_policy = exit_policy # micro exit policy
+# ips and ports
+ips = set()
+ports = set()
+for stream in streams:
+    ips.add(stream[1])
+    ports.add(stream[2])
     
+# streams to .exit
+exit_ip_streams = []
+for stream in streams:
+    if ('.exit' in stream[1]):
+        exit_ip_streams.append(stream)
 
-class NetworkStatusDocument:
-    """
-    Represents a consensus document.
-    Trim version of stem.descriptor.networkstatus.NetworkStatusDocument.
-    """
-    def __init__(self, valid_after, fresh_until, bandwidth_weights, \
-        bwweightscale, relays, is_microdescriptor):
-        self.valid_after = valid_after
-        self.fresh_until = fresh_until
-        self.bandwidth_weights = bandwidth_weights
-        self.bwweightscale = bwweightscale
-        self.relays = relays
+# ips to .exit
+exit_ips = []
+for ip in ips:
+    if ('.exit' in ip):
+        exit_ips.append(ip)
         
-        # not currently used, but potentially useful
-        self.is_microdescriptor = is_microdescriptor
-
-
-class ServerDescriptor:
-    """
-    Represents a server descriptor.
-    Trim version of stem.descriptor.server_descriptor.ServerDescriptor.
-    """
-    def __init__(self, fingerprint, hibernating, nickname, family, address,\
-        exit_policy, or_port, uptime, average_bandwidth, burst_bandwidth,\
-        observed_bandwidth):
-        self.fingerprint = fingerprint
-        self.hibernating = hibernating
-        self.nickname = nickname
-        self.family = family
-        self.address = address
-        self.exit_policy = exit_policy
+# streams to 9001
+or_port_streams = []
+for stream in streams:
+    if (9001 == stream[2]):
+        or_port_streams.append(stream)
+# streams to 9001 but not to a .exit
+or_port_nonexit_streams = []
+for stream in streams:
+    if (9001 == stream[2]) and\
+        ('.exit' not in stream[1]):
+        or_port_nonexit_streams.append(stream)
         
-        # not currently used, but potentially useful
-        self.or_port = or_port
-        self.uptime = uptime
-        self.average_bandwidth = average_bandwidth
-        self.burst_bandwidth = burst_bandwidth
-        self.observed_bandwidth = observed_bandwidth            
-##########        
+# print streams
+for stream in streams:
+    print('[{0:.1f}]\t{1}:{2}'.format(stream[0], stream[1], stream[2]))
+
+# remove streams that duplicate an ip/24:port seen 10 minutes ago
+max_circuit_dirtiness = 10*60
+cover_time = float(max_circuit_dirtiness)/2
+ip_port_seen = {}
+streams_reduced = []
+for stream in streams:
+    ip_split = stream[1].split('.')
+    ip_24 = '.'.join(ip_split[0:3])
+    ip_port = ip_24 + ':' + str(stream[2])
+    if (ip_port in ip_port_seen) and\
+        (stream[0] - ip_port_seen[ip_port] < cover_time):
+        continue
+    else:
+        ip_port_seen[ip_port] = stream[0]
+        streams_reduced.append(stream)
+
+### Results ###
+#start_time: 1330646400
+#end_time: 1335830399
+
+#facebook
+# num streams 3/12-4/12: 107081=1755.4/day
+# num streams reduced (5 min. window, /24): 47
+# num streams in trace: 637
+# num streams to .exit: 4
+# num streams to 9001 but not .exit: 0
+# ips
+  # num: 91
+  # num w/ .exit: 4
+# ports
+  # num: 3
+  # [80, 9001, 443]
+  # to non-exit: [80, 443]
+  
+#gmailgchat
+# num streams in trace: 516
+# num streams to .exit: 0
+# num streams reduced (5 min. window, /24): 40
+# ips
+    # num: 70
+# ports
+  # num: 2
+  # [80, 443]
+  
+#gcalgdocs
+# num streams in trace: 370
+# num streams to .exit: 0
+# num streams reduced (5 min. window, /24): 17
+# ips
+    # num: 42
+# ports
+  # num: 2
+  # [80, 443]  
+  
+#websearch
+# num streams in trace: 1343
+# num streams to .exit: 0
+# num streams reduced (5 min. window, /24): 138
+# ips
+    # num: 170
+# ports
+  # num: 2
+  # [80, 443] 
+  
+#irc
+# num streams in trace: 1
+# num streams to .exit: 0
+# ips
+    # num: 1
+# ports
+  # num: 1
+  # [6697]  
+     
+#bittorrent
+# num streams in trace: 355
+# num streams to .exit: 4
+# num streams to 9001 but not .exit: 0
+# num streams reduced (5 min. window, /24): 321
+# ips
+    # num: 285
+# ports
+  # num: 164  
+  
+  
+# Model streams / week
+# simple: 1008
+# fb: 47*4*5 = 940
+# websearch: 138*4*5 = 2760
+# bittorrent: 321*18*7 = 40446
+#  OR 321*18*2 = 11556  
+# typical (fb+gmail+gcalgdocs) = (47 + 40 + 17)*4*5 = 2080     
+###### 
