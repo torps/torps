@@ -362,10 +362,10 @@ def network_analysis_get_guards_and_exits(network_state_files):
         exits = filter_exits(cons_rel_stats, descriptors, need_fast,\
             need_stable, need_internal, None, None)
         exit_weights = get_position_weights(\
-            stream_exits, cons_rel_stats, 'e',\
+            exits, cons_rel_stats, 'e',\
             cons_bw_weights, cons_bwweightscale)
         weighted_exits = get_weighted_nodes(\
-            stream_exits, stream_exit_weights)
+            exits, stream_exit_weights)
         
         cum_weight_old = 0
         for fprint, cum_weight in weighted_exits:
