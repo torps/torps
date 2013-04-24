@@ -61,6 +61,13 @@ def process_consensuses(in_dirs, slim, filtered):
             num_not_found = 0
             num_found = 0
             for r_stat in sd.parse_file(cons_f, validate=True):
+                # skip relays not running and not fast for faster simulation
+                # as our current experiments use an all-FAST policy
+                if filtered and (\
+                    (stem.Flag.FAST not in r_stat.flags) or\
+                    (stem.Flag.RUNNING not in r_stat.flags))
+                    continue
+                    
                 if (cons_valid_after == None):
                     cons_valid_after = r_stat.document.valid_after
                     # compute timestamp version once here
