@@ -1586,12 +1586,12 @@ if __name__ == '__main__':
     command = None
     usage = 'Usage: pathsim.py [command]\nCommands:\n\
 \tprocess \
-[start_year] [start_month] [end_year] [end_month] [in_dir] [out_dir] [slim]:\
+[start_year] [start_month] [end_year] [end_month] [in_dir] [out_dir] [slim]  [filtered]:\
  match relays in each consensus in in_dir/consensuses-year-month with \
 descriptors in in_dir/server-descriptors-year-month, where year and month \
 range from start_year and start_month to end_year and end_month. Write the \
 matched descriptors for each consensus to \
-out_dir/processed_descriptors-year-month. Use slim classes if slim=1\n\
+out_dir/processed_descriptors-year-month. Use slim classes if slim=1. Filter our relays without FAST and RUNNING flags if filtered=1.\n\
 \tsimulate \
 [nsf dir] [# samples] [tracefile] [user model] [testing] [num adv guard] [num adv exits] [adv time] [path selection alg]: \
 Do simulated path selections, where\n\
@@ -1620,7 +1620,7 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
     if (command != 'process') and (command != 'simulate') and (command != 'concattraces'):
         print(usage)
     elif (command == 'process'):
-        if (len(sys.argv) < 9):
+        if (len(sys.argv) < 10):
             print(usage)
             sys.exit(1)
         start_year = int(sys.argv[2])
@@ -1630,6 +1630,7 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
         in_dir = sys.argv[6]
         out_dir = sys.argv[7]
         slim = (sys.argv[8] == '1')
+        filtered = (sys.argv[8] == '1')
 
         in_dirs = []
         month = start_month
@@ -1653,7 +1654,7 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
                 in_dirs.append((cons_dir, desc_dir, desc_out_dir))
                 month += 1
             month = 1
-        process_consensuses.process_consensuses(in_dirs, slim, False)
+        process_consensuses.process_consensuses(in_dirs, slim, filtered)
     elif (command == 'simulate'):
         # get lists of consensuses and the related processed-descriptor files 
         network_state_files_dir = sys.argv[2] if len(sys.argv) >= 3 else 'out/network-state-files'
