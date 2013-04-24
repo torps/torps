@@ -65,7 +65,7 @@ def process_consensuses(in_dirs, slim, filtered):
                 # as our current experiments use an all-FAST policy
                 if filtered and (\
                     (stem.Flag.FAST not in r_stat.flags) or\
-                    (stem.Flag.RUNNING not in r_stat.flags))
+                    (stem.Flag.RUNNING not in r_stat.flags)):
                     continue
                     
                 if (cons_valid_after == None):
