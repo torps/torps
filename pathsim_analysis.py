@@ -561,8 +561,6 @@ against adversary compromising a range of top guards and exits.'
         guard_cum_prob = 0.5
         num_exits = 50
         (initial_guards, exits_tot_bw) = \
-            #network_analysis_get_guards_and_exits(network_state_files, ip,\
-#                port)
             network_analysis_get_guards_and_exits(network_state_files, slim)
         network_analysis_print_guards_and_exits(initial_guards, exits_tot_bw,\
             guard_cum_prob, num_exits, ip, port)
