@@ -307,14 +307,9 @@ def network_analysis_get_guards_and_exits(network_state_files, slim):
                         cons_bwweightscale = \
                             consensus.params['bwweightscale']
                 
-                if slim:
-                    for relay in consensus.relays:
-                        if (relay in descriptors):
-                            cons_rel_stats[relay] = consensus.relays[relay]
-                else:
-                    for relay in consensus.routers:
-                        if (relay in descriptors):
-                            cons_rel_stats[relay] = consensus.routers[relay]                
+                for relay in consensus.relays:
+                    if (relay in descriptors):
+                        cons_rel_stats[relay] = consensus.relays[relay]
         else:
             if (cons_valid_after == None) or (cons_fresh_until == None):
                 raise ValueError('Network status files begin with "None".')
@@ -337,19 +332,19 @@ def network_analysis_get_guards_and_exits(network_state_files, slim):
             cum_weighted_guards = get_weighted_nodes(guards,\
                 guard_weights)
             # add in circuit requirements (what guard_filter_for_circ would do)
+            # because we don't have a circuit it mind, this is just a FAST flag
             # also turn cumulative probs into individual ones
             cum_weight_old = 0
             for fprint, cum_weight in cum_weighted_guards:
                 rel_stat = cons_rel_stats[fprint]
-                if ((not need_fast) or (stem.Flag.FAST in rel_stat.flags)) and\
-                   ((not need_stable) or (stem.Flag.STABLE in rel_stat.flags)):
+                if (stem.Flag.FAST in rel_stat.flags):
                    desc = descriptors[fprint]
                    initial_guards[fprint] = {\
-                    'rel_stat':rel_stat,\
-                    'prob':cum_weight-cum_weight_old,\
+                    'rel_stat':rel_stat,
+                    'prob':cum_weight-cum_weight_old,
                     'uptime':1,
-                    'tot_average_bandwidth':desc.average_bandwidth,\
-                    'tot_burst_bandwidth':desc.burst_bandwidth,\
+                    'tot_average_bandwidth':desc.average_bandwidth,
+                    'tot_burst_bandwidth':desc.burst_bandwidth,
                     'tot_observed_bandwidth':desc.observed_bandwidth}
                 cum_weight_old = cum_weight
         else:
@@ -367,17 +362,22 @@ def network_analysis_get_guards_and_exits(network_state_files, slim):
                     initial_guards[guard]['tot_observed_bandwidth'] +=\
                         desc.observed_bandwidth
                     
-
-        # get relays that exit to our dummy dest ip and port
+        # get exit relays - with no ip:port in mind, we just look for
+        # not policy_is_reject_star(exit_policy) 
         # with sum of weighted selection probabilities
-        weighted_exits = get_weighted_exits(cons_bw_weights,\
-            cons_bwweightscale, cons_rel_stats, descriptors, need_fast, \
-            need_stable, need_internal, ip, port)
+        exits = filter_exits(cons_rel_stats, descriptors, need_faste,\
+            need_stable, need_internal, None, None)
+        exit_weights = get_position_weights(\
+            stream_exits, cons_rel_stats, 'e',\
+            cons_bw_weights, cons_bwweightscale)
+        weighted_exits = get_weighted_nodes(\
+            stream_exits, stream_exit_weights)
+        
         cum_weight_old = 0
         for fprint, cum_weight in weighted_exits:
             if fprint not in exits_tot_bw:
                 exits_tot_bw[fprint] =\
-                    {'tot_bw':0,\
+                    {'tot_prob':0,\
                     'nickname':cons_rel_stats[fprint].nickname,\
                     'max_prob':0,\
                     'min_prob':1,\
@@ -387,7 +387,7 @@ def network_analysis_get_guards_and_exits(network_state_files, slim):
                     'tot_observed_bandwidth':0,\
                     'uptime':0}
             prob = cum_weight - cum_weight_old
-            exits_tot_bw[fprint]['tot_bw'] += prob
+            exits_tot_bw[fprint]['tot_prob'] += prob
             exits_tot_bw[fprint]['max_prob'] = \
                 max(exits_tot_bw[fprint]['max_prob'], prob)
             exits_tot_bw[fprint]['min_prob'] = \
@@ -433,7 +433,7 @@ def network_analysis_print_guards_and_exits(initial_guards, exits_tot_bw,\
 
     # print out top exits by total probability-weighted uptime
     exits_tot_bw_sorted = exits_tot_bw.items()
-    exits_tot_bw_sorted.sort(key = lambda x: x[1]['tot_bw'], reverse=True)
+    exits_tot_bw_sorted.sort(key = lambda x: x[1]['tot_prob'], reverse=True)
     i = 1
     print('Top {0} exits to {1}:{2} by probability-weighted uptime'.\
         format(num_exits, ip, port))
@@ -446,7 +446,7 @@ def network_analysis_print_guards_and_exits(initial_guards, exits_tot_bw,\
             float(bw_dict['uptime'])
         print(\
         '{0}\t{1:.4f}\t{2:.4f}\t{3:.4f}\t{4:.4f}\t{5:.4f}\t{6:.4f}\t{7}\t{8}\t{9}'.\
-            format(i, bw_dict['tot_bw'], bw_dict['max_prob'],\
+            format(i, bw_dict['tot_prob'], bw_dict['max_prob'],\
                 bw_dict['min_prob'], avg_cons_bw, avg_average_bw,\
                 avg_observed_bw, bw_dict['uptime'], fprint,\
                 bw_dict['nickname']))
