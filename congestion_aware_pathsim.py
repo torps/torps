@@ -173,11 +173,12 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
             cons_rel_stats[middle_node].fingerprint))
 
     cum_ping_time = 0
-    print('Doing {0} circuit pings on creation'.format(num_pings_create))
+    if pathsim._testing: print 'Doing {0} circuit pings on creation... '.format(num_pings_create),
     for i in xrange(num_pings_create):
         cum_ping_time += ping_circuit(client_ip, guard_node, middle_node,\
             exit_node, cons_rel_stats, descriptors, congmodel, pdelmodel)
     avg_ping_time = float(cum_ping_time)/num_pings_create
+    if pathsim._testing: print "ave congestion is {0}".format(avg_ping_time)
     
     return {'time':circ_time,\
             'fast':circ_fast,\
@@ -299,7 +300,7 @@ stream.'.format(stream['time']))
                 print('Created circuit at time {0} to cover unrecognized \
 stream.'.format(stream['time']))
 
-    print('Doing {0} circuit pings on use'.format(num_pings_use))
+    if pathsim._testing: print 'Doing {0} circuit pings on use... '.format(num_pings_use),
     cum_ping_time = 0
     guard_node = stream_assigned['path'][0]
     middle_node = stream_assigned['path'][1]
@@ -308,5 +309,6 @@ stream.'.format(stream['time']))
         cum_ping_time += ping_circuit(client_ip, guard_node, middle_node,\
             exit_node, cons_rel_stats, descriptors, congmodel, pdelmodel)
     stream_assigned['avg_ping'] = float(cum_ping_time)/num_pings_use
+    if pathsim._testing: print "ave congestion is {0}".format(stream_assigned['avg_ping'])
     
     return stream_assigned
