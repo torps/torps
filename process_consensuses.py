@@ -100,6 +100,9 @@ def process_consensuses(in_dirs, slim, filtered):
                 else:
                     if (consensus == None):
                         consensus = r_stat.document
+                        consensus.routers = None # ensure is empty
+                        consensus.relays = {}
+                    consensus.relays[r_stat.fingerprint] = r_stat
 
                 # find most recent unexpired descriptor published before
                 # the publication time in the consensus
