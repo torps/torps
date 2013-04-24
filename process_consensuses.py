@@ -76,9 +76,10 @@ def process_consensuses(in_dirs, slim, filtered):
                         ('bwweightscale' in r_stat.document.params):
                         cons_bwweightscale = r_stat.document.params[\
                                 'bwweightscale']
-                        relays[r_stat.fingerprint] = RouterStatusEntry(\
-                            r_stat.fingerprint, r_stat.nickname, \
-                            r_stat.flags, r_stat.bandwidth)
+                if slim:
+                    relays[r_stat.fingerprint] = RouterStatusEntry(\
+                        r_stat.fingerprint, r_stat.nickname, \
+                        r_stat.flags, r_stat.bandwidth)
                 else:
                     if (consensus == None):
                         consensus = r_stat.document
