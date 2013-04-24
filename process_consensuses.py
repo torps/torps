@@ -15,6 +15,7 @@ def process_consensuses(in_dirs, slim, filtered):
         
     if slim:
         print('Outputting slim classes.')
+    if filtered:
         print('Filtering relays for FAST and RUNNING.')
         
     # read all descriptors into memory        
