@@ -6,6 +6,11 @@
 #     "Builds" k=3 circuits, measures congestion with m=5 circuit pings, and
 #     chooses the best one. Also makes m additional pings and stores average.
 
+import os
+from random import choice
+import collections
+from models import *
+
 import pathsim
 
 import torps.ext.safest as safest
