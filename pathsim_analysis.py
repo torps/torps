@@ -359,7 +359,7 @@ def network_analysis_get_guards_and_exits(network_state_files):
         # get exit relays - with no ip:port in mind, we just look for
         # not policy_is_reject_star(exit_policy) 
         # with sum of weighted selection probabilities
-        exits = filter_exits(cons_rel_stats, descriptors, need_faste,\
+        exits = filter_exits(cons_rel_stats, descriptors, need_fast,\
             need_stable, need_internal, None, None)
         exit_weights = get_position_weights(\
             stream_exits, cons_rel_stats, 'e',\
