@@ -1,5 +1,6 @@
 import pathsim
 import stem.descriptor.reader as sdr
+import os
 
 def process_consensuses(in_dirs, slim, filtered):
     """For every input consensus, finds the descriptors published most recently before the descriptor times listed for the relays in that consensus, records state changes indicated by descriptors published during the consensus fresh period, and writes out pickled consensus and descriptor objects with the relevant information.
