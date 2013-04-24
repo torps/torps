@@ -260,7 +260,7 @@ def compromised_top_relays_print(in_file, top_guards, top_exits):
             num_guards *= 2
         
         
-def network_analysis_get_guards_and_exits(network_state_files, slim):
+def network_analysis_get_guards_and_exits(network_state_files):
     """Takes list of network state files, pads the sorted list for missing
     periods, and returns selection statistics about initial guards and
     exits."""
@@ -295,17 +295,11 @@ def network_analysis_get_guards_and_exits(network_state_files, slim):
                 cons_valid_after = timestamp(consensus.valid_after)            
                 cons_fresh_until = timestamp(consensus.fresh_until)
                 cons_bw_weights = consensus.bandwidth_weights
-                if slim:
-                    if (consensus.bwweightscale == None):
-                        cons_bwweightscale = TorOptions.default_bwweightscale
-                    else:
-                        cons_bwweightscale = consensus.bwweightscale
+                if ('bwweightscale' not in consensus.params):
+                    cons_bwweightscale = TorOptions.default_bwweightscale
                 else:
-                    if ('bwweightscale' not in consensus.params):
-                        cons_bwweightscale = TorOptions.default_bwweightscale
-                    else:
-                        cons_bwweightscale = \
-                            consensus.params['bwweightscale']
+                    cons_bwweightscale = \
+                        consensus.params['bwweightscale']
                 
                 for relay in consensus.relays:
                     if (relay in descriptors):
@@ -407,7 +401,7 @@ def network_analysis_get_guards_and_exits(network_state_files, slim):
     
 
 def network_analysis_print_guards_and_exits(initial_guards, exits_tot_bw,\
-    guard_cum_prob, num_exits, ip, port):
+    guard_cum_prob, num_exits):
     """Prints top initial guards comprising [guard_cum_prob] selection prob.
     and top [num_exits] exits."""
     # print out top initial guards comprising some total selection prob.
@@ -435,8 +429,8 @@ def network_analysis_print_guards_and_exits(initial_guards, exits_tot_bw,\
     exits_tot_bw_sorted = exits_tot_bw.items()
     exits_tot_bw_sorted.sort(key = lambda x: x[1]['tot_prob'], reverse=True)
     i = 1
-    print('Top {0} exits to {1}:{2} by probability-weighted uptime'.\
-        format(num_exits, ip, port))
+    print('Top {0} exits by probability-weighted uptime'.\
+        format(num_exits))
     print('#\tCum. prob.\tMax prob.\tMin prob.\tAvg. Cons. BW\tAvg. Avg. BW\tAvg. Observed BW\tUptime\tFingerprint\t\t\t\t\t\t\tNickname')
     for fprint, bw_dict in exits_tot_bw_sorted[0:num_exits]:
         avg_cons_bw = float(bw_dict['tot_cons_bw']) / float(bw_dict['uptime'])
@@ -536,7 +530,7 @@ def read_compromised_relays_file(in_file):
 
 if __name__ == '__main__':
     usage = 'Usage: pathsim_analysis.py [command]\nCommands:\n\
-\tnetwork [in_dir] [slim]:  Analyze the network status files in in_dir. If input classes are slim, set slim=1.\n\
+\tnetwork [in_dir]:  Analyze the network status files in in_dir. If input classes are slim, set slim=1.\n\
 \tsimulation-set [logs_in_dir] [set_in_file] [out_dir] [out_name]: Do analysis against compromised set. Use simulation logs in logs_in_dir and IPs in set_in_file, and write statistics to files in out_dir in files with names containing out_name.\n\
 \tsimulation-top [logs_in_dir] [top_guards_in_file] [top_exits_in_file] [out_dir] [out_name]: Do analysis\
 against adversary compromising a range of top guards and exits.'
@@ -549,11 +543,10 @@ against adversary compromising a range of top guards and exits.'
         (command != 'simulation-top'):
         print(usage)
     elif (command == 'network'):
-        if (len(sys.argv) < 4):
+        if (len(sys.argv) < 3):
             print(usage)
             sys.exit(1)
         in_dir = sys.argv[2]
-        slim = (sys.argv[3] == '1')
         print('in_dir: {0}'.format(in_dir))
         
         network_state_files = []
@@ -563,13 +556,14 @@ against adversary compromising a range of top guards and exits.'
                     network_state_files.append(os.path.join(dirpath,filename))
         #ip = '74.125.131.105'
         #port = 80
-        guard_cum_prob = 0.5
-        num_exits = 50
+        guard_cum_prob = 1
+        num_exits = 1000
         (initial_guards, exits_tot_bw) = \
-            network_analysis_get_guards_and_exits(network_state_files, slim)
+            network_analysis_get_guards_and_exits(network_state_files)
         network_analysis_print_guards_and_exits(initial_guards, exits_tot_bw,\
-            guard_cum_prob, num_exits, ip, port)
+            guard_cum_prob, num_exits)
 
+        """
         # some group substrings that have been of interest            
         guard_substr = 'TORy'    
         #guard_substr = 'PPrivCom'
@@ -581,6 +575,7 @@ against adversary compromising a range of top guards and exits.'
             initial_guards, exits_tot_bw, guard_substr, exit_substr)
         network_analysis_print_groups(initial_guards, exits_tot_bw,\
             guard_group, exit_group)
+        """
             
     elif (command == 'simulation-set'):
         if (len(sys.argv) < 6):
