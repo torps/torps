@@ -28,7 +28,8 @@ def process_consensuses(in_dirs, slim, filtered):
                 if (desc.fingerprint not in descriptors):
                     descriptors[desc.fingerprint] = {}
                     num_relays += 1
-                descriptors[desc.fingerprint][timestamp(desc.published)] = desc
+                descriptors[desc.fingerprint]\
+                    [pathsim.timestamp(desc.published)] = desc
         print('#descriptors: {0}; #relays:{1}'.\
             format(num_descriptors,num_relays)) 
 
@@ -63,11 +64,11 @@ def process_consensuses(in_dirs, slim, filtered):
                 if (cons_valid_after == None):
                     cons_valid_after = r_stat.document.valid_after
                     # compute timestamp version once here
-                    valid_after_ts = timestamp(cons_valid_after)
+                    valid_after_ts = pathsim.timestamp(cons_valid_after)
                 if (cons_fresh_until == None):
                     cons_fresh_until = r_stat.document.fresh_until
                     # compute timestamp version once here
-                    fresh_until_ts = timestamp(cons_fresh_until)
+                    fresh_until_ts = pathsim.timestamp(cons_fresh_until)
                 if slim:
                     if (cons_bw_weights == None):
                         cons_bw_weights = r_stat.document.bandwidth_weights
@@ -85,7 +86,7 @@ def process_consensuses(in_dirs, slim, filtered):
                 # find most recent unexpired descriptor published before
                 # the publication time in the consensus
                 # and status changes in fresh period (i.e. hibernation)
-                pub_time = timestamp(r_stat.published)
+                pub_time = pathsim.timestamp(r_stat.published)
                 desc_time = 0
                 descs_while_fresh = []
                 desc_time_fresh = None
