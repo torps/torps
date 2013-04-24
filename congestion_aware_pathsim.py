@@ -22,12 +22,16 @@ min_ping = 500 # minimum ping to use circuit in milliseconds
 def ping_circuit(client_ip, guard_node, middle_node, exit_node,\
     cons_rel_stats, descriptors, congmodel, pdelmodel):    
     ping_time = 0
-    for node, coef in ((guard_node, 1), (middle_node, 1), (exit_node, 2)):
+    for node, coef in ((guard_node, 2), (middle_node, 2), (exit_node, 1)):
         rel_stat = cons_rel_stats[node]
         is_exit = (stem.Flag.EXIT in rel_stat.flags)
         is_guard = (stem.Flag.GUARD in rel_stat.flags)
         ping_time += coef*(congmodel.get_congestion(node,\
             rel_stat.bandwidth, is_exit, is_guard))
+
+    # ca-tor subtracts minrtt from its pings to isolate congestion
+    # so we dont actually want to include prop delay
+    '''
     guard_ip = descriptors[guard_node]
     middle_ip = descriptors[middle_node]
     exit_ip = descriptors[exit_node]
@@ -35,6 +39,7 @@ def ping_circuit(client_ip, guard_node, middle_node, exit_node,\
         (middle_ip, exit_ip)):
         ping_time += pdelmodel.get_prop_delay(ip, next_ip)
         ping_time += pdelmodel.get_prop_delay(next_ip, ip)
+    '''
     return ping_time
 
 
@@ -168,7 +173,7 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
             cons_rel_stats[middle_node].fingerprint))
 
     cum_ping_time = 0
-    print('Doing circuit pings on creation')
+    print('Doing {0} circuit pings on creation'.format(num_pings_create))
     for i in xrange(num_pings_create):
         cum_ping_time += ping_circuit(client_ip, guard_node, middle_node,\
             exit_node, cons_rel_stats, descriptors, congmodel, pdelmodel)
@@ -294,7 +299,7 @@ stream.'.format(stream['time']))
                 print('Created circuit at time {0} to cover unrecognized \
 stream.'.format(stream['time']))
 
-    print('Doing circuit pings on use')
+    print('Doing {0} circuit pings on use'.format(num_pings_use))
     cum_ping_time = 0
     guard_node = stream_assigned['path'][0]
     middle_node = stream_assigned['path'][1]

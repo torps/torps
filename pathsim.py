@@ -1610,7 +1610,7 @@ default: 0\n\
 consensuses, default: 0\n\
 \t\t path selection alg is one of\n\
 \t\t\t tor: uses Tor path selection, is default\n\
-\t\t\t cat [congfile] [pdelfile]: uses congestion-aware tor with congfile is the congestion input file and pdelfile as the propagation delay input\n\
+\t\t\t cat [congfile]: uses congestion-aware tor with congfile is the congestion input file\n\
 \t\t\t vcs: uses the virtual-coordinate system.\n\
 \tconcattraces \
 outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, irc.log, bittorrent.log: combine user session traces into a single object used by pathsim, and pickle it. The pickled object is input to the simulate command.'
