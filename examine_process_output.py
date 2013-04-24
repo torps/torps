@@ -166,10 +166,14 @@ if __name__ == '__main__':
     print('descriptors in desc archive: {0}'.format(num_descriptors))
     print('relays in desc archive: {0}'.format(num_relays))
     print('consensuses in month: {0}'.format(num_cons))
-    print('max "was hibernating": {0}'.format(max(num_was_hibern)))
-    print('max "started hibernating": {0}'.format(max(num_hibern_start)))
-    print('max "stopped hibernating": {0}'.format(max(num_hibern_stop)))
-    print('min relays w/ desc in cons: {0}'.format(min(num_relays_cons)))
+    if num_was_hibern:
+        print('max "was hibernating": {0}'.format(max(num_was_hibern)))
+    if num_hibern_start:
+        print('max "started hibernating": {0}'.format(max(num_hibern_start)))
+    if num_hibern_stop:
+        print('max "stopped hibernating": {0}'.format(max(num_hibern_stop)))
+    if num_relays_cons:    
+        print('min relays w/ desc in cons: {0}'.format(min(num_relays_cons)))
     print('min relays w/ desc in cons after first day: {0}'.format(min(num_relay_cons_after_first_day)))
-    print('max num missing descriptiors: {0}'.format(max(num_missing_descriptors)))
-    print('max num missing descriptiors after first day: {0}'.format(max(num_missing_descriptors_after_first_day)))
+    print('max num missing descriptors: {0}'.format(max(num_missing_descriptors)))
+    print('max num missing descriptors after first day: {0}'.format(max(num_missing_descriptors_after_first_day)))
