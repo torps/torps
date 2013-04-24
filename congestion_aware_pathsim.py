@@ -6,6 +6,10 @@
 #   - client_assign_stream():
 #     If avg stored latency is > l=500ms, don't use. Ping after use and store.
 
+import pathsim
+from random import choice
+import stem
+
 ### Congestion-aware Tor parameters ###
 client_ip = '74.125.131.105' # www.google.com
 num_pings_create = 5 # number of measurements to choose built circuit to use
@@ -91,11 +95,11 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
 #        exit_node = pathsim.select_weighted_node(weighted_exits)
         if (not hibernating_status[exit_node]):
             break
-        if _testing:
+        if pathsim._testing:
             print('Exit selection #{0} is hibernating - retrying.'.\
                 format(i))
         i += 1
-    if _testing:    
+    if pathsim._testing:    
         print('Exit node: {0} [{1}]'.format(
             cons_rel_stats[exit_node].nickname,
             cons_rel_stats[exit_node].fingerprint))
@@ -114,19 +118,19 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
         guard_node = choice(circ_guards)
         if (hibernating_status[guard_node]):
             if (not guards[guard_node]['made_contact']):
-                if _testing:
+                if pathsim._testing:
                     print(\
                     '[Time {0}]: Removing new hibernating guard: {1}.'.\
                     format(circ_time, cons_rel_stats[guard_node].nickname))
                 del guards[guard_node]
             elif (guards[guard_node]['unreachable_since'] != None):
-                if _testing:
+                if pathsim._testing:
                     print(\
                     '[Time {0}]: Guard retried but hibernating: {1}'.\
                     format(circ_time, cons_rel_stats[guard_node].nickname))
                 guards[guard_node]['last_attempted'] = circ_time
             else:
-                if _testing:
+                if pathsim._testing:
                     print('[Time {0}]: Guard newly hibernating: {1}'.\
                     format(circ_time, \
                     cons_rel_stats[guard_node].nickname))
@@ -136,7 +140,7 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
             guards[guard_node]['unreachable_since'] = None
             guards[guard_node]['made_contact'] = True
             break
-    if _testing:
+    if pathsim._testing:
         print('Guard node: {0} [{1}]'.format(
             cons_rel_stats[guard_node].nickname,
             cons_rel_stats[guard_node].fingerprint))
@@ -152,11 +156,11 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
             circ_stable, exit_node, guard_node, weighted_middles)
         if (not hibernating_status[middle_node]):
             break
-        if _testing:
+        if pathsim._testing:
             print(\
             'Middle selection #{0} is hibernating - retrying.'.format(i))
         i += 1    
-    if _testing:
+    if pathsim._testing:
         print('Middle node: {0} [{1}]'.format(
             cons_rel_stats[middle_node].nickname,
             cons_rel_stats[middle_node].fingerprint))
@@ -219,7 +223,7 @@ def client_assign_stream(client_state, stream, cons_rel_stats,\
                 new_clean_exit_circuits.extend(\
                     client_state['clean_exit_circuits'])
                 client_state['clean_exit_circuits'].clear()
-                if _testing:
+                if pathsim._testing:
                     if (stream['type'] == 'connect'):
                         print('Assigned CONNECT stream to port {0} to \
     clean circuit at {1}'.format(stream['port'], stream['time']))
@@ -237,7 +241,7 @@ def client_assign_stream(client_state, stream, cons_rel_stats,\
                 new_clean_exit_circuits.append(circuit)
         client_state['clean_exit_circuits'] = new_clean_exit_circuits
     else:   
-        if _testing:                                
+        if pathsim._testing:                                
             if (stream['type'] == 'connect'):
                 print('Assigned CONNECT stream to port {0} to \
 dirty circuit at {1}'.format(stream['port'], stream['time']))
@@ -276,7 +280,7 @@ at {0}'.format(stream['time']))
         new_circ['dirty_time'] = stream['time']
         stream_assigned = new_circ
         client_state['dirty_exit_circuits'].appendleft(new_circ)
-        if _testing: 
+        if pathsim._testing: 
             if (stream['type'] == 'connect'):                           
                 print('Created circuit at time {0} to cover CONNECT \
 stream to ip {1} and port {2}.'.format(stream['time'], stream['ip'],\

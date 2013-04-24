@@ -11,6 +11,8 @@ import collections
 import cPickle as pickle
 import argparse
 from models import *
+import congestion_aware_pathsim
+#import vcs_pathsim
 import process_consensuses
 
 _testing = True
