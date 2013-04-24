@@ -19,25 +19,6 @@ logger.setLevel(logging.DEBUG)
 num_paths_choose = 3 # number of paths to choose and predict latency for
 ######
 
-#def ping_circuit(client_ip, guard_node, middle_node, exit_node,\
-#    cons_rel_stats, descriptors, congmodel, pdelmodel):    
-#    ping_time = 0
-#    for node, coef in ((guard_node, 1), (middle_node, 1), (exit_node, 2)):
-#        rel_stat = cons_rel_stats[node]
-#        is_exit = (stem.Flag.EXIT in rel_stat.flags)
-#        is_guard = (stem.Flag.GUARD in rel_stat.flags)
-#        ping_time += coef*(congmodel.get_congestion(node,\
-#            rel_stat.bandwidth, is_exit, is_guard))
-#    guard_ip = descriptors[guard_node]
-#    middle_ip = descriptors[middle_node]
-#    exit_ip = descriptors[exit_node]
-#    for ip, next_ip in ((client_ip, guard_ip), (guard_ip, middle_ip),\
-#        (middle_ip, exit_ip)):
-#        ping_time += pdelmodel.get_prop_delay(ip, next_ip)
-#        ping_time += pdelmodel.get_prop_delay(next_ip, ip)
-#    return ping_time
-
-
 def create_circuits(network_state_files, streams, num_samples, add_relays,\
     add_descriptors, add_time, congmodel, pdelmodel):
     """Takes streams over time and creates circuits by interaction
@@ -90,7 +71,7 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
 
 
     # SAFEST initialization    
-    # TODO: figure out how to do this
+    # SAFEST TODO: figure out how to do this
     # from ext/example.py:
     #   client = safest.CoordinateEngineClient.Instance()
     #   client.set_logger(logger)
@@ -157,7 +138,7 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
                 cons_fresh_until, cons_valid_after)
                 
         # update SAFEST network
-        ### TODO: figure out what to put here
+        ### SAFEST TODO: figure out what to put here
         #n_networks = len(client_states)
         #relays = ### FILL IN ###
         #latency_map = ### FILL IN ###
@@ -427,7 +408,7 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
                 cons_rel_stats[middle_node].nickname,
                 cons_rel_stats[middle_node].fingerprint))
          
-        latency = #TODO: get latency for circuit from SAFEST VCS service
+        latency = #SAFEST TODO: get latency for circuit from SAFEST VCS service
             
         if (best_latency == None) or (latency < best_latency):
             best_latency = latency
