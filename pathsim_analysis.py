@@ -414,7 +414,7 @@ def network_analysis_print_guards_and_exits(initial_guards, exits_tot_bw,\
             float(guard['uptime'])
         print('{0}\t{1:.4f}\t{2}\t{3}\t{4:.4f}\t{5:.4f}\t{6}\t{7}'.format(i,\
             guard['prob'], guard['uptime'], guard['rel_stat'].bandwidth,\
-            avg_observed_bw, fp, guard['rel_stat'].nickname))
+            avg_average_bw, avg_observed_bw, fp, guard['rel_stat'].nickname))
         cum_prob += guard['prob']
         i += 1
 

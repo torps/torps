@@ -25,9 +25,10 @@ class RouterStatusEntry:
         self.bandwidth = bandwidth
         
         # not currently used, but potentially useful
-        self.address = address # IP address in consensus
-        self.or_port = or_port
-        self.exit_policy = exit_policy # micro exit policy
+        # exist in an set of "extended" network state files, uncomment to use
+#        self.address = address # IP address in consensus
+#        self.or_port = or_port
+#        self.exit_policy = exit_policy # micro exit policy
     
 
 class NetworkStatusDocument:
@@ -44,7 +45,8 @@ class NetworkStatusDocument:
         self.relays = relays
         
         # not currently used, but potentially useful
-        self.is_microdescriptor = is_microdescriptor
+        # exist in an set of "extended" network state files, uncomment to use
+#        self.is_microdescriptor = is_microdescriptor
 
 
 class ServerDescriptor:
@@ -63,11 +65,12 @@ class ServerDescriptor:
         self.exit_policy = exit_policy
         
         # not currently used, but potentially useful
-        self.or_port = or_port
-        self.uptime = uptime
-        self.average_bandwidth = average_bandwidth
-        self.burst_bandwidth = burst_bandwidth
-        self.observed_bandwidth = observed_bandwidth
+        # exist in an set of "extended" network state files, uncomment to use
+#        self.or_port = or_port
+#        self.uptime = uptime
+#        self.average_bandwidth = average_bandwidth
+#        self.burst_bandwidth = burst_bandwidth
+#        self.observed_bandwidth = observed_bandwidth
 
 class UserTraces(object):
     """
@@ -1859,7 +1862,7 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
             nickname = 'BadGuyExit' + num_str
             flags = [stem.Flag.FAST, stem.Flag.EXIT, stem.Flag.RUNNING, \
                 stem.Flag.STABLE, stem.Flag.VALID]
-            bandwidth = 90000 # bit over top exit 3/2/12-4/30/12 (ZhangPoland1)
+            bandwidth = 85000 # ~bw of top exit 3/2/12-4/30/12 (ZhangPoland1)
             # avoid /16 conflicts
             address = '10.'+str(num_adv_guards+i+1)+'.0.0' 
             or_port = 80
