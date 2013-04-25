@@ -234,3 +234,61 @@ for stream in streams:
 #  OR 321*18*2 = 11556  
 # typical (fb+gmail+gcalgdocs) = (47 + 40 + 17)*4*5 = 2080     
 ###### 
+filename = 'out/analyze/analyze.network.2013-01--03.out'
+in_reading = False
+initial_guards = {}
+exits_tot_bw = {}
+
+with open(filename) as f:
+    # read past initial lines showing network states files read
+    while True:
+        line = f.readline()
+        if (line[0:5] == 'Using') or (line[0:7] == 'Filling'):
+            in_reading = True
+        if in_reading and (line[0:5] != 'Using') and (line[0:7] != 'Filling'):
+            print('Left reading: {0}'.format(line[0:7]))
+            break
+    # get past headers
+    f.readline()
+    line = f.readline()
+    while (line[0:3] != 'Top'):
+        line = f.readline()
+        line_split = (line.strip()).split('\t')
+        id = int(line_split[0])
+        prob = float(line_split[1])
+        uptime = int(line_split[2])
+        cons_bw = float(line_split[3])
+        avg_average_bw = float(line_split[4])
+        avg_observed_bw = float(line_split[5])
+        fingerprint = line_split[6]
+        nickname = line_split[7]    
+        initial_guards[fingerprint] = {\
+            'nickname':nickname,
+            'prob':prob,
+            'uptime':uptime,
+            'cons_bw':cons_bw,
+            'avg_average_bandwidth':avg_average_bw,
+            'avg_observed_bandwidth':avg_observed_bw}
+    # get past next header
+    line = f.readline()
+    for line in f:
+        line_split = (line.strip()).split('\t')
+        id = int(line_split[0])
+        tot_prob = float(line_split[1])
+        max_prob = float(line_split[2])
+        min_prob = float(line_split[3])
+        avg_cons_bw = float(line_split[4])
+        avg_average_bw = float(line_split[5])
+        avg_observed_bw = float(line_split[6])
+        uptime = int(line_split[7])
+        fingerprint = line_split[8]
+        nickname = line_split[9]
+        exits_tot_bw[fingerprint] = {\
+            'tot_prob':tot_prob,
+            'nickname':nickname,
+            'max_prob':max_prob,
+            'min_prob':min_prob,
+            'tot_cons_bw':avg_cons_bw,
+            'tot_average_bandwidth':avg_average_bw,
+            'tot_observed_bandwidth':avg_observed_bw,
+            'uptime':uptime}
