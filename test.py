@@ -234,11 +234,11 @@ for stream in streams:
 #  OR 321*18*2 = 11556  
 # typical (fb+gmail+gcalgdocs) = (47 + 40 + 17)*4*5 = 2080     
 ###### 
-filename = 'out/analyze/analyze.network.2013-01--03.out'
-in_reading = False
+filename = 'out/analyze/network/analyze.network.2013-01--03.out'
 initial_guards = {}
 exits_tot_bw = {}
 
+in_reading = False
 with open(filename) as f:
     # read past initial lines showing network states files read
     while True:
@@ -246,22 +246,34 @@ with open(filename) as f:
         if (line[0:5] == 'Using') or (line[0:7] == 'Filling'):
             in_reading = True
         if in_reading and (line[0:5] != 'Using') and (line[0:7] != 'Filling'):
-            print('Left reading: {0}'.format(line[0:7]))
+            print('Left reading: {0}'.format(line))
             break
     # get past headers
-    f.readline()
+    line = f.readline()
+    line = f.readline()
     line = f.readline()
     while (line[0:3] != 'Top'):
-        line = f.readline()
-        line_split = (line.strip()).split('\t')
+        line_split = line.split()
         id = int(line_split[0])
-        prob = float(line_split[1])
+        if line_split[1]:
+            prob = float(line_split[1])
+        else:
+            print('ERR: {0}'.format(id))
         uptime = int(line_split[2])
-        cons_bw = float(line_split[3])
-        avg_average_bw = float(line_split[4])
-        avg_observed_bw = float(line_split[5])
+        if line_split[3]:
+            cons_bw = float(line_split[3])
+        else:
+            print('ERR: {0}'.format(id))
+        if line_split[4]:
+            avg_average_bw = float(line_split[4])
+        else:
+            print('ERR: {0}'.format(id))
+        if line_split[5]:
+            avg_observed_bw = float(line_split[5])
+        else:
+            print('ERR: {0}'.format(id))
         fingerprint = line_split[6]
-        nickname = line_split[7]    
+        nickname = line_split[7] 
         initial_guards[fingerprint] = {\
             'nickname':nickname,
             'prob':prob,
@@ -269,17 +281,37 @@ with open(filename) as f:
             'cons_bw':cons_bw,
             'avg_average_bandwidth':avg_average_bw,
             'avg_observed_bandwidth':avg_observed_bw}
+        line = f.readline()
+    print('Reading exits')
     # get past next header
     line = f.readline()
     for line in f:
-        line_split = (line.strip()).split('\t')
+        line_split = line.split()
         id = int(line_split[0])
-        tot_prob = float(line_split[1])
-        max_prob = float(line_split[2])
-        min_prob = float(line_split[3])
-        avg_cons_bw = float(line_split[4])
-        avg_average_bw = float(line_split[5])
-        avg_observed_bw = float(line_split[6])
+        if line_split[1]:
+            tot_prob = float(line_split[1])
+        else:
+            print('ERR tot_prob: {0}'.format(id))            
+        if line_split[2]:
+            max_prob = float(line_split[2])
+        else:
+            print('ERR max_prob: {0}'.format(id))        
+        if line_split[3]: 
+            min_prob = float(line_split[3])
+        else:
+            print('ERR min_prob: {0}'.format(id))
+        if line_split[4]:        
+            avg_cons_bw = float(line_split[4])
+        else:
+            print('ERR avg_cons_bw: {0}'.format(id))
+        if line_split[5]:        
+            avg_average_bw = float(line_split[5])
+        else:
+            print('ERR avg_average_bw: {0}'.format(id))
+        if line_split[6]:
+            avg_observed_bw = float(line_split[6])
+        else:
+            print('ERR avg_observed_bw: {0}'.format(id))        
         uptime = int(line_split[7])
         fingerprint = line_split[8]
         nickname = line_split[9]
@@ -292,3 +324,67 @@ with open(filename) as f:
             'tot_average_bandwidth':avg_average_bw,
             'tot_observed_bandwidth':avg_observed_bw,
             'uptime':uptime}
+
+## Plot consensus bw against some other values
+guard_cons_bw = []
+guard_prob = []
+guard_avg_avg_bw = []
+guard_avg_obs_bw = []
+for fprint, guard in initial_guards.items():
+    guard_cons_bw.append(guard['cons_bw'])
+    guard_prob.append(guard['prob'])
+    guard_avg_avg_bw.append(guard['avg_average_bandwidth'])
+    guard_avg_obs_bw.append(guard['avg_observed_bandwidth'])
+fig = matplotlib.pyplot.figure()
+ax = subplot(111)
+ax.scatter(guard_cons_bw, guard_prob, label='prob')
+ax.set_xscale('log')
+ax.set_yscale('log')
+#matplotlib.pyplot.xlim(xmin=0.0)
+#matplotlib.pyplot.ylim(ymin=0.0)
+#matplotlib.pyplot.show()
+matplotlib.pyplot.savefig(\
+    'out/analyze/network/guard_cons_bw-prob.2013.01.01.pdf')
+    
+fig = matplotlib.pyplot.figure()
+ax = matplotlib.pyplot.subplot(111)
+ax.scatter(guard_cons_bw, guard_avg_avg_bw, label='avg avg bw')
+ax.set_xscale('log')
+ax.set_yscale('log')
+#matplotlib.pyplot.xlim(xmin=0.0)
+#matplotlib.pyplot.ylim(ymin=0.0)    
+matplotlib.pyplot.savefig(\
+    'out/analyze/network/guard_cons_bw-avg_avg_bw.2013.01.01.pdf')
+    
+fig = matplotlib.pyplot.figure()
+matplotlib.pyplot.scatter(guard_cons_bw, guard_avg_obs_bw, label='avg obs bw')
+matplotlib.pyplot.xlim(xmin=0.0)
+matplotlib.pyplot.ylim(ymin=0.0)    
+matplotlib.pyplot.savefig(\
+    'out/analyze/network/guard_cons_bw-avg_obs_bw.2013.01.01.pdf')
+
+# linear regression on this data
+x = guard_cons_bw
+y = guard_avg_obs_bw
+A = numpy.vstack([x, numpy.ones(len(x))]).T
+coefs, residuals, rank, s = numpy.linalg.lstsq(A, y)
+a, b = coefs
+ss = 0
+for i in xrange(len(y)):
+    ss += (y[i] - y_avg)**2
+r_squared = 1 - residuals[0]/float(ss)
+
+
+line_x1 = 0
+line_y1 = b
+line_x2 = max(x)
+line_y2 = a*line_x2 + b
+fig = matplotlib.pyplot.figure()
+matplotlib.pyplot.scatter(guard_cons_bw, guard_avg_obs_bw, label='avg obs bw')
+matplotlib.pyplot.plot([line_x1, line_x2], [line_y1, line_y2])
+matplotlib.pyplot.xlim(xmin=0.0)
+matplotlib.pyplot.ylim(ymin=0.0)    
+matplotlib.pyplot.savefig(\
+    'out/analyze/network/guard_cons_bw-avg_obs_bw-lstsq.2013.01.01.pdf')
+
+# find consensus values that would give you 10% guard selection prob
