@@ -261,9 +261,9 @@ def compromised_top_relays_print(in_file, top_guards, top_exits):
         
         
 def network_analysis_get_guards_and_exits(network_state_files):
-    """Takes list of network state files, pads the sorted list for missing
-    periods, and returns selection statistics about initial guards and
-    exits."""
+    """Takes list of network state files (expects fat ones), pads the sorted
+    list for missing periods, and returns selection statistics about initial
+    guards and exits."""
     network_state_files.sort(key = lambda x: os.path.basename(x))
     network_state_files = pad_network_state_files(network_state_files)
     
