@@ -992,8 +992,6 @@ def stream_update_port_needs(stream, port_needs_global,
             cons_bw_weights, cons_bwweightscale)
         pn_weighted_exits = \
             get_weighted_nodes(port_need_exits, port_need_exit_weights)
-        print('Adding weighted exits for port need {0}'.\
-            format(port))
         port_need_weighted_exits[port] = pn_weighted_exits
         
         
