@@ -850,6 +850,8 @@ def timed_updates(cur_time, port_needs_global, client_states,
     for port, need in port_needs_global.items():
         if (need['expires'] != None) and\
             (need['expires'] <= cur_time):
+            if _testing:
+                print('Port need for {0} expiring.'.format(port))
             del port_needs_global[port]
             for client_state in client_states:
                 del client_state['port_needs_covered'][port]
@@ -943,7 +945,8 @@ def timed_client_updates(cur_time, client_state,\
                         new_circ['covering'].append(pt)
                         
                         
-def stream_update_port_needs(stream, port_needs_global, client_states,
+def stream_update_port_needs(stream, port_needs_global,
+    port_need_weighted_exits, client_states,
     descriptors, cons_rel_stats, cons_bw_weights, cons_bwweightscale):
     """Updates port needs based on input stream.
     If new port, returns updated list of exits filtered for port."""
@@ -989,7 +992,9 @@ def stream_update_port_needs(stream, port_needs_global, client_states,
             cons_bw_weights, cons_bwweightscale)
         pn_weighted_exits = \
             get_weighted_nodes(port_need_exits, port_need_exit_weights)
-        return pn_weighted_exits 
+        print('Adding weighted exits for port need {0}'.\
+            format(port))
+        port_need_weighted_exits[port] = pn_weighted_exits
         
         
 def get_stream_port_weighted_exits(stream_port, stream,
@@ -1042,13 +1047,13 @@ def client_assign_stream(client_state, stream, cons_rel_stats,\
             if _testing:                                
                 if (stream['type'] == 'connect'):
                     print('Assigned CONNECT stream to port {0} to \
-    dirty circuit at {1}'.format(stream['port'], stream['time']))
+dirty circuit at {1}'.format(stream['port'], stream['time']))
                 elif (stream['type'] == 'resolve'):
                     print('Assigned RESOLVE stream to dirty circuit \
-    at {0}'.format(stream['time']))
+at {0}'.format(stream['time']))
                 else:
                     print('Assigned unrecognized stream to dirty circuit \
-    at {0}'.format(stream['time']))                                   
+at {0}'.format(stream['time']))                                   
             break        
     # next try and use a clean circuit
     if (stream_assigned == None):
@@ -1486,11 +1491,9 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
                 stream = streams[stream_idx]
                 
                 # add need/extend expiration for ports in streams
-                pn_weighted_exits = stream_update_port_needs(stream,
-                    port_needs_global, client_states, descriptors,
+                stream_update_port_needs(stream, port_needs_global,
+                    port_need_weighted_exits, client_states, descriptors,
                     cons_rel_stats, cons_bw_weights, cons_bwweightscale)
-                if (pn_weighted_exits != None):
-                    port_need_weighted_exits[port] = pn_weighted_exits
                             
                 # stream port for purposes of using precomputed exit lists
                 if (stream['type'] == 'resolve'):
