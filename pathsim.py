@@ -1596,7 +1596,7 @@ range from start_year and start_month to end_year and end_month. Write the \
 matched descriptors for each consensus to \
 out_dir/processed_descriptors-year-month. Use slim classes if slim=1. Filter our relays without FAST and RUNNING flags if filtered=1.\n\
 \tsimulate \
-[nsf dir] [# samples] [tracefile] [user model] [testing] [num adv guard] [num adv exits] [adv time] [path selection alg]: \
+[nsf dir] [# samples] [tracefile] [user model] [testing] [adv guard cons bw] [adv exit cons bw] [adv time] [path selection alg]: \
 Do simulated path selections, where\n\
 \t\t nsf dir stores the network state files to use, \
 default: out/network-state-files\n\
@@ -1604,9 +1604,9 @@ default: out/network-state-files\n\
 \t\t tracefile indicates the user trace, default: traces.pickle\n\
 \t\t user model is one of "facebook", "gmailgchat", "gcalgdocs", "websearch", "irc", "bittorrent", "typical", "simple", default: "simple"\n\
 \t\t testing indicates that debug info will be printed, default: 0\n\
-\t\t num adv guards indicates the number of adversarial guards to add, \
+\t\t adv guard cons bw indicates the consensus bandwidth of the adversarial guard to add, \
 default: 0\n\
-\t\t num adv exits indicates the number of adversarial exits to add, default: 0\n\
+\t\t adv exit cons bw indicates the consensus bandwidth of the adversarial exit to add, default: 0\n\
 \t\t adv time indicates timestamp after which adv relays added to\
 consensuses, default: 0\n\
 \t\t path selection alg is one of\n\
@@ -1665,8 +1665,8 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
         tracefilename = sys.argv[4] if len(sys.argv) >= 5 else "traces.pickle"
         usermodel = sys.argv[5] if len(sys.argv) >= 6 else 'simple'
         _testing = (sys.argv[6] == '1') if len(sys.argv) >= 7 else False
-        num_adv_guards = int(sys.argv[7]) if len(sys.argv) >= 8 else 0
-        num_adv_exits = int(sys.argv[8]) if len(sys.argv) >= 9 else 0
+        adv_guard_cons_bw = float(sys.argv[7]) if len(sys.argv) >= 8 else 0
+        adv_exit_cons_bw = float(sys.argv[8]) if len(sys.argv) >= 9 else 0
         adv_time = int(sys.argv[9]) if len(sys.argv) >= 10 else 0
         path_sel_alg = sys.argv[10] if len(sys.argv) >= 10 else 'tor'
         congfilename = sys.argv[11] if len(sys.argv) >= 12 else None
@@ -1704,12 +1704,14 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
         adv_relays = {}
         adv_descriptors = {}
         # choose adversarial guards to add to network
-        bandwidth = 128000 # cons bw of top guard on 3/2/12
-        add_adv_guards(num_adv_guards, adv_relays, adv_descriptors, bandwidth)
+        #bandwidth = 128000 # cons bw of top guard on 3/2/12
+        add_adv_guards(1, adv_relays, adv_descriptors,
+            adv_guard_cons_bw)
 
         # choose adversarial exits to add to network
-        bandwidth = 85000 # ~bw of top exit 3/2/12-4/30/12 (ZhangPoland1)
-        add_adv_exits(num_adv_exits, adv_relays, adv_descriptors, bandwidth)
+        #bandwidth = 85000 # ~bw of top exit 3/2/12-4/30/12 (ZhangPoland1)
+        add_adv_exits(1, adv_relays, adv_descriptors,
+            adv_exit_cons_bw)
         
         
         if (path_sel_alg == 'cat'):

@@ -230,6 +230,9 @@ def find_needed_guard_bws():
     needed_bw = a*needed_cons_bw + b       
         
 ### Output:
+### a = 299.45192815560563
+### b = 1104612.6683457776
+### r_squared = 0.74124917207592156
 ### needed_cons_bw = 365924.087681159
 ### needed_bw = 110681286.28304975
 
