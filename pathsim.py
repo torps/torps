@@ -15,7 +15,7 @@ import congestion_aware_pathsim
 #import vcs_pathsim
 import process_consensuses
 
-_testing = True
+_testing = False#True
 
 class RouterStatusEntry:
     """
