@@ -15,7 +15,7 @@ import congestion_aware_pathsim
 #import vcs_pathsim
 import process_consensuses
 
-_testing = True
+_testing = False#True
 
 class RouterStatusEntry:
     """
@@ -1604,7 +1604,7 @@ Do simulated path selections, where\n\
 default: out/network-state-files\n\
 \t\t # samples is the number of simulations to execute, default: 1\n\
 \t\t tracefile indicates the user trace, default: traces.pickle\n\
-\t\t user model is one of "facebook", "gmailgchat", "gcalgdocs", "websearch", "irc", "bittorrent", "simple", default: "simple"\n\
+\t\t user model is one of "facebook", "gmailgchat", "gcalgdocs", "websearch", "irc", "bittorrent", "typical", "simple", default: "simple"\n\
 \t\t testing indicates that debug info will be printed, default: 0\n\
 \t\t num adv guards indicates the number of adversarial guards to add, \
 default: 0\n\
