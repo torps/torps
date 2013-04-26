@@ -1547,7 +1547,8 @@ def add_adv_guards(num_adv_guards, adv_relays, adv_descriptors, bandwidth):
         adv_descriptors[fingerprint] = ServerDescriptor(fingerprint,\
             hibernating, nickname, family, address, exit_policy)
 
-def add_adv_exits(num_adv_exits, adv_relays, adv_descriptors, bandwidth):
+def add_adv_exits(num_adv_guards, num_adv_exits, adv_relays, adv_descriptors,
+    bandwidth):
     """"Adds adversarial exits into add_relays and add_descriptors."""
     for i in xrange(num_adv_exits):
         # create consensus
@@ -1701,17 +1702,19 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
         congmodel = CongestionModel(congfilename)
         pdelmodel = PropagationDelayModel(pdelfilename)
         
+        num_adv_guards = 1
+        num_adv_exits = 1
         adv_relays = {}
         adv_descriptors = {}
         # choose adversarial guards to add to network
         #bandwidth = 128000 # cons bw of top guard on 3/2/12
-        add_adv_guards(1, adv_relays, adv_descriptors,
+        add_adv_guards(num_adv_guards, adv_relays, adv_descriptors,
             adv_guard_cons_bw)
 
         # choose adversarial exits to add to network
         #bandwidth = 85000 # ~bw of top exit 3/2/12-4/30/12 (ZhangPoland1)
-        add_adv_exits(1, adv_relays, adv_descriptors,
-            adv_exit_cons_bw)
+        add_adv_exits(num_adv_guards, num_adv_exits, adv_relays,
+            adv_descriptors, adv_exit_cons_bw)
         
         
         if (path_sel_alg == 'cat'):
