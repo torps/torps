@@ -1,6 +1,6 @@
 import fileinput
 
-if __name__ = '__main__':
+if __name__ == '__main__':
     """Convert the 'normal' pathsim format to the 'relay-adv' format."""
 
     bad_guard_ip = '10.1.0.0'
