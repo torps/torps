@@ -228,20 +228,13 @@ def find_needed_guard_bws():
     # linear regression on this data
     (a, b, r_squared) = linear_regression(guard_cons_bw, guard_avg_obs_bw)
     needed_bw = a*needed_cons_bw + b       
-        
-### Output:
-### a = 299.45192815560563
-### b = 1104612.6683457776
-### r_squared = 0.74124917207592156
-### needed_cons_bw = 365924.087681159
-### needed_bw = 110681286.28304975
 
-    return (needed_cons_bw, needed_bw)
+    return (needed_cons_bw, needed_bw, a, b, r_squared)
 
 
-if __name__ == '__main__':
-    (needed_cons_bw, needed_bw) = find_needed_guard_bws()
-
+def get_exit_regression():
+    """Uses exit relay to calculate regression coefficients for
+    consensus bandwidth to observed bandwidth."""
     in_dir = 'out/network-state/fat/ns-2013-01--03'
     
     network_state_files = []
@@ -278,3 +271,24 @@ if __name__ == '__main__':
         for fprint in exits:
             exits_cons_bws.append(cons_rel_stats[fprint].bandwidth)
             exits_obs_bws.append(descriptors[fprint].observed_bandwidth)
+        (a, b, r_squared) = linear_regression(exits_cons_bws,
+            exits_obs_bws)
+            
+        return (a, b, r_squared)
+
+
+if __name__ == '__main__':
+    (needed_cons_bw, needed_bw, guard_a, guard_b, guard_r_squared) =\
+        find_needed_guard_bws()
+### Output:
+### a = 299.45192815560563
+### b = 1104612.6683457776
+### r_squared = 0.74124917207592156
+### needed_cons_bw = 365924.087681159
+### needed_bw = 110681286.28304975
+    
+    (exit_a, exit_b, exit_r_squared) = get_exit_regression()
+### Output:
+### a = 215.85762129136413
+### b = 1010231.1684564484
+### r_squared = 0.68600871839386535
