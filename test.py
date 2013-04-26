@@ -228,6 +228,7 @@ for stream in streams:
   
 # Model streams / week
 # simple: 1008
+# irc: 1 * 27 * 5 = 135
 # fb: 47*4*5 = 940
 # websearch: 138*4*5 = 2760
 # bittorrent: 321*18*7 = 40446
