@@ -31,11 +31,10 @@ TRACEFILE=in/users2-processed.traces.pickle
 PATH_ALG=tor
 
 EXP_NAME=$USERMODEL.$DATE_RANGE.$1-$2-$ADV_TIME-adv
-NSF_DIR=out/ns-$DATE_RANGE
-echo $EXP_NAME
+NSF_DIR=out/network-state/slim-filtered/ns-$DATE_RANGE
 i=1
 while [ $i -le $NUM_PROCESSES ]
 do
-#    (time pypy pathsim.py simulate $NSF_DIR $NUM_SAMPLES $TRACEFILE $USERMODEL $OUTPUT $1 $2 $ADV_TIME $PATH_ALG) 2> out/simulate/$EXP_NAME/simulate.$EXP_NAME.$NUM_SAMPLES-samples.$i.time | xz > out/simulate/$EXP_NAME/simulate.$EXP_NAME.$NUM_SAMPLES-samples.$i.out.xz & 
+    (time pypy pathsim.py simulate $NSF_DIR $NUM_SAMPLES $TRACEFILE $USERMODEL $OUTPUT $1 $2 $ADV_TIME $PATH_ALG) 2> out/simulate/$EXP_NAME/simulate.$EXP_NAME.$NUM_SAMPLES-samples.$i.time | xz > out/simulate/$EXP_NAME/simulate.$EXP_NAME.$NUM_SAMPLES-samples.$i.out.xz & 
     i=$(($i+1))
 done
