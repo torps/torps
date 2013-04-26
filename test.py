@@ -234,3 +234,41 @@ for stream in streams:
 #  OR 321*18*2 = 11556  
 # typical (fb*7+gmail*7+gcalgdocs*7+websearch*14) = 7(47 + 40 + 17 + 2*138) = 2660
 ###### 
+
+##### Converting "normal" format into "relay-adv" format #####
+"""
+Sample	Timestamp	Guard IP	Middle IP	Exit IP	Destination IP	Guard Fingerprint	Middle Fingerprint	Exit Fingerprint
+0	1357048800.0	46.165.196.73	84.200.73.195	50.61.247.32	173.194.69.18	2ABCD0F0459CA3CDE587DBFDC7336B09718F3C0E	32E3E2469B5CE9D90D222C77D9BE4DC8E1844371	F94E1BE1F42369EE50C6A770B58CD330FC4EDF3C
+"""
+filename = 'simulate.typical.2013-01--03.171394-238205-0-adv.5000-samples.10.out'
+bad_guard_ip = '10.1.0.0'
+bad_exit_ip = '10.2.0.0'
+with open(filename) as f1, open(filename + '.relay-adv', 'w') as f2:
+    line = f1.readline() # advance past header
+    f2.write('Sample\tTimestamp\tCompromise Code\n')
+    i = 0
+    for line in f1:
+        if (i % 1000000 == 0):
+            print('Written {0} lines'.format(i))
+        i += 1
+        fields = line.split()
+        sample_id = fields[0]
+        timestamp = fields[1]
+        guard_ip = fields[2]
+        exit_ip = fields[4]
+        guard_bad = False
+        exit_bad = False
+        if (guard_ip == bad_guard_ip) or (guard_ip == bad_exit_ip):
+            guard_bad = True
+        if (guard_ip == bad_guard_ip) or (guard_ip == bad_exit_ip):
+            exit_bad = True
+        if (guard_bad and exit_bad):
+            compromise_code = 3
+        elif guard_bad:
+            compromise_code = 1
+        elif exit_bad:
+            compromise_code = 2
+        else:
+            compromise_code = 0        
+        f2.write('{0}\t{1}\t{2}\n'.format(sample_id, timestamp,
+            compromise_code))
