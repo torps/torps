@@ -5,7 +5,7 @@ if __name__ == '__main__':
 
     bad_guard_ip = '10.1.0.0'
     bad_exit_ip = '10.2.0.0'
-    print('Sample\tTimestamp\tCompromise Code\n')
+    print('Sample\tTimestamp\tCompromise Code')
     for line in fileinput.input():
         # advance past header
         if (line[0:6] == 'Sample'):
@@ -29,5 +29,5 @@ if __name__ == '__main__':
             compromise_code = 2
         else:
             compromise_code = 0        
-        print('{0}\t{1}\t{2}\n'.format(sample_id, timestamp,
+        print('{0}\t{1}\t{2}'.format(sample_id, timestamp,
             compromise_code))
