@@ -21,7 +21,7 @@
 
 NUM_PROCESSES=20
 DATE_RANGE=2013-01--03
-TESTING=0
+OUTPUT=2
 #ADV_GUARD_BW=0
 #ADV_EXIT_BW=0
 ADV_TIME=0
@@ -36,6 +36,6 @@ echo $EXP_NAME
 i=1
 while [ $i -le $NUM_PROCESSES ]
 do
-#    (time pypy pathsim.py simulate $NSF_DIR $NUM_SAMPLES $TRACEFILE $USERMODEL $TESTING $1 $2 $ADV_TIME $PATH_ALG) 2> out/simulate/$EXP_NAME/simulate.$EXP_NAME.$NUM_SAMPLES-samples.$i.time | xz > out/simulate/$EXP_NAME/simulate.$EXP_NAME.$NUM_SAMPLES-samples.$i.out.xz & 
+#    (time pypy pathsim.py simulate $NSF_DIR $NUM_SAMPLES $TRACEFILE $USERMODEL $OUTPUT $1 $2 $ADV_TIME $PATH_ALG) 2> out/simulate/$EXP_NAME/simulate.$EXP_NAME.$NUM_SAMPLES-samples.$i.time | xz > out/simulate/$EXP_NAME/simulate.$EXP_NAME.$NUM_SAMPLES-samples.$i.out.xz & 
     i=$(($i+1))
 done
