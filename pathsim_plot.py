@@ -432,7 +432,7 @@ if __name__ == '__main__':
     pathnames = []
     for dirpath, dirnames, fnames in os.walk(in_dir):
         for fname in fnames:
-            pathnames.append(os.path.join(in_dir,fname))
+            pathnames.append(os.path.join(dirpath,fname))
     pathnames.sort()
     
     if (plot_type == 'set'):

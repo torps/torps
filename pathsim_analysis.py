@@ -12,6 +12,36 @@ from pathsim import *
 import multiprocessing
 
 
+def compromised_set_get_compromise_probs(pathnames):
+    """Takes output of pathsim_analysis.compromised_set_process_log()
+    and return the fraction of  samples that experience at least one
+    guard/exit/guard+exit compromise."""      
+    num_samples = 0
+    num_guard_compromised = 0
+    num_exit_compromised = 0
+    num_guard_exit_compromised = 0
+    for pathname in pathnames:
+        with open(pathname) as f:
+            print('Processing {0}.'.format(pathname))
+            start_time = pickle.load(f)
+            end_time = pickle.load(f)
+            compromise_stats = pickle.load(f)
+            for stats in compromise_stats:
+                num_samples += 1
+                if (stats['guard_only_time'] != None) or\
+                    (stats['guard_and_exit_time'] != None):
+                    num_guard_compromised += 1
+                if (stats['exit_only_time'] != None) or\
+                    (stats['guard_and_exit_time'] != None):
+                    num_exit_compromised += 1
+                if (stats['guard_and_exit_time'] != None):
+                    num_guard_exit_compromised += 1
+    print('Num samples: {0}'.format(num_samples))
+    return (float(num_guard_compromised)/num_samples,
+        float(num_exit_compromised)/num_samples,
+        float(num_guard_exit_compromised)/num_samples)
+        
+
 def compromised_set_process_log(compromised_relays, out_dir, out_name, format,
     pnum, log_file):
     """Calculates security statistics against compromised-set
