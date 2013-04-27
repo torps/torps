@@ -17,7 +17,6 @@
 ### b = 1010231.1684564484
 ### r_squared = 0.68600871839386535
 
-
 BASE_DIR=/mnt/ram
 
 NUM_PROCESSES=20
