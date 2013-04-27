@@ -36,6 +36,7 @@ def compromised_set_get_compromise_probs(pathnames):
                     num_exit_compromised += 1
                 if (stats['guard_and_exit_time'] != None):
                     num_guard_exit_compromised += 1
+    print('Num samples: {0}'.format(num_samples))
     return (float(num_guard_compromised)/num_samples,
         float(num_exit_compromised)/num_samples,
         float(num_guard_exit_compromised)/num_samples)
