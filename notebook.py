@@ -160,10 +160,23 @@ guard_bws = [52428800, 87381333, 95325091, 102801568]
 exit_bws = [52428800, 17476267, 9532509, 2056031]
 guard_cons_bws = [171394, 288115, 314643, 339610]
 exit_cons_bws = [238205, 76282, 39481, 4845]
+guard_compromise_probs = []
+exit_compromise_probs = []
+guard_exit_compromise_probs = []
 
 for guard_cons_bw, exit_cons_bw in zip(guard_cons_bws, exit_cons_bws):
     in_dir = 'out/analyze/typical.2013-01--03.' + guard_cons_bw + '-' + \
         exit_cons_bw + '-0-adv/data/'
-#START
-    (guard_comp_prob, exit_comp_prob, exit_guard_comp_prob) =\
-        pathsim_analysis.compromised_set_get_compromise_prob(filename)
+
+    pathnames = []
+    for dirpath, dirnames, fnames in os.walk(in_dir):
+        for fname in fnames:
+            pathnames.append(os.path.join(dirpath,fname))
+    pathnames.sort()
+
+    (guard_comp_prob, exit_comp_prob, guard_exit_comp_prob) =\
+        pathsim_analysis.compromised_set_get_compromise_probs(pathnames)
+
+    guard_compromise_probs.append(guard_comp_prob)
+    exit_compromise_probs.append(exit_comp_prob)
+    guard_exit_compromise_probs.append(exit_guard_comp_prob)

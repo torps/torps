@@ -12,7 +12,7 @@ from pathsim import *
 import multiprocessing
 
 
-def compromised_set_get_compromise_prob(filename):
+def compromised_set_get_compromise_probs(pathnames):
     """Takes output of pathsim_analysis.compromised_set_process_log()
     and return the fraction of  samples that experience at least one
     guard/exit/guard+exit compromise."""      
