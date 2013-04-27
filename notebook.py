@@ -179,3 +179,35 @@ for guard_cons_bw, exit_cons_bw in zip(guard_cons_bws, exit_cons_bws):
     guard_compromise_probs.append(guard_comp_prob)
     exit_compromise_probs.append(exit_comp_prob)
     guard_exit_compromise_probs.append(guard_exit_comp_prob)
+    
+# Output
+>>>> guard_compromise_probs
+[0.3759, 0.54293, 0.57084, 0.59832]
+>>>> exit_compromise_probs
+[1.0, 1.0, 1.0, 0.78898]
+>>>> guard_exit_compromise_probs
+[0.37018, 0.51329, 0.48526, 0.14866]
+# Plot output
+import numpy
+import matplotlib
+matplotlib.use('PDF')
+import matplotlib.pyplot
+fig = matplotlib.pyplot.figure()
+
+# fraction of bandwidth allocated to guard
+x = [1.0/2.0, 5.0/6.0, 10.0/11.0, 50.0/51.0]
+matplotlib.pyplot.plot(x, guard_exit_compromise_probs,
+    label = 'Prob. of guard & exit compromise')
+matplotlib.pyplot.plot(x, guard_compromise_probs,
+    label = 'Prob. of guard compromise')
+matplotlib.pyplot.plot(x, exit_compromise_probs,
+    label = 'Prob. of exit compromise')
+matplotlib.pyplot.legend(loc='upper left')
+matplotlib.pyplot.ylim(ymin=0.0)
+matplotlib.pyplot.yticks(numpy.arange(0, 1.1, 0.1))
+matplotlib.pyplot.xlabel('Fraction of 100MBps total bandwidth allocated to guard')
+matplotlib.pyplot.ylabel('Probability')
+matplotlib.pyplot.title('Probability of at least one compromise, 1/13 - 3/13')
+
+# output
+matplotlib.pyplot.savefig('out/analyze/vary_allocation/compromise_probs.pdf')
