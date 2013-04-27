@@ -150,6 +150,7 @@ for stream in streams:
 ##### Finding and plotting the probabilities of compromise for the
 # bandwidth-allocation experiments.
 import pathsim_analysis
+import os
 
 # guard bw : exit bw
 #1:1                                                      
@@ -165,18 +166,16 @@ exit_compromise_probs = []
 guard_exit_compromise_probs = []
 
 for guard_cons_bw, exit_cons_bw in zip(guard_cons_bws, exit_cons_bws):
-    in_dir = 'out/analyze/typical.2013-01--03.' + guard_cons_bw + '-' + \
-        exit_cons_bw + '-0-adv/data/'
-
+    in_dir = 'out/analyze/typical.2013-01--03.' + str(guard_cons_bw) + '-' + \
+        str(exit_cons_bw) + '-0-adv/data/'
+    print('Calculating compromise probs for {0}'.format(in_dir))
     pathnames = []
     for dirpath, dirnames, fnames in os.walk(in_dir):
         for fname in fnames:
             pathnames.append(os.path.join(dirpath,fname))
     pathnames.sort()
-
     (guard_comp_prob, exit_comp_prob, guard_exit_comp_prob) =\
         pathsim_analysis.compromised_set_get_compromise_probs(pathnames)
-
     guard_compromise_probs.append(guard_comp_prob)
     exit_compromise_probs.append(exit_comp_prob)
-    guard_exit_compromise_probs.append(exit_guard_comp_prob)
+    guard_exit_compromise_probs.append(guard_exit_comp_prob)

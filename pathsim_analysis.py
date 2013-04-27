@@ -22,6 +22,7 @@ def compromised_set_get_compromise_probs(pathnames):
     num_guard_exit_compromised = 0
     for pathname in pathnames:
         with open(pathname) as f:
+            print('Processing {0}.'.format(pathname))
             start_time = pickle.load(f)
             end_time = pickle.load(f)
             compromise_stats = pickle.load(f)
