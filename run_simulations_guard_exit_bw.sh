@@ -1,9 +1,10 @@
 #!/bin/bash
 
-#bandwidth experiments
+#bandwidth allocation experiments
 
 #ratio   guard bw        exit bw         guard cons bw        exit cons bw
-#1:1     52428800        52428800        171394               238205                  
+#1:1     52428800        52428800        171394               238205
+#2:1     69905067        34952533        229755               157244
 #5:1     87381333        17476267        288115               76282
 #10:1    95325091        9532509         314643               39481
 #50:1    102801568       2056031         339610               4845
