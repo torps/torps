@@ -221,7 +221,7 @@ def client_assign_stream(client_state, stream, cons_rel_stats,\
                     circuit['initial_avg_ping'])):
             stream_assigned = circuit
     # if circuit is clean, move to dirty list
-    if (stream_assigned['dirty_time'] == None):
+    if (stream_assigned != None) and (stream_assigned['dirty_time'] == None):
         new_clean_exit_circuits = collections.deque()
         while (len(client_state['clean_exit_circuits']) > 0):
             circuit = client_state['clean_exit_circuits'].popleft()
