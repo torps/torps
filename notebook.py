@@ -211,3 +211,38 @@ matplotlib.pyplot.title('Probability of at least one compromise, 1/13 - 3/13')
 
 # output
 matplotlib.pyplot.savefig('out/analyze/vary_allocation/compromise_probs.pdf')
+
+##### Working out parallelization of network analysis #####
+import os
+import math
+import multiprocessing
+import cPickle as pickle
+def get_num_relays(ns_file):
+    with open(ns_file, 'r') as nsf:
+        consensus = pickle.load(nsf)
+        descriptors = pickle.load(nsf)
+    num_relays = 0    
+    for relay in consensus.routers:
+        if (relay in descriptors):
+            num_relays += 1
+    return num_relays
+
+
+base_dir = '/mnt/ram/'
+in_dir = base_dir + 'out/network-state/fat/network-state-2013-01'
+
+network_state_files = []
+for dirpath, dirnames, filenames in os.walk(in_dir, followlinks=True):
+    for filename in filenames:
+        if (filename[0] != '.'):
+            network_state_files.append(os.path.join(dirpath,filename))
+
+num_processors = 20
+chunksize = int(math.floor(float(len(network_state_files)) / num_processors))
+pool = multiprocessing.Pool(num_processors)
+nums = pool.map(get_num_relays, network_state_files, chunksize)
+pool.close()
+print('max relays: {0}'.format(max(nums)))
+print('min relays: {1}'.format(min(nums)))
+print('tot num relays: {2}'.format(sum(nums)))
+##########

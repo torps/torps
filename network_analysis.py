@@ -4,6 +4,7 @@ import os.path
 import numpy
 import cPickle as pickle
 from pathsim import *
+import multiprocessing
 
 def linear_regression(x, y):
     """Does single linear regression on input data.
@@ -113,8 +114,8 @@ def get_network_stats_from_output(filename):
                 'uptime':uptime}
     return (initial_guards, exits_tot_bw)
 
-def plot_against_consensus_bw(initial_guards, exits_tot_bw, out_dir):
-    """Plot consensus bw against some other values."""
+def plot_against_guard_consensus_bw(initial_guards, out_dir):
+    """Plot guard consensus bw against some other values."""
     guard_cons_bw = []
     guard_prob = []
     guard_avg_avg_bw = []
@@ -179,17 +180,12 @@ def find_needed_guard_bws():
     filename = 'out/analyze/network/analyze.network.2013-01--03.out'
     out_dir = 'out/analyze/network/'       
 #    (initial_guards, exits_tot_bw) = get_network_stats_from_output(filename)
-#    plot_against_consensus_bw(initial_guards, exits_tot_bw, out_dir)
+#    plot_against_consensus_bw(initial_guards, out_dir)
 
     initial_guards_file = \
         'out/analyze/network/initial_guards.2013-01--03.pickle'
     f = open(initial_guards_file)
     initial_guards = pickle.load(f)
-    f.close()
-    exits_tot_bw_file = \
-        'out/analyze/network/exits_tot_bw.2013-01--03.pickle'
-    f = open(exits_tot_bw_file)
-    exits_tot_bw = pickle.load(f)
     f.close()
 
     ns_file = 'out/network-state/slim-filtered/network-state-2013-01/2013-01-01-00-00-00-network_state'
@@ -232,11 +228,39 @@ def find_needed_guard_bws():
     return (needed_cons_bw, needed_bw, a, b, r_squared)
 
 
-def get_exit_regression():
+def get_exit_bws(ns_file):
+    """Returns lists of exits bandwidths."""
+    need_fast = True
+    need_stable = False
+    need_internal = False    
+    
+    
+    cons_rel_stats = {}    
+    with open(ns_file, 'r') as nsf:
+        consensus = pickle.load(nsf)
+        descriptors = pickle.load(nsf)
+        
+    for relay in consensus.routers:
+        if (relay in descriptors):
+            cons_rel_stats[relay] = consensus.routers[relay]
+                
+    exits_cons_bws = []
+    exits_obs_bws = []
+    # get exit relays - with no ip:port in mind, we just look for
+    # not policy_is_reject_star(exit_policy) 
+    # with sum of weighted selection probabilities
+    exits = filter_exits(cons_rel_stats, descriptors, need_fast,\
+        need_stable, need_internal, None, None)    
+    for fprint in exits:
+        exits_cons_bws.append(cons_rel_stats[fprint].bandwidth)
+        exits_obs_bws.append(descriptors[fprint].observed_bandwidth)
+    return (exits_cons_bws, exits_obs_bws)
+    
+
+def get_exit_regression(in_dir, num_processes):
     """Uses exit relay to calculate regression coefficients for
     consensus bandwidth to observed bandwidth."""
-    in_dir = 'out/network-state/fat/ns-2013-01--03'
-    
+        
     network_state_files = []
     for dirpath, dirnames, filenames in os.walk(in_dir, followlinks=True):
         for filename in filenames:
@@ -245,36 +269,30 @@ def get_exit_regression():
     
     network_state_files.sort(key = lambda x: os.path.basename(x))
     exits_cons_bws = []
-    exits_obs_bws = []
+    exits_obs_bws = []    
     
-    need_fast = True
-    need_stable = False
-    need_internal = False
-    
-    consensus = None
-    for ns_file in network_state_files:
-        print('Using file {0}'.format(ns_file))
-        with open(ns_file, 'r') as nsf:
-            consensus = pickle.load(nsf)
-            descriptors = pickle.load(nsf)
-            cons_rel_stats = {}
-            
-            for relay in consensus.routers:
-                if (relay in descriptors):
-                    cons_rel_stats[relay] = consensus.routers[relay]
-                    
-        # get exit relays - with no ip:port in mind, we just look for
-        # not policy_is_reject_star(exit_policy) 
-        # with sum of weighted selection probabilities
-        exits = filter_exits(cons_rel_stats, descriptors, need_fast,\
-            need_stable, need_internal, None, None)    
-        for fprint in exits:
-            exits_cons_bws.append(cons_rel_stats[fprint].bandwidth)
-            exits_obs_bws.append(descriptors[fprint].observed_bandwidth)
-        (a, b, r_squared) = linear_regression(exits_cons_bws,
-            exits_obs_bws)
-            
-        return (a, b, r_squared)
+    chunksize = int(math.floor(float(len(network_state_files)) /\
+        num_processes))
+    pool = multiprocessing.Pool(num_processes)
+    process_bws = pool.map(get_exit_bws, network_state_files, chunksize)
+    pool.close()
+    print('Number of individual bw lists: {0}'.format(len(process_bws)))
+    print('Max cons bw list length: {0}'.format(max(map(lambda x: len(x[0])))))
+    print('Max obs bw list length: {0}'.format(max(map(lambda x: len(x[1])))))
+    print('Min cons bw list length: {0}'.format(min(map(lambda x: len(x[0])))))
+    print('Min obs bw list length: {0}'.format(min(map(lambda x: len(x[1])))))
+
+    for process_cons_bws, process_obs_bws in process_bws:
+        exits_cons_bws.extend(process_cons_bws)
+        exits_obs_bws.extend(process_obs_bws)
+    print('len(exits_cons_bws): {0}'.format(len(exits_cons_bws)))
+    print('len(exits_obs_bws): {0}'.format(len(exits_obs_bws)))    
+    print('First elements: {0}; {1}'.format(exits_cons_bws[0],
+        exits_obs_bws[0]))
+    (a, b, r_squared) = linear_regression(exits_cons_bws,
+        exits_obs_bws)
+        
+    return (a, b, r_squared)
 
 
 if __name__ == '__main__':
@@ -287,7 +305,11 @@ if __name__ == '__main__':
 ### needed_cons_bw = 365924.087681159
 ### needed_bw = 110681286.28304975
     
-    (exit_a, exit_b, exit_r_squared) = get_exit_regression()
+    in_dir = 'out/network-state/fat/ns-2013-01--03'    
+    (exit_a, exit_b, exit_r_squared) = get_exit_regression(in_dir, 20)
+    print('a = {0}'.format(exit_a))
+    print('b = {0}'.format(exit_b))
+    print('r^2 = {0}'.format(exit_r_squared))
 ### Output:
 ### a = 215.85762129136413
 ### b = 1010231.1684564484
