@@ -15,7 +15,7 @@ import congestion_aware_pathsim
 #import vcs_pathsim
 import process_consensuses
 
-_testing = True
+_testing = False#True
 
 class RouterStatusEntry:
     """
@@ -620,9 +620,20 @@ def circuit_covers_port_need(circuit, descriptors, port, need):
     return ((not need['fast']) or (circuit['fast'])) and\
             ((not need['stable']) or (circuit['stable'])) and\
             (can_exit_to_port(descriptors[circuit['path'][-1]], port))
+
+
+def print_mapped_streams_header(format):
+    """Prints log header for stream lines."""
+    if (format == 'relay-adv'):
+        print('Sample\tTimestamp\tCompromise Code')
+    elif (format == 'network-adv'):
+        print('Sample\tTimestamp\tGuard ip\tExit IP\tDestination IP')
+    else:
+        print('Sample\tTimestamp\tGuard IP\tMiddle IP\tExit IP\tDestination\
+ IP\tGuard Fingerprint\tMiddle Fingerprint\tExit Fingerprint')
+
         
-        
-def print_mapped_stream(client_id, circuit, stream, descriptors):
+def print_mapped_stream(client_id, circuit, stream, descriptors, format):
     """Prints log line showing client, time, IPs, and fingerprints in path of
     stream."""
     
@@ -636,9 +647,33 @@ def print_mapped_stream(client_id, circuit, stream, descriptors):
     else:
         raise ValueError('ERROR: Unrecognized stream in print_mapped_stream: \
 {0}'.format(stream['type']))
-    print('{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}'.format(client_id,\
-        stream['time'], guard_ip, middle_ip, exit_ip, dest_ip,\
-        circuit['path'][0], circuit['path'][1], circuit['path'][2]))
+    if (format == 'relay-adv'):
+        guard_prefix = '000000000000000000000000000000' # as in add_adv_guards
+        exit_prefix = 'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFF' # as in add_adv_exits
+        guard_bad = False
+        exit_bad = False
+        if (circuit['path'][0][0:30] == guard_prefix) or\
+            (circuit['path'][0][0:30] == exit_prefix):
+            guard_bad = True
+        if (circuit['path'][2][0:30] == guard_prefix) or\
+            (circuit['path'][2][0:30] == exit_prefix):
+            exit_bad = True
+        compromise_code = 0
+        if (guard_bad and exit_bad):
+            compromise_code = 3
+        elif guard_bad:
+            compromise_code = 1
+        elif exit_bad:
+            compromise_code = 2
+        print('{0}\t{1}\t{2}'.format(client_id, stream['time'],
+            compromise_code))
+    elif (format == 'network-adv'):
+        print('{0}\t{1}\t{2}\t{3}\t{4}'.format(client_id, stream['time'],
+            guard_ip, exit_ip, dest_ip))
+    else:
+        print('{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}'.format(client_id,
+            stream['time'], guard_ip, middle_ip, exit_ip, dest_ip,
+            circuit['path'][0], circuit['path'][1], circuit['path'][2]))
 
 def circuit_supports_stream(circuit, stream, descriptors):
     """Returns if stream can run over circuit (which is assumed live)."""
@@ -850,6 +885,8 @@ def timed_updates(cur_time, port_needs_global, client_states,
     for port, need in port_needs_global.items():
         if (need['expires'] != None) and\
             (need['expires'] <= cur_time):
+            if _testing:
+                print('Port need for {0} expiring.'.format(port))
             del port_needs_global[port]
             for client_state in client_states:
                 del client_state['port_needs_covered'][port]
@@ -943,7 +980,8 @@ def timed_client_updates(cur_time, client_state,\
                         new_circ['covering'].append(pt)
                         
                         
-def stream_update_port_needs(stream, port_needs_global, client_states,
+def stream_update_port_needs(stream, port_needs_global,
+    port_need_weighted_exits, client_states,
     descriptors, cons_rel_stats, cons_bw_weights, cons_bwweightscale):
     """Updates port needs based on input stream.
     If new port, returns updated list of exits filtered for port."""
@@ -989,7 +1027,7 @@ def stream_update_port_needs(stream, port_needs_global, client_states,
             cons_bw_weights, cons_bwweightscale)
         pn_weighted_exits = \
             get_weighted_nodes(port_need_exits, port_need_exit_weights)
-        return pn_weighted_exits 
+        port_need_weighted_exits[port] = pn_weighted_exits
         
         
 def get_stream_port_weighted_exits(stream_port, stream,
@@ -1042,13 +1080,13 @@ def client_assign_stream(client_state, stream, cons_rel_stats,\
             if _testing:                                
                 if (stream['type'] == 'connect'):
                     print('Assigned CONNECT stream to port {0} to \
-    dirty circuit at {1}'.format(stream['port'], stream['time']))
+dirty circuit at {1}'.format(stream['port'], stream['time']))
                 elif (stream['type'] == 'resolve'):
                     print('Assigned RESOLVE stream to dirty circuit \
-    at {0}'.format(stream['time']))
+at {0}'.format(stream['time']))
                 else:
                     print('Assigned unrecognized stream to dirty circuit \
-    at {0}'.format(stream['time']))                                   
+at {0}'.format(stream['time']))                                   
             break        
     # next try and use a clean circuit
     if (stream_assigned == None):
@@ -1295,7 +1333,7 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
             'covering':[]}
     
 def create_circuits(network_state_files, streams, num_samples, add_relays,\
-    add_descriptors, add_time, congmodel, pdelmodel):
+    add_descriptors, add_time, congmodel, pdelmodel, format):
     """Takes streams over time and creates circuits by interaction
     with create_circuit().
       Input:
@@ -1313,6 +1351,10 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
         add_descriptors: (dict: fprint->ServerDescriptor) add to descriptors
         add_time: (int) timestamp after which specified relays will be added
             to consensuses
+        congmodel: (CongestionModel) outputs congestion used by some path algs
+        pdelmodel: (PropagationDelayModel) outputs prop delay
+        format: (str) 'testing', 'normal', 'relay-adv', or 'network-adv'; sets
+            output format
     Output:
         [Prints circuit and guard selections of clients.]
     """
@@ -1346,8 +1388,7 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
     ### End simulation variables ###
     
     if (not _testing):
-        print('Sample\tTimestamp\tGuard IP\tMiddle IP\tExit IP\tDestination\
- IP\tGuard Fingerprint\tMiddle Fingerprint\tExit Fingerprint')
+        print_mapped_streams_header(format)
 
     # run simulation period one pair of consensus/descriptor files at a time
     for ns_file in network_state_files:
@@ -1486,11 +1527,9 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
                 stream = streams[stream_idx]
                 
                 # add need/extend expiration for ports in streams
-                pn_weighted_exits = stream_update_port_needs(stream,
-                    port_needs_global, client_states, descriptors,
+                stream_update_port_needs(stream, port_needs_global,
+                    port_need_weighted_exits, client_states, descriptors,
                     cons_rel_stats, cons_bw_weights, cons_bwweightscale)
-                if (pn_weighted_exits != None):
-                    port_need_weighted_exits[port] = pn_weighted_exits
                             
                 # stream port for purposes of using precomputed exit lists
                 if (stream['type'] == 'resolve'):
@@ -1521,7 +1560,7 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
                         congmodel, pdelmodel)
                     if (not _testing):
                         print_mapped_stream(client_state['id'],\
-                            stream_assigned, stream, descriptors)
+                            stream_assigned, stream, descriptors, format)
             
             cur_time += time_step
 
@@ -1546,7 +1585,8 @@ def add_adv_guards(num_adv_guards, adv_relays, adv_descriptors, bandwidth):
         adv_descriptors[fingerprint] = ServerDescriptor(fingerprint,\
             hibernating, nickname, family, address, exit_policy)
 
-def add_adv_exits(num_adv_exits, adv_relays, adv_descriptors, bandwidth):
+def add_adv_exits(num_adv_guards, num_adv_exits, adv_relays, adv_descriptors,
+    bandwidth):
     """"Adds adversarial exits into add_relays and add_descriptors."""
     for i in xrange(num_adv_exits):
         # create consensus
@@ -1595,17 +1635,17 @@ range from start_year and start_month to end_year and end_month. Write the \
 matched descriptors for each consensus to \
 out_dir/processed_descriptors-year-month. Use slim classes if slim=1. Filter our relays without FAST and RUNNING flags if filtered=1.\n\
 \tsimulate \
-[nsf dir] [# samples] [tracefile] [user model] [testing] [num adv guard] [num adv exits] [adv time] [path selection alg]: \
+[nsf dir] [# samples] [tracefile] [user model] [output] [adv guard cons bw] [adv exit cons bw] [adv time] [path selection alg]: \
 Do simulated path selections, where\n\
 \t\t nsf dir stores the network state files to use, \
 default: out/network-state-files\n\
 \t\t # samples is the number of simulations to execute, default: 1\n\
 \t\t tracefile indicates the user trace, default: traces.pickle\n\
-\t\t user model is one of "facebook", "gmailgchat", "gcalgdocs", "websearch", "irc", "bittorrent", "simple", default: "simple"\n\
-\t\t testing indicates that debug info will be printed, default: 0\n\
-\t\t num adv guards indicates the number of adversarial guards to add, \
+\t\t user model is one of "facebook", "gmailgchat", "gcalgdocs", "websearch", "irc", "bittorrent", "typical", "simple", default: "simple"\n\
+\t\t output sets log level: 0 is normal, 1 is testing, 2 is for the relay adversary, 3 is for the network adversary, default: 0\n\
+\t\t adv guard cons bw indicates the consensus bandwidth of the adversarial guard to add, \
 default: 0\n\
-\t\t num adv exits indicates the number of adversarial exits to add, default: 0\n\
+\t\t adv exit cons bw indicates the consensus bandwidth of the adversarial exit to add, default: 0\n\
 \t\t adv time indicates timestamp after which adv relays added to\
 consensuses, default: 0\n\
 \t\t path selection alg is one of\n\
@@ -1663,9 +1703,28 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
         num_samples = int(sys.argv[3]) if len(sys.argv) >= 4 else 1
         tracefilename = sys.argv[4] if len(sys.argv) >= 5 else "traces.pickle"
         usermodel = sys.argv[5] if len(sys.argv) >= 6 else 'simple'
-        _testing = (sys.argv[6] == '1') if len(sys.argv) >= 7 else False
-        num_adv_guards = int(sys.argv[7]) if len(sys.argv) >= 8 else 0
-        num_adv_exits = int(sys.argv[8]) if len(sys.argv) >= 9 else 0
+        if (len(sys.argv) >= 7):
+            level = int(sys.argv[6])
+            if (level == 0):
+                _testing = False
+                format = 'normal'
+            elif (level == 1):
+                _testing = True
+                format = 'testing'
+            elif (level == 2):
+                _testing = False
+                format = 'relay-adv'
+            elif (level == 3):
+                _testing = False
+                format = 'network-adv'
+            else:
+                _testing = False
+                format = 'normal'
+        else:
+            format = 'normal'
+            _testing = False
+        adv_guard_cons_bw = float(sys.argv[7]) if len(sys.argv) >= 8 else 0
+        adv_exit_cons_bw = float(sys.argv[8]) if len(sys.argv) >= 9 else 0
         adv_time = int(sys.argv[9]) if len(sys.argv) >= 10 else 0
         path_sel_alg = sys.argv[10] if len(sys.argv) >= 10 else 'tor'
         congfilename = sys.argv[11] if len(sys.argv) >= 12 else None
@@ -1700,15 +1759,19 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
         congmodel = CongestionModel(congfilename)
         pdelmodel = PropagationDelayModel(pdelfilename)
         
+        num_adv_guards = 1
+        num_adv_exits = 1
         adv_relays = {}
         adv_descriptors = {}
         # choose adversarial guards to add to network
-        bandwidth = 128000 # cons bw of top guard on 3/2/12
-        add_adv_guards(num_adv_guards, adv_relays, adv_descriptors, bandwidth)
+        #bandwidth = 128000 # cons bw of top guard on 3/2/12
+        add_adv_guards(num_adv_guards, adv_relays, adv_descriptors,
+            adv_guard_cons_bw)
 
         # choose adversarial exits to add to network
-        bandwidth = 85000 # ~bw of top exit 3/2/12-4/30/12 (ZhangPoland1)
-        add_adv_exits(num_adv_exits, adv_relays, adv_descriptors, bandwidth)
+        #bandwidth = 85000 # ~bw of top exit 3/2/12-4/30/12 (ZhangPoland1)
+        add_adv_exits(num_adv_guards, num_adv_exits, adv_relays,
+            adv_descriptors, adv_exit_cons_bw)
         
         
         if (path_sel_alg == 'cat'):
@@ -1721,7 +1784,8 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
             
         # simulate the circuits for these streams
         create_circuits(network_state_files, streams, num_samples,
-            adv_relays, adv_descriptors, adv_time, congmodel, pdelmodel)              
+            adv_relays, adv_descriptors, adv_time, congmodel, pdelmodel,
+            format)              
     elif (command == 'concattraces'): 
         if len(sys.argv) != 9: print usage; sys.exit(1)           
         ut = UserTraces(sys.argv[3], sys.argv[4], sys.argv[5], sys.argv[6], sys.argv[7], sys.argv[8])

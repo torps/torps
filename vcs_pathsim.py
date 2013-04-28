@@ -25,7 +25,7 @@ num_paths_choose = 3 # number of paths to choose and predict latency for
 ######
 
 def create_circuits(network_state_files, streams, num_samples, add_relays,\
-    add_descriptors, add_time, congmodel, pdelmodel):
+    add_descriptors, add_time, congmodel, pdelmodel, format):
     """Takes streams over time and creates circuits by interaction
     with create_circuit().
       Input:
@@ -43,6 +43,10 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
         add_descriptors: (dict: fprint->ServerDescriptor) add to descriptors
         add_time: (int) timestamp after which specified relays will be added
             to consensuses
+        congmodel: (CongestionModel) outputs congestion used by some path algs
+        pdelmodel: (PropagationDelayModel) outputs prop delay
+        format: (str) 'testing', 'normal', 'relay-adv', or 'network-adv'; sets
+            output format            
     Output:
         [Prints circuit and guard selections of clients.]
     """
@@ -84,8 +88,7 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
     ### End simulation variables ###
     
     if (not _testing):
-        print('Sample\tTimestamp\tGuard IP\tMiddle IP\tExit IP\tDestination\
- IP\tGuard Fingerprint\tMiddle Fingerprint\tExit Fingerprint')
+        print_mapped_streams_header(format)
 
     # run simulation period one pair of consensus/descriptor files at a time
     for ns_file in network_state_files:
@@ -275,8 +278,8 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
                         weighted_middles, weighted_guards,\
                         congmodel, pdelmodel)
                     if (not _testing):
-                        pathsim.print_mapped_stream(client_state['id'],\
-                            stream_assigned, stream, descriptors)
+                        print_mapped_stream(client_state['id'],\
+                            stream_assigned, stream, descriptors, format)
             
             cur_time += time_step
             

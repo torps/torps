@@ -220,44 +220,45 @@ def client_assign_stream(client_state, stream, cons_rel_stats,\
                 (stream_assigned['initial_avg_ping'] > \
                     circuit['initial_avg_ping'])):
             stream_assigned = circuit
-    # if circuit is clean, move to dirty list
-    if (stream_assigned['dirty_time'] == None):
-        new_clean_exit_circuits = collections.deque()
-        while (len(client_state['clean_exit_circuits']) > 0):
-            circuit = client_state['clean_exit_circuits'].popleft()
-            if (circuit == stream_assigned):
-                circuit['dirty_time'] = stream['time']
-                client_state['dirty_exit_circuits'].appendleft(circuit)
-                new_clean_exit_circuits.extend(\
-                    client_state['clean_exit_circuits'])
-                client_state['clean_exit_circuits'].clear()
-                if pathsim._testing:
-                    if (stream['type'] == 'connect'):
-                        print('Assigned CONNECT stream to port {0} to \
-    clean circuit at {1}'.format(stream['port'], stream['time']))
-                    elif (stream['type'] == 'resolve'):
-                        print('Assigned RESOLVE stream to clean circuit \
-    at {0}'.format(stream['time']))
-                    else:
-                        print('Assigned unrecognized stream to clean circuit \
-    at {0}'.format(stream['time']))
-                    
-                # reduce cover count for covered port needs
-                pathsim.uncover_circuit_ports(circuit,\
-                    client_state['port_needs_covered'])
-            else:
-                new_clean_exit_circuits.append(circuit)
-        client_state['clean_exit_circuits'] = new_clean_exit_circuits
-    else:   
-        if pathsim._testing:                                
-            if (stream['type'] == 'connect'):
-                print('Assigned CONNECT stream to port {0} to \
-dirty circuit at {1}'.format(stream['port'], stream['time']))
-            elif (stream['type'] == 'resolve'):
-                print('Assigned RESOLVE stream to dirty circuit \
+    if (stream_assigned != None):
+        # if circuit is clean, move to dirty list
+        if (stream_assigned['dirty_time'] == None):
+            new_clean_exit_circuits = collections.deque()
+            while (len(client_state['clean_exit_circuits']) > 0):
+                circuit = client_state['clean_exit_circuits'].popleft()
+                if (circuit == stream_assigned):
+                    circuit['dirty_time'] = stream['time']
+                    client_state['dirty_exit_circuits'].appendleft(circuit)
+                    new_clean_exit_circuits.extend(\
+                        client_state['clean_exit_circuits'])
+                    client_state['clean_exit_circuits'].clear()
+                    if pathsim._testing:
+                        if (stream['type'] == 'connect'):
+                            print('Assigned CONNECT stream to port {0} to \
+clean circuit at {1}'.format(stream['port'], stream['time']))
+                        elif (stream['type'] == 'resolve'):
+                            print('Assigned RESOLVE stream to clean circuit \
 at {0}'.format(stream['time']))
-            else:
-                print('Assigned unrecognized stream to dirty circuit \
+                        else:
+                            print('Assigned unrecognized stream to clean \
+circuit at {0}'.format(stream['time']))
+                        
+                    # reduce cover count for covered port needs
+                    pathsim.uncover_circuit_ports(circuit,\
+                        client_state['port_needs_covered'])
+                else:
+                    new_clean_exit_circuits.append(circuit)
+            client_state['clean_exit_circuits'] = new_clean_exit_circuits
+        else:   
+            if pathsim._testing:                                
+                if (stream['type'] == 'connect'):
+                    print('Assigned CONNECT stream to port {0} to \
+dirty circuit at {1}'.format(stream['port'], stream['time']))
+                elif (stream['type'] == 'resolve'):
+                    print('Assigned RESOLVE stream to dirty circuit \
+at {0}'.format(stream['time']))
+                else:
+                    print('Assigned unrecognized stream to dirty circuit \
 at {0}'.format(stream['time']))
             
     # if stream still unassigned we must make new circuit

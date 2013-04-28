@@ -12,15 +12,48 @@ from pathsim import *
 import multiprocessing
 
 
-def compromised_set_process_log(compromised_relays, out_dir, out_name,\
+def compromised_set_get_compromise_probs(pathnames):
+    """Takes output of pathsim_analysis.compromised_set_process_log()
+    and return the fraction of  samples that experience at least one
+    guard/exit/guard+exit compromise."""      
+    num_samples = 0
+    num_guard_compromised = 0
+    num_exit_compromised = 0
+    num_guard_exit_compromised = 0
+    for pathname in pathnames:
+        with open(pathname) as f:
+            print('Processing {0}.'.format(pathname))
+            start_time = pickle.load(f)
+            end_time = pickle.load(f)
+            compromise_stats = pickle.load(f)
+            for stats in compromise_stats:
+                num_samples += 1
+                if (stats['guard_only_time'] != None) or\
+                    (stats['guard_and_exit_time'] != None):
+                    num_guard_compromised += 1
+                if (stats['exit_only_time'] != None) or\
+                    (stats['guard_and_exit_time'] != None):
+                    num_exit_compromised += 1
+                if (stats['guard_and_exit_time'] != None):
+                    num_guard_exit_compromised += 1
+    print('Num samples: {0}'.format(num_samples))
+    return (float(num_guard_compromised)/num_samples,
+        float(num_exit_compromised)/num_samples,
+        float(num_guard_exit_compromised)/num_samples)
+        
+
+def compromised_set_process_log(compromised_relays, out_dir, out_name, format,
     pnum, log_file):
     """Calculates security statistics against compromised-set
-    adversary and outputs the results to a file."""
+    adversary and outputs the results to a file.
+    If format is 'relay-adv', a compact format just indicating
+    guard/exit compromise is assumed.
+    """
     compromise_stats = []
     start_time = None
     end_time = None
     with open(log_file, 'r') as lf:
-        lf.readline() # read header line
+        line = lf.readline() # read header line
 #        i = 0
         for line in lf:
 #            if (i % 5000 == 0):
@@ -30,8 +63,11 @@ def compromised_set_process_log(compromised_relays, out_dir, out_name,\
             line_fields = line.split('\t')
             id = int(line_fields[0])
             time = float(line_fields[1])
-            guard_ip = line_fields[2]
-            exit_ip = line_fields[4]
+            if (format == 'relay-adv'):
+                compromise_code = int(line_fields[2])
+            else:
+                guard_ip = line_fields[2]
+                exit_ip = line_fields[4]
 
             # add entries for sample not yet seen
             if (len(compromise_stats) <= id):
@@ -57,8 +93,12 @@ def compromised_set_process_log(compromised_relays, out_dir, out_name,\
                     
             # increment counts and add times of first compromise
             stats = compromise_stats[id]
-            guard_bad = guard_ip in compromised_relays
-            exit_bad = exit_ip in compromised_relays
+            if (format == 'relay-adv'):
+                guard_bad = (compromise_code == 1) or (compromise_code == 3)
+                exit_bad = (compromise_code == 2) or (compromise_code == 3)
+            else:
+                guard_bad = guard_ip in compromised_relays
+                exit_bad = exit_ip in compromised_relays
             if  (guard_bad and exit_bad):
                 stats['guard_and_exit_bad'] += 1
                 if (stats['guard_and_exit_time'] == None):
@@ -261,9 +301,9 @@ def compromised_top_relays_print(in_file, top_guards, top_exits):
         
         
 def network_analysis_get_guards_and_exits(network_state_files):
-    """Takes list of network state files, pads the sorted list for missing
-    periods, and returns selection statistics about initial guards and
-    exits."""
+    """Takes list of network state files (expects fat ones), pads the sorted
+    list for missing periods, and returns selection statistics about initial
+    guards and exits."""
     network_state_files.sort(key = lambda x: os.path.basename(x))
     network_state_files = pad_network_state_files(network_state_files)
     
@@ -531,7 +571,8 @@ def read_compromised_relays_file(in_file):
 if __name__ == '__main__':
     usage = 'Usage: pathsim_analysis.py [command]\nCommands:\n\
 \tnetwork [in_dir]:  Analyze the network status files in in_dir. If input classes are slim, set slim=1.\n\
-\tsimulation-set [logs_in_dir] [set_in_file] [out_dir] [out_name]: Do analysis against compromised set. Use simulation logs in logs_in_dir and IPs in set_in_file, and write statistics to files in out_dir in files with names containing out_name.\n\
+\tsimulation-set [logs_in_dir] [out_dir] [out_name] [set_in_file]: Do analysis against compromised set. Use simulation logs in logs_in_dir and IPs in set_in_file, and write statistics to files in out_dir in files with names containing out_name. If set_in_file omitted, the compact"relay-adv" format is\
+expected.\n\
 \tsimulation-top [logs_in_dir] [top_guards_in_file] [top_exits_in_file] [out_dir] [out_name]: Do analysis\
 against adversary compromising a range of top guards and exits.'
     if (len(sys.argv) < 2):
@@ -578,15 +619,15 @@ against adversary compromising a range of top guards and exits.'
         """
             
     elif (command == 'simulation-set'):
-        if (len(sys.argv) < 6):
+        if (len(sys.argv) < 5):
             print(usage)
             sys.exit(1)
             
         # get list of log files
         in_dir = sys.argv[2]
-        in_file = sys.argv[3]
-        out_dir = sys.argv[4]
-        out_name = sys.argv[5]
+        out_dir = sys.argv[3]
+        out_name = sys.argv[4]
+        in_file = sys.argv[5] if (len(sys.argv) > 5) else None
         log_files = []
         for dirpath, dirnames, filenames in os.walk(in_dir, followlinks=True):
             for filename in filenames:
@@ -594,8 +635,13 @@ against adversary compromising a range of top guards and exits.'
                     log_files.append(os.path.join(dirpath,filename))
         log_files.sort(key = lambda x: os.path.basename(x))
         
-        compromised_relays = read_compromised_relays_file(in_file)
-        args = (compromised_relays, out_dir, out_name)
+        if (in_file != None):
+            compromised_relays = read_compromised_relays_file(in_file)
+            format = 'normal'
+        else:
+            compromised_relays = None
+            format = 'relay-adv'
+        args = (compromised_relays, out_dir, out_name, format)
         simulation_analysis(log_files, compromised_set_process_log, args)
         
     elif (command == 'simulation-top'):

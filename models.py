@@ -43,8 +43,11 @@ We collected session traces of approximately 20 minutes for each usage class. We
 -gcal/gdocs    }
 -web search    }
 -irc             8am-5pm (27 sessions) M-F
--bittorrent      12pm-6am (18 sessions) Su & Sa
--typical         facebook + gmail/gchat + gcal/gdocs
+-bittorrent      12am-6am (18 sessions) Su & Sa
+               } gmail/gchat at 9am (1 session) Su-Sa
+-typical       } gcal/gdocs at 12 pm (1 session) Su-Sa
+               } facebook at 3 pm (1 session) Su-Sa
+               } web search at 6 pm (2 sessions) Su-Sa
     """
     def __init__(self, usertraces, starttime, endtime):
         self.model = {}
@@ -77,11 +80,17 @@ We collected session traces of approximately 20 minutes for each usage class. We
                 sessionend = self.schedule_session(key, trace, morning)
                 for i in xrange(17):
                     sessionend = self.schedule_session(key, trace, sessionend)
-                    
+
+        # construct new model of typical usage                    
         self.schedule["typical"] = []
-        self.schedule["typical"].extend(self.schedule["facebook"])
-        self.schedule["typical"].extend(self.schedule["gmailgchat"])
-        self.schedule["typical"].extend(self.schedule["gcalgdocs"])
+        t1, t2, t3, t4 = 32400, 43200, 54000, 64800 # sunday, 9,12,3,6
+        for numdays in [0,1,2,3,4,5,6]:
+            self.schedule_session("typical", usertraces.trace["gmailgchat"], t1+day*numdays)
+            self.schedule_session("typical", usertraces.trace["gcalgdocs"], t2+day*numdays)
+            self.schedule_session("typical", usertraces.trace["facebook"], t3+day*numdays)
+            # now 2 consecutive web sessions
+            sessionend = self.schedule_session("typical", usertraces.trace["websearch"], t4+day*numdays)
+            self.schedule_session("typical", usertraces.trace["websearch"], sessionend)
         self.schedule["typical"].sort(key = lambda x: x[0])
 
         # then build the model during the requested interval
