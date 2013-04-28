@@ -12,7 +12,7 @@ port is pickled to analyze_consensus_output/ dir for each consensus.
 import os, sys, stem
 from pathsim import *
 
-SCANALLPORTS=False
+SCANALLPORTS=True
 OUTDIR = "portscan_all_output" if SCANALLPORTS else "portscan_subset_output"
 
 ##########
