@@ -1,4 +1,5 @@
 import matplotlib
+matplotlib.use('PDF') # alerts matplotlib that display not required
 import matplotlib.pyplot
 import os.path
 import numpy
