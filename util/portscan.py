@@ -63,7 +63,7 @@ def process_nsf(nsf, dump=False):
     if dump:
         with open("{0}/{1}".format(OUTDIR, t), 'wb') as f: pickle.dump(numexits, f)
 
-    return "{0} {3}/{1} accept {2} with bw {6}/{8} {5}/{1} accept {4} with bw {7]/{8}".format(t, totalallowed, maxport, numexits[maxport][0], minport, numexits[minport][0], numexits[maxport][1], numexits[minport][1], totalbw)
+    return "{0} {3}/{1} accept {2} with bw {6}/{8} {5}/{1} accept {4} with bw {7}/{8}".format(t, totalallowed, maxport, numexits[maxport][0], minport, numexits[minport][0], numexits[maxport][1], numexits[minport][1], totalbw)
 
 def load_data(nsf):
     with open(nsf, 'rb') as ns: return pickle.load(ns), pickle.load(ns)
