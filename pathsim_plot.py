@@ -162,7 +162,7 @@ def compromised_set_plot_times(start_times, end_times, compromise_stats,
             guard_and_exit_times.append(guard_and_exit_time)
         stats_guard_times.append(guard_times)
         stats_exit_times.append(exit_times)
-        stats_guard_and_exit_times.append(guard_and_exit_timess)
+        stats_guard_and_exit_times.append(guard_and_exit_times)
                 
     # cdf for both bad
     out_filename = out_name + '.exit-guard-comp-times.cdf.pdf'                
