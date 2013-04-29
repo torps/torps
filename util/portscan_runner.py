@@ -25,15 +25,13 @@ def main():
 
     # add work                                                                                                                            
     for nsf in nsfs:
+        if "-00-00-00-" not in nsf: continue
         cmd = "/usr/bin/pypy util/portscan.py {0}".format(nsf)
         jobs.put(cmd)
 #        sleep(1)
 
     # wait until worker threads are done with jobs to exit                                                                          
-    try: jobs.join()
-    except (KeyboardInterrupt, SystemExit): 
-        print "got keyboard interrupt"
-        sys.exit()
+    jobs.join()
 
 def launch(id, jobs):
     while True:
@@ -55,4 +53,7 @@ def get_network_state_files(network_state_dir):
     return nsfs
 
 if __name__ == '__main__':
-    main()
+    try: main()
+    except (KeyboardInterrupt, SystemExit):
+        print "got keyboard interrupt"
+        sys.exit()    
