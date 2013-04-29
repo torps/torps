@@ -1,5 +1,5 @@
 import os.path
-import numpypy
+#import numpypy
 import numpy
 import cPickle as pickle
 from pathsim import *
@@ -168,7 +168,7 @@ def find_needed_guard_bws():
     return (needed_cons_bw, needed_bw, a, b, r_squared)
 
 
-def get_exit_bws(ns_file):
+def get_exit_bws_helper(ns_file):
     """Returns lists of exits bandwidths."""
     need_fast = True
     need_stable = False
@@ -197,9 +197,12 @@ def get_exit_bws(ns_file):
     return (exits_cons_bws, exits_obs_bws)
     
 
-def get_exit_regression(in_dir, num_processes):
-    """Uses exit relay to calculate regression coefficients for
-    consensus bandwidth to observed bandwidth."""
+def get_exit_bws(in_dir, num_processes):
+    """Returns array of consensus bandwidths and observed bandwidths
+    for exits.
+    Inputs:
+        in_dir: directory containing network state files to examine
+        num_processes: number of processes to simultaneously process files"""
         
     network_state_files = []
     for dirpath, dirnames, filenames in os.walk(in_dir, followlinks=True):
@@ -214,7 +217,7 @@ def get_exit_regression(in_dir, num_processes):
     chunksize = int(math.floor(float(len(network_state_files)) /\
         num_processes))
     pool = multiprocessing.Pool(num_processes)
-    process_bws = pool.map(get_exit_bws, network_state_files, chunksize)
+    process_bws = pool.map(get_exit_bws_helper, network_state_files, chunksize)
     pool.close()
     print('Number of individual bw lists: {0}'.format(len(process_bws)))
     print('Max cons bw list length: {0}'.format(max(map(lambda x: len(x[0]),
@@ -233,6 +236,16 @@ def get_exit_regression(in_dir, num_processes):
     print('len(exits_obs_bws): {0}'.format(len(exits_obs_bws)))    
     print('First elements: {0}; {1}'.format(exits_cons_bws[0],
         exits_obs_bws[0]))
+    return (exits_cons_bws, exits_obs_bws)
+    
+def get_exit_regression(in_dir, num_processes):
+    """Uses exit relay to calculate regression coefficients for
+    consensus bandwidth to observed bandwidth.
+    Separated from get_exit_bws somewhat artificially because
+    numpy.vstack in linear_regression doesn't work in pypy's numpypy."""
+
+
+    (exits_cons_bws, exits_obs_bws) =  get_exit_bws(in_dir, num_processes)
     (a, b, r_squared) = linear_regression(exits_cons_bws,
         exits_obs_bws)
         
