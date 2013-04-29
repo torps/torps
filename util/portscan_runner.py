@@ -25,7 +25,6 @@ def main():
     # add work                                                                                                                            
     for nsf in nsfs:
         cmd = "/usr/bin/python util/portscan.py {0}".format(nsf)
-        print cmd
         jobs.put(cmd)
 #        sleep(1)
 
@@ -38,9 +37,9 @@ def launch(id, jobs):
     while True:
         runcmd = jobs.get()
  
-        print "Thread %s: Running '%s'" % (str(id), runcmd)
+#        print "Thread %s: Running '%s'" % (str(id), runcmd)
         ret = subprocess.call(runcmd, shell=True, stderr=subprocess.STDOUT)
-        print "Thread %s: Command '%s' returned %s" % (str(id), runcmd, str(ret))
+#        print "Thread %s: Command '%s' returned %s" % (str(id), runcmd, str(ret))
 
         jobs.task_done()
 
