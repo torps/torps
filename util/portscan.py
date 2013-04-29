@@ -17,7 +17,7 @@ OUTDIR = "portscan_all_output" if SCANALLPORTS else "portscan_subset_output"
 
 ##########
 
-if len(sys.argv) != 2: print "USAGE: {0} network_state_directory".format(sys.argv[0]);sys.exit()
+if len(sys.argv) != 2: print "USAGE: {0} network_state_file".format(sys.argv[0]);sys.exit()
 if not os.path.exists(OUTDIR): os.mkdir(OUTDIR)
 
 allports = [i+1 for i in xrange(65535)]
@@ -28,10 +28,9 @@ defaultexitpolicy = stem.exit_policy.ExitPolicy("reject *:25", "reject *:119", "
 ports = allports if SCANALLPORTS else [21, 22, 25, 80, 443, 6699, 8080, 9000, 9001]
 
 def main():
-    nsfs = get_network_state_files(sys.argv[1])
-    for nsf in nsfs:
-        result = process_nsf(nsf, dump=True)
-        if result is not None: print result
+    nsf = sys.argv[1]
+    result = process_nsf(nsf, dump=True)
+    if result is not None: print result
 
 def process_nsf(nsf, dump=False):
     numexits = {} # port:counter for number of relays that exit to port
@@ -64,15 +63,6 @@ def process_nsf(nsf, dump=False):
 
 def load_data(nsf):
     with open(nsf, 'rb') as ns: return pickle.load(ns), pickle.load(ns)
-
-def get_network_state_files(network_state_dir):
-    nsfs = []
-    for dirpath, dirnames, filenames in os.walk(network_state_dir, followlinks=True):
-        for filename in filenames:
-            if (filename[0] != '.'):
-                nsfs.append(os.path.join(dirpath,filename))
-    nsfs.sort(key = lambda x: os.path.basename(x))
-    return nsfs
 
 if __name__ == '__main__':
     main()
