@@ -6,8 +6,9 @@ DATE_RANGE=$3
 ADV_GUARD_BW=$4
 ADV_EXIT_BW=$5
 ADV_TIME=$6
+PATH_ALG=$7
 
-EXP_NAME=$USERMODEL.$DATE_RANGE.$ADV_GUARD_BW-$ADV_EXIT_BW-$ADV_TIME-adv
+EXP_NAME=$USERMODEL.$DATE_RANGE.$ADV_GUARD_BW-$ADV_EXIT_BW-$ADV_TIME-adv$PATH_ALG
 
 # move timing and logs to separate directories
 mkdir -p $BASE_DIR/out/simulate/$EXP_NAME/logs
@@ -34,4 +35,4 @@ CUR_DIR_SAVE=$PWD
 cd $PLOTS_OUT
 tar cvf $EXP_NAME.tar *.pdf
 bzip2 $EXP_NAME.tar
-cd $CUR_DIR_SAVE
+#cd $CUR_DIR_SAVE

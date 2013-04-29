@@ -1641,7 +1641,7 @@ Do simulated path selections, where\n\
 default: out/network-state-files\n\
 \t\t # samples is the number of simulations to execute, default: 1\n\
 \t\t tracefile indicates the user trace, default: traces.pickle\n\
-\t\t user model is one of "facebook", "gmailgchat", "gcalgdocs", "websearch", "irc", "bittorrent", "typical", "simple", default: "simple"\n\
+\t\t user model is one of "facebook", "gmailgchat", "gcalgdocs", "websearch", "irc", "bittorrent", "typical", "best", "worst", "simple", default: "simple"\n\
 \t\t output sets log level: 0 is normal, 1 is testing, 2 is for the relay adversary, 3 is for the network adversary, default: 0\n\
 \t\t adv guard cons bw indicates the consensus bandwidth of the adversarial guard to add, \
 default: 0\n\
