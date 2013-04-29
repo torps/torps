@@ -1,4 +1,5 @@
 import os.path
+import numpypy
 import numpy
 import cPickle as pickle
 from pathsim import *
