@@ -29,7 +29,8 @@ def main():
 #        sleep(1)
 
     # wait until worker threads are done with jobs to exit                                                                          
-    jobs.join()
+    try: jobs.join()
+    except (KeyboardInterrupt): sys.exit()
 
 def launch(id, jobs):
     import subprocess
