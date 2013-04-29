@@ -217,10 +217,14 @@ def get_exit_regression(in_dir, num_processes):
     process_bws = pool.map(get_exit_bws, network_state_files, chunksize)
     pool.close()
     print('Number of individual bw lists: {0}'.format(len(process_bws)))
-    print('Max cons bw list length: {0}'.format(max(map(lambda x: len(x[0])))))
-    print('Max obs bw list length: {0}'.format(max(map(lambda x: len(x[1])))))
-    print('Min cons bw list length: {0}'.format(min(map(lambda x: len(x[0])))))
-    print('Min obs bw list length: {0}'.format(min(map(lambda x: len(x[1])))))
+    print('Max cons bw list length: {0}'.format(max(map(lambda x: len(x[0],
+        process_bws)))))
+    print('Max obs bw list length: {0}'.format(max(map(lambda x: len(x[1],
+        process_bws)))))
+    print('Min cons bw list length: {0}'.format(min(map(lambda x: len(x[0],
+        process_bws)))))
+    print('Min obs bw list length: {0}'.format(min(map(lambda x: len(x[1],
+        process_bws)))))
 
     for process_cons_bws, process_obs_bws in process_bws:
         exits_cons_bws.extend(process_cons_bws)
