@@ -31,7 +31,7 @@ def main():
 
     # wait until worker threads are done with jobs to exit                                                                          
     try: jobs.join()
-    except (KeyboardInterrupt): 
+    except (KeyboardInterrupt, SystemExit): 
         print "got keyboard interrupt"
         sys.exit()
 
