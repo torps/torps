@@ -93,6 +93,13 @@ We collected session traces of approximately 20 minutes for each usage class. We
             self.schedule_session("typical", usertraces.trace["websearch"], sessionend)
         self.schedule["typical"].sort(key = lambda x: x[0])
 
+        # best/worst case models
+        self.schedule["best"] = [] # smart sarah
+        self.schedule["worst"] = [] # dumb dan
+        for (seconds, ip, port) in self.schedule["typical"]:
+            self.schedule["best"].append((seconds, ip, 443))
+            self.schedule["worst"].append((seconds, ip, 6523)) # 6523 is for gobby: a free collaborative text editor
+
         # then build the model during the requested interval
         startd = datetime.datetime.fromtimestamp(starttime)
         offset = startd.weekday()*3600*24 + startd.hour*3600 + startd.minute*60 + startd.second
