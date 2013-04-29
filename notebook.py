@@ -246,3 +246,60 @@ print('max relays: {0}'.format(max(nums)))
 print('min relays: {1}'.format(min(nums)))
 print('tot num relays: {2}'.format(sum(nums)))
 ##########
+
+##### Create graphs with output from multiple experiments #####
+# simulate/
+#   typical.2013-01--03.288115-76282-0-adv
+# analyze/
+#   bittorrent.2013-01--03.288115-76282-0-adv
+#   irc.2013-01--03.288115-76282-0-adv
+out_dir = 'out/analyze/user_models'
+in_dirs = ['out/analyze/typical.2013-01--03.288115-76282-0-adv/data',
+    'out/analyze/bittorrent.2013-01--03.288115-76282-0-adv/data',
+    'out/analyze/irc.2013-01--03.288115-76282-0-adv/data']
+for in_dir in in_dirs:
+    stats_pathnames = []
+    for dirpath, dirnames, filenames in os.walk(in_dir, followlinks=True):
+        for filename in filenames:
+            if (filename[0] != '.'):
+                stats_pathnames.append(os.path.join(dirpath,filename))
+    # aggregate the stats        
+    start_time = None
+    end_time = None
+    compromise_stats = []
+    out_name = None
+    for pathname in stats_pathnames:
+        with open(pathname) as f:
+            if (out_name == None):
+                filename = os.path.basename(pathname)
+                filename_split = filename.split('.')
+                out_name = '.'.join(filename_split[:-2])
+            new_start_time = pickle.load(f)
+            new_end_time = pickle.load(f)
+            new_compromise_stats = pickle.load(f)
+            if (start_time == None):
+                start_time = new_start_time
+            else:
+                start_time = min(start_time, new_start_time)
+
+            if (end_time == None):
+                end_time = new_end_time
+            else:
+                end_time = min(end_time, new_end_time)
+            compromise_stats.extend(new_compromise_stats)
+
+    
+
+        pickle.dump(start_time, f, pickle.HIGHEST_PROTOCOL)
+        pickle.dump(end_time, f, pickle.HIGHEST_PROTOCOL)
+        pickle.dump(compromise_stats, f, pickle.HIGHEST_PROTOCOL)
+
+stats = {'guard_only_bad':0,\
+                                'exit_only_bad':0,\
+                                'guard_and_exit_bad':0,\
+                                'good':0,\
+                                'guard_only_time':None,\
+                                'exit_only_time':None,\
+                                'guard_and_exit_time':None}
+                    compromise_stats.append(stats)
+##########
