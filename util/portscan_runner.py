@@ -3,15 +3,14 @@
 """
 run portscan.py in parallel using processes.
 """
-import os, sys
+import os, sys, subprocess
+from threading import Thread
+from Queue import Queue
+from time import sleep
 
 if len(sys.argv) != 3: print "USAGE: {0} network_state_dir nthreads".format(sys.argv[0]);sys.exit()
 
 def main():
-    from threading import Thread
-    from Queue import Queue
-    from time import sleep
-
     nsfs = get_network_state_files(sys.argv[1])
     # create our job queue                                                                                                                   
     jobs = Queue()
@@ -22,6 +21,8 @@ def main():
         worker.setDaemon(True)
         worker.start()
 
+    sleep(2)
+
     # add work                                                                                                                            
     for nsf in nsfs:
         cmd = "/usr/bin/pypy util/portscan.py {0}".format(nsf)
@@ -30,11 +31,11 @@ def main():
 
     # wait until worker threads are done with jobs to exit                                                                          
     try: jobs.join()
-    except (KeyboardInterrupt): sys.exit()
+    except (KeyboardInterrupt): 
+        print "got keyboard interrupt"
+        sys.exit()
 
 def launch(id, jobs):
-    import subprocess
-
     while True:
         runcmd = jobs.get()
  
