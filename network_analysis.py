@@ -4,6 +4,7 @@ import numpy
 import cPickle as pickle
 from pathsim import *
 import multiprocessing
+import math
 
 def linear_regression(x, y):
     """Does single linear regression on input data.
