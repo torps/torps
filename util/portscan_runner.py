@@ -24,7 +24,7 @@ def main():
 
     # add work                                                                                                                            
     for nsf in nsfs:
-        cmd = "/usr/bin/python util/portscan.py {0}".format(nsf)
+        cmd = "/usr/bin/pypy util/portscan.py {0}".format(nsf)
         jobs.put(cmd)
 #        sleep(1)
 
