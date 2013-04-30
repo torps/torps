@@ -632,7 +632,7 @@ def print_mapped_streams_header(format):
 # fingerprints aren't being used, and they are long
 #        print('Sample\tTimestamp\tGuard IP\tMiddle IP\tExit IP\tDestination\
 # IP\tGuard Fingerprint\tMiddle Fingerprint\tExit Fingerprint')
-        print('Sample\tTimestamp\tGuard IP\tMiddle IP\tExit IP\tDestination\ IP')
+        print('Sample\tTimestamp\tGuard IP\tMiddle IP\tExit IP\tDestination IP')
 
         
 def print_mapped_stream(client_id, circuit, stream, descriptors, format):
