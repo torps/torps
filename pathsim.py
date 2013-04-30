@@ -629,8 +629,10 @@ def print_mapped_streams_header(format):
     elif (format == 'network-adv'):
         print('Sample\tTimestamp\tGuard ip\tExit IP\tDestination IP')
     else:
-        print('Sample\tTimestamp\tGuard IP\tMiddle IP\tExit IP\tDestination\
- IP\tGuard Fingerprint\tMiddle Fingerprint\tExit Fingerprint')
+# fingerprints aren't being used, and they are long
+#        print('Sample\tTimestamp\tGuard IP\tMiddle IP\tExit IP\tDestination\
+# IP\tGuard Fingerprint\tMiddle Fingerprint\tExit Fingerprint')
+        print('Sample\tTimestamp\tGuard IP\tMiddle IP\tExit IP\tDestination\ IP')
 
         
 def print_mapped_stream(client_id, circuit, stream, descriptors, format):
@@ -671,9 +673,13 @@ def print_mapped_stream(client_id, circuit, stream, descriptors, format):
         print('{0}\t{1}\t{2}\t{3}\t{4}'.format(client_id, stream['time'],
             guard_ip, exit_ip, dest_ip))
     else:
-        print('{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}'.format(client_id,
-            stream['time'], guard_ip, middle_ip, exit_ip, dest_ip,
-            circuit['path'][0], circuit['path'][1], circuit['path'][2]))
+# fingerprints aren't being used, and they are long
+#        print('{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}'.format(client_id,
+#            stream['time'], guard_ip, middle_ip, exit_ip, dest_ip,
+#            circuit['path'][0], circuit['path'][1], circuit['path'][2]))
+        print('{0}\t{1}\t{2}\t{3}\t{4}\t{5}'.format(client_id,
+            stream['time'], guard_ip, middle_ip, exit_ip, dest_ip))
+
 
 def circuit_supports_stream(circuit, stream, descriptors):
     """Returns if stream can run over circuit (which is assumed live)."""
