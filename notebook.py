@@ -248,12 +248,9 @@ print('tot num relays: {2}'.format(sum(nums)))
 ##########
 
 ##### Create graphs with output from multiple experiments #####
-# simulate/
-#   typical.2013-01--03.288115-76282-0-adv
-# analyze/
-#   bittorrent.2013-01--03.288115-76282-0-adv
-#   irc.2013-01--03.288115-76282-0-adv
+# varying user models
 out_dir = 'out/analyze/user_models'
+out_name = 'user-models.2013-01--03.288115-76282-0-adv'
 in_dirs = ['out/analyze/typical.2013-01--03.288115-76282-0-adv/data',
     'out/analyze/bittorrent.2013-01--03.288115-76282-0-adv/data',
     'out/analyze/irc.2013-01--03.288115-76282-0-adv/data']
@@ -267,4 +264,29 @@ for in_dir in in_dirs:
                 pathnames.append(os.path.join(dirpath,filename))
     pathnames_list.append(pathnames)
 pathsim_plot.compromised_set_plot(pathnames_list, line_labels, out_dir, out_name)
+
+# varying total bandwidth
+# 	200: 174762666.0 / 34952533; 579920 / 157244
+#	100: 87381333 / 17476266; 288115 / 76282
+#	50: 43690666 / 8738133; 142213 / 35801
+#	25: 21845333 / 4369066; 69262 / 15560
+#	10: 8738133 / 1747626; 25492 / 3416
+out_dir = 'out/analyze/total_bandwidth'
+out_name = 'total-bandwidth.2013-01--03'
+in_dirs = ['out/analyze/typical.2013-01--03.579920-157244-0-adv/data',
+    'out/analyze/typical.2013-01--03.288115-76282-0-adv/data',
+    'out/analyze/typical.2013-01--03.142213-35801-0-adv/data',
+    'out/analyze/typical.2013-01--03.69262-15560-0-adv/data',
+    'out/analyze/typical.2013-01--03.25492-3416-0-adv/data']
+line_labels = ['200 MBps', '100 MBps', '50 MBps', '25 MBps', '10 MBps']
+pathnames_list = []
+for in_dir in in_dirs:
+    pathnames = []
+    for dirpath, dirnames, filenames in os.walk(in_dir, followlinks=True):
+        for filename in filenames:
+            if (filename[0] != '.'):
+                pathnames.append(os.path.join(dirpath,filename))
+    pathnames_list.append(pathnames)
+pathsim_plot.compromised_set_plot(pathnames_list, line_labels, out_dir, out_name)
+
 ##########
