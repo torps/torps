@@ -249,7 +249,7 @@ print('tot num relays: {2}'.format(sum(nums)))
 
 ##### Create graphs with output from multiple experiments #####
 # varying user models
-out_dir = 'out/analyze/user_models'
+out_dir = 'out/analyze/user_models.2013-01--03'
 out_name = 'user-models.2013-01--03.288115-76282-0-adv'
 in_dirs = ['out/analyze/typical.2013-01--03.288115-76282-0-adv/data',
     'out/analyze/bittorrent.2013-01--03.288115-76282-0-adv/data',
@@ -271,7 +271,7 @@ pathsim_plot.compromised_set_plot(pathnames_list, line_labels, out_dir, out_name
 #	50: 43690666 / 8738133; 142213 / 35801
 #	25: 21845333 / 4369066; 69262 / 15560
 #	10: 8738133 / 1747626; 25492 / 3416
-out_dir = 'out/analyze/total_bandwidth'
+out_dir = 'out/analyze/total_bandwidth.2013-01--03'
 out_name = 'total-bandwidth.2013-01--03'
 in_dirs = ['out/analyze/typical.2013-01--03.579920-157244-0-adv/data',
     'out/analyze/typical.2013-01--03.288115-76282-0-adv/data',

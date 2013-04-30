@@ -97,6 +97,12 @@ def compromised_set_plot_rates(compromise_stats, line_labels, out_dir,
         stats_frac_both_bad.append(frac_both_bad)
         stats_frac_exit_bad.append(frac_exit_bad)
         stats_frac_guard_bad.append(frac_guard_bad)
+        
+    # flatten stats list when just one line
+    if (line_labels == None):
+        stats_frac_both_bad = stats_frac_both_bad[0]
+        stats_frac_exit_bad = stats_frac_exit_bad[0]
+        stats_frac_guard_bad = stats_frac_guard_bad[0]
     
     # cdf of both bad
     out_filename = out_name + '.exit-guard-comp-rates.cdf.pdf' 
@@ -163,6 +169,12 @@ def compromised_set_plot_times(start_times, end_times, compromise_stats,
         stats_guard_times.append(guard_times)
         stats_exit_times.append(exit_times)
         stats_guard_and_exit_times.append(guard_and_exit_times)
+        
+    # flatten stats when just one line
+    if (line_labels == None):
+        stats_guard_times = stats_guard_times[0]
+        stats_exit_times = stats_exit_times[0]
+        stats_guard_and_exit_times = stats_guard_and_exit_times[0]
                 
     # cdf for both bad
     out_filename = out_name + '.exit-guard-comp-times.cdf.pdf'                
@@ -192,6 +204,9 @@ def compromised_set_plot_times(start_times, end_times, compromise_stats,
 def compromised_set_plot(pathnames_list, line_labels, out_dir, out_name):
     """Plots cdfs for compromised-set statistics."""
     if (line_labels == None): # assume pathnames given as flat list
+        pathnames_tmp = pathnames_list
+        pathnames_list = []
+        pathnames.append(pathnames_tmp)
         pathnames_list = [pathnames_list]
     # aggregate the stats  
     start_times = [None]*len(pathnames_list)
