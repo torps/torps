@@ -34,7 +34,7 @@ def main():
 
 def process_nsf(nsf, dump=False):
     numexits = {} # port:counter for number of relays that exit to port
-    totalallowed, donecounting = 0, False
+    totalallowed, totalbw, donecounting = 0, 0, False
     base = os.path.basename(nsf)
     consensus, descriptors = load_data(nsf)
 
@@ -43,23 +43,27 @@ def process_nsf(nsf, dump=False):
 
     for p in ports:
         if not defaultexitpolicy.can_exit_to(port=p, strict=True): continue
-        numexits[p] = 0
+        numexits[p] = [0,0]
         needstable = p in longlivedports
         for relay in consensus.relays:
             if relay in descriptors: 
                 rse = consensus.relays[relay] # router status entry
                 sd = descriptors[relay] # server descriptor
-                if not donecounting and sd.exit_policy.is_exiting_allowed(): totalallowed += 1
+                if not donecounting and sd.exit_policy.is_exiting_allowed(): 
+                    totalallowed += 1
+                    totalbw += rse.bandwidth
                 canexit = sd.exit_policy.can_exit_to(port=p, strict=True)
-                if canexit and (not needstable or (needstable and "Stable" in rse.flags)): numexits[p] += 1
+                if canexit and (not needstable or (needstable and "Stable" in rse.flags)): 
+                    numexits[p][0] += 1
+                    numexits[p][1] += rse.bandwidth
         donecounting = True
-    maxport = max(numexits, key=lambda x:numexits[x])
-    minport = min(numexits, key=lambda x:numexits[x])
+    maxport = max(numexits, key=lambda x:numexits[x][1]) # port with highest bw weight
+    minport = min(numexits, key=lambda x:numexits[x][1]) # port with lowest bw weight
 
     if dump:
         with open("{0}/{1}".format(OUTDIR, t), 'wb') as f: pickle.dump(numexits, f)
 
-    return "{0} {3}/{1} accept {2} {5}/{1} accept {4}".format(t, totalallowed, maxport, numexits[maxport], minport, numexits[minport])
+    return "{0} {3}/{1} accept {2} with bw {6}/{8} {5}/{1} accept {4} with bw {7}/{8}".format(t, totalallowed, maxport, numexits[maxport][0], minport, numexits[minport][0], numexits[maxport][1], numexits[minport][1], totalbw)
 
 def load_data(nsf):
     with open(nsf, 'rb') as ns: return pickle.load(ns), pickle.load(ns)

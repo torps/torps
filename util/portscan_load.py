@@ -3,14 +3,16 @@
 import os, sys
 import cPickle as pickle
 
+longlivedports = [21, 22, 706, 1863, 5050, 5190, 5222, 5223, 6523, 6667, 6697, 8300]
+
 def main():
     scans = get_portscans("portscan_all_output/")
     for scan in scans:
         numexits = None
         with open(scan, 'rb') as f: numexits = pickle.load(f)
-        maxport = max(numexits, key=lambda x:numexits[x])
-        minport = min(numexits, key=lambda x:numexits[x])
-        print "{0} {3}/{1} accept {2} {5}/{1} accept {4}".format(os.path.basename(scan), 0, maxport, numexits[maxport], minport, numexits[minport])
+        maxport = max(numexits, key=lambda x:numexits[x][1]) # port with max bw weight ([x][0] is num exits)
+        minport = min(numexits, key=lambda x:numexits[x][1]) # port with min bw weight
+        print "{0} port {1} accepted by {2} with bw {3} port {4} accepted by {5} with bw {6}".format(os.path.basename(scan), maxport, numexits[maxport][0], numexits[maxport][1], minport, numexits[minport][0], numexits[minport][1])
         
 def get_portscans(portscan_dir):
     scans = []
