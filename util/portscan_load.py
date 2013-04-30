@@ -12,6 +12,11 @@ def main():
         with open(scan, 'rb') as f: numexits = pickle.load(f)
         maxport = max(numexits, key=lambda x:numexits[x][1]) # port with max bw weight ([x][0] is num exits)
         minport = min(numexits, key=lambda x:numexits[x][1]) # port with min bw weight
+
+        if minport == 8300:
+            numexits.pop(minport, None)
+            minport = min(numexits, key=lambda x:numexits[x][1]) # port with min bw weight 
+
         print "{0} port {1} accepted by {2} with bw {3} port {4} accepted by {5} with bw {6}".format(os.path.basename(scan), maxport, numexits[maxport][0], numexits[maxport][1], minport, numexits[minport][0], numexits[minport][1])
         
 def get_portscans(portscan_dir):
