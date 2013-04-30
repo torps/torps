@@ -196,7 +196,9 @@ def compromised_set_plot(pathnames_list, line_labels, out_dir, out_name):
     # aggregate the stats  
     start_times = [None]*len(pathnames_list)
     end_times = [None]*len(pathnames_list)
-    compromise_stats = [[]]*len(pathnames_list)
+    compromise_stats = []
+    for i in xrange(len(pathnames_list)):
+        compromise_stats.append([])
     for i, pathnames in enumerate(pathnames_list):
         for pathname in pathnames:
             with open(pathname) as f:
