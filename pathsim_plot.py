@@ -204,9 +204,6 @@ def compromised_set_plot_times(start_times, end_times, compromise_stats,
 def compromised_set_plot(pathnames_list, line_labels, out_dir, out_name):
     """Plots cdfs for compromised-set statistics."""
     if (line_labels == None): # assume pathnames given as flat list
-        pathnames_tmp = pathnames_list
-        pathnames_list = []
-        pathnames.append(pathnames_tmp)
         pathnames_list = [pathnames_list]
     # aggregate the stats  
     start_times = [None]*len(pathnames_list)
