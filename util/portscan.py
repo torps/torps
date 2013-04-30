@@ -49,13 +49,16 @@ def process_nsf(nsf, dump=False):
             if relay in descriptors: 
                 rse = consensus.relays[relay] # router status entry
                 sd = descriptors[relay] # server descriptor
-                if not donecounting and sd.exit_policy.is_exiting_allowed(): 
-                    totalallowed += 1
-                    totalbw += rse.bandwidth
-                canexit = sd.exit_policy.can_exit_to(port=p, strict=True)
-                if canexit and (not needstable or (needstable and "Stable" in rse.flags)): 
-                    numexits[p][0] += 1
-                    numexits[p][1] += rse.bandwidth
+                if sd.exit_policy.is_exiting_allowed(): 
+                    exitweight = get_bw_weight(rse.flags, 'e', consensus.bandwidth_weights)
+                    bw = rse.bandwidth * exitweight
+                    if not donecounting:
+                        totalallowed += 1
+                        totalbw += bw
+                    canexit = sd.exit_policy.can_exit_to(port=p, strict=True)
+                    if canexit and (not needstable or (needstable and "Stable" in rse.flags)): 
+                        numexits[p][0] += 1
+                        numexits[p][1] += bw
         donecounting = True
     maxport = max(numexits, key=lambda x:numexits[x][1]) # port with highest bw weight
     minport = min(numexits, key=lambda x:numexits[x][1]) # port with lowest bw weight
@@ -63,7 +66,7 @@ def process_nsf(nsf, dump=False):
     if dump:
         with open("{0}/{1}".format(OUTDIR, t), 'wb') as f: pickle.dump(numexits, f)
 
-    return "{0} {3}/{1} accept {2} with bw {6}/{8} {5}/{1} accept {4} with bw {7}/{8}".format(t, totalallowed, maxport, numexits[maxport][0], minport, numexits[minport][0], numexits[maxport][1], numexits[minport][1], totalbw)
+    return "{0} {3}/{1} accept {2} with weight {6}/{8} {5}/{1} accept {4} with weight {7}/{8}".format(t, totalallowed, maxport, numexits[maxport][0], minport, numexits[minport][0], numexits[maxport][1], numexits[minport][1], totalbw)
 
 def load_data(nsf):
     with open(nsf, 'rb') as ns: return pickle.load(ns), pickle.load(ns)
