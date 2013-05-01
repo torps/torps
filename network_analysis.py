@@ -166,6 +166,32 @@ def find_needed_guard_bws():
     needed_bw = a*needed_cons_bw + b       
 
     return (needed_cons_bw, needed_bw, a, b, r_squared)
+    
+    
+def get_guard_bws_helper(ns_file):
+    """Returns lists of guard bandwidths."""
+    
+    cons_rel_stats = {}    
+    with open(ns_file, 'rb') as nsf:
+        consensus = pickle.load(nsf)
+        descriptors = pickle.load(nsf)
+        
+    for relay in consensus.routers:
+        if (relay in descriptors):
+            cons_rel_stats[relay] = consensus.routers[relay]
+                
+    guards_cons_bws = []
+    guards_obs_bws = []
+    # get guards
+    guards = pathsim.filter_guards(cons_rel_stats, descriptors)
+    # add in circuit requirements (what guard_filter_for_circ would do)
+    # because we don't have a circuit it mind, this is just a FAST flag
+    for fprint in guards:
+        rel_stat = cons_rel_stats[fprint]
+        if (stem.Flag.FAST in rel_stat.flags):
+            guards_cons_bws.append(cons_rel_stats[fprint].bandwidth)
+            guards_obs_bws.append(descriptors[fprint].observed_bandwidth)
+    return (guards_cons_bws, guards_obs_bws)    
 
 
 def get_exit_bws_helper(ns_file):
@@ -176,7 +202,7 @@ def get_exit_bws_helper(ns_file):
     
     
     cons_rel_stats = {}    
-    with open(ns_file, 'r') as nsf:
+    with open(ns_file, 'rb') as nsf:
         consensus = pickle.load(nsf)
         descriptors = pickle.load(nsf)
         
@@ -197,11 +223,15 @@ def get_exit_bws_helper(ns_file):
     return (exits_cons_bws, exits_obs_bws)
     
 
-def get_exit_bws(in_dir, num_processes):
-    """Returns array of consensus bandwidths and observed bandwidths
-    for exits.
+def get_bws(in_dir, get_bws_map_fn, num_processes):
+    """Applies get_bws_map_fn to files in in_dir using num_processes in
+     parallel and returns array of results. Results assumed to be two lists.
+     Useful for getting all consensus and observed bandwidths from network
+    state files for later regression.
     Inputs:
         in_dir: directory containing network state files to examine
+        get_bws_map_fn: function taking filename and returning some a pair
+            of sequences
         num_processes: number of processes to simultaneously process files"""
         
     network_state_files = []
@@ -211,13 +241,13 @@ def get_exit_bws(in_dir, num_processes):
                 network_state_files.append(os.path.join(dirpath,filename))
     
     network_state_files.sort(key = lambda x: os.path.basename(x))
-    exits_cons_bws = []
-    exits_obs_bws = []    
+    cons_bws = []
+    obs_bws = []    
     
     chunksize = int(math.floor(float(len(network_state_files)) /\
         num_processes))
     pool = multiprocessing.Pool(num_processes)
-    process_bws = pool.map(get_exit_bws_helper, network_state_files, chunksize)
+    process_bws = pool.map(get_bws_map_fn, network_state_files, chunksize)
     pool.close()
     print('Number of individual bw lists: {0}'.format(len(process_bws)))
     print('Max cons bw list length: {0}'.format(max(map(lambda x: len(x[0]),
@@ -230,22 +260,33 @@ def get_exit_bws(in_dir, num_processes):
         process_bws))))
 
     for process_cons_bws, process_obs_bws in process_bws:
-        exits_cons_bws.extend(process_cons_bws)
-        exits_obs_bws.extend(process_obs_bws)
-    print('len(exits_cons_bws): {0}'.format(len(exits_cons_bws)))
-    print('len(exits_obs_bws): {0}'.format(len(exits_obs_bws)))    
-    print('First elements: {0}; {1}'.format(exits_cons_bws[0],
-        exits_obs_bws[0]))
-    return (exits_cons_bws, exits_obs_bws)
+        cons_bws.extend(process_cons_bws)
+        obs_bws.extend(process_obs_bws)
+    print('len(cons_bws): {0}'.format(len(cons_bws)))
+    print('len(obs_bws): {0}'.format(len(obs_bws)))    
+    print('First elements: {0}; {1}'.format(cons_bws[0],
+        obs_bws[0]))
+    return (cons_bws, obs_bws)
     
+    
+def get_guard_regression(in_dir, num_processes):
+    """Uses exit relay to calculate regression coefficients for
+    consensus bandwidth to observed bandwidth."""
+
+    (guard_cons_bws, guard_obs_bws) =  get_bws(in_dir, get_guard_bws_helper,
+        num_processes)
+    (a, b, r_squared) = linear_regression(guards_cons_bws,
+        guards_obs_bws)
+        
+    return (a, b, r_squared)
+    
+
 def get_exit_regression(in_dir, num_processes):
     """Uses exit relay to calculate regression coefficients for
-    consensus bandwidth to observed bandwidth.
-    Separated from get_exit_bws somewhat artificially because
-    numpy.vstack in linear_regression doesn't work in pypy's numpypy."""
+    consensus bandwidth to observed bandwidth."""
 
-
-    (exits_cons_bws, exits_obs_bws) =  get_exit_bws(in_dir, num_processes)
+    (exits_cons_bws, exits_obs_bws) =  get_bws(in_dir, get_exit_bws_helper,
+        num_processes)
     (a, b, r_squared) = linear_regression(exits_cons_bws,
         exits_obs_bws)
         
@@ -271,3 +312,26 @@ if __name__ == '__main__':
 ### a = 215.85762129136413
 ### b = 1010231.1684564484
 ### r_squared = 0.68600871839386535
+
+    in_dir = 'out/network-state/fat/ns-2012-10--2013-03'    
+    (exit_a, exit_b, exit_r_squared) = get_exit_regression(in_dir, 20)
+    print('a = {0}'.format(exit_a))
+    print('b = {0}'.format(exit_b))
+    print('r^2 = {0}'.format(exit_r_squared))
+### Output:    
+# Number of individual bw lists: 4358
+# Max cons bw list length: 1076
+# Max obs bw list length: 1076
+# Min cons bw list length: 777
+# Min obs bw list length: 777
+# len(exits_cons_bws): 3818707
+# len(exits_obs_bws): 3818707
+# First elements: 30; 77313
+# exit_a = 200.49050736264786
+# exit_b = 1029509.7491675143
+# exit_r_squared = 0.69361698646482162
+
+    in_dir = 'out/network-state/fat/ns-2012-10--2013-03'
+    (guard_a, guard_b, guard_r_squared) = get_guard_regression(in_dir,
+        num_processes)
+    

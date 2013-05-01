@@ -157,14 +157,13 @@ import os
 #5:1                                    
 #10:1                                    
 #50:1                                   
-guard_bws = [52428800, 87381333, 95325091, 102801568]
-exit_bws = [52428800, 17476267, 9532509, 2056031]
-guard_cons_bws = [171394, 288115, 314643, 339610]
-exit_cons_bws = [238205, 76282, 39481, 4845]
+guard_bws = [52428800, 69905067, 87381333, 95325091, 102801568]
+exit_bws = [52428800, 34952533, 17476267, 9532509, 2056031]
+guard_cons_bws = [171394, 229755, 288115, 314643, 339610]
+exit_cons_bws = [238205, 157244, 76282, 39481, 4845]
 guard_compromise_probs = []
 exit_compromise_probs = []
 guard_exit_compromise_probs = []
-
 for guard_cons_bw, exit_cons_bw in zip(guard_cons_bws, exit_cons_bws):
     in_dir = 'out/analyze/typical.2013-01--03.' + str(guard_cons_bw) + '-' + \
         str(exit_cons_bw) + '-0-adv/data/'
@@ -181,12 +180,12 @@ for guard_cons_bw, exit_cons_bw in zip(guard_cons_bws, exit_cons_bws):
     guard_exit_compromise_probs.append(guard_exit_comp_prob)
     
 # Output
->>>> guard_compromise_probs
-[0.3759, 0.54293, 0.57084, 0.59832]
->>>> exit_compromise_probs
-[1.0, 1.0, 1.0, 0.78898]
->>>> guard_exit_compromise_probs
-[0.37018, 0.51329, 0.48526, 0.14866]
+>>> guard_compromise_probs
+[0.3759, 0.46332, 0.54293, 0.57084, 0.59832]
+>>> exit_compromise_probs
+[1.0, 1.0, 1.0, 1.0, 0.78898]
+>>> guard_exit_compromise_probs
+[0.37018, 0.45306, 0.51329, 0.48526, 0.14866]
 # Plot output
 import numpy
 import matplotlib
@@ -195,12 +194,12 @@ import matplotlib.pyplot
 fig = matplotlib.pyplot.figure()
 
 # fraction of bandwidth allocated to guard
-x = [1.0/2.0, 5.0/6.0, 10.0/11.0, 50.0/51.0]
-matplotlib.pyplot.plot(x, guard_exit_compromise_probs,
+x = [1.0/2.0, 2.0/3.0, 5.0/6.0, 10.0/11.0, 50.0/51.0]
+matplotlib.pyplot.plot(x, guard_exit_compromise_probs, '-s',
     label = 'Prob. of guard & exit compromise')
-matplotlib.pyplot.plot(x, guard_compromise_probs,
+matplotlib.pyplot.plot(x, guard_compromise_probs, '-o',
     label = 'Prob. of guard compromise')
-matplotlib.pyplot.plot(x, exit_compromise_probs,
+matplotlib.pyplot.plot(x, exit_compromise_probs, '-v',
     label = 'Prob. of exit compromise')
 matplotlib.pyplot.legend(loc='upper left')
 matplotlib.pyplot.ylim(ymin=0.0)
@@ -210,7 +209,7 @@ matplotlib.pyplot.ylabel('Probability')
 matplotlib.pyplot.title('Probability of at least one compromise, 1/13 - 3/13')
 
 # output
-matplotlib.pyplot.savefig('out/analyze/vary_allocation/compromise_probs.pdf')
+matplotlib.pyplot.savefig('out/analyze/vary_allocation.2013-01--03/vary_allocation.2013-01--03.compromise_probs.pdf')
 
 ##### Working out parallelization of network analysis #####
 import os
@@ -247,7 +246,7 @@ print('min relays: {1}'.format(min(nums)))
 print('tot num relays: {2}'.format(sum(nums)))
 ##########
 
-##### Create graphs with output from multiple experiments #####
+##### Create graphs with lines from multiple experiments #####
 # varying user models
 out_dir = 'out/analyze/user_models.2013-01--03'
 out_name = 'user-models.2013-01--03.288115-76282-0-adv'
