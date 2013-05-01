@@ -275,7 +275,7 @@ def get_guard_regression(in_dir, num_processes):
 
     (guard_cons_bws, guard_obs_bws) =  get_bws(in_dir, get_guard_bws_helper,
         num_processes)
-    (a, b, r_squared) = linear_regression(guards_cons_bws,
+    (a, b, r_squared) = linear_regression(guard_cons_bws,
         guards_obs_bws)
         
     return (a, b, r_squared)
@@ -294,6 +294,7 @@ def get_exit_regression(in_dir, num_processes):
 
 
 if __name__ == '__main__':
+    # get guard bandwidth and cons->actual conversion for 3/1/13 guards
     (needed_cons_bw, needed_bw, guard_a, guard_b, guard_r_squared) =\
         find_needed_guard_bws()
 ### Output:
@@ -303,6 +304,7 @@ if __name__ == '__main__':
 ### needed_cons_bw = 365924.087681159
 ### needed_bw = 110681286.28304975
     
+    # get exit bandwidth conversion for 1/13-3/13
     in_dir = 'out/network-state/fat/ns-2013-01--03'    
     (exit_a, exit_b, exit_r_squared) = get_exit_regression(in_dir, 20)
     print('a = {0}'.format(exit_a))
@@ -313,6 +315,7 @@ if __name__ == '__main__':
 ### b = 1010231.1684564484
 ### r_squared = 0.68600871839386535
 
+    # get exit bandwidth conversion for 10/12-3/13
     in_dir = 'out/network-state/fat/ns-2012-10--2013-03'    
     (exit_a, exit_b, exit_r_squared) = get_exit_regression(in_dir, 20)
     print('a = {0}'.format(exit_a))
@@ -331,6 +334,7 @@ if __name__ == '__main__':
 # exit_b = 1029509.7491675143
 # exit_r_squared = 0.69361698646482162
 
+    # get guard bandwidth conversion for 10/12-3/13
     in_dir = 'out/network-state/fat/ns-2012-10--2013-03'
     (guard_a, guard_b, guard_r_squared) = get_guard_regression(in_dir, 20)
     
