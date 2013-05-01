@@ -273,9 +273,9 @@ def get_guard_regression(in_dir, num_processes):
     """Uses exit relay to calculate regression coefficients for
     consensus bandwidth to observed bandwidth."""
 
-    (guard_cons_bws, guard_obs_bws) =  get_bws(in_dir, get_guard_bws_helper,
+    (guards_cons_bws, guards_obs_bws) =  get_bws(in_dir, get_guard_bws_helper,
         num_processes)
-    (a, b, r_squared) = linear_regression(guard_cons_bws,
+    (a, b, r_squared) = linear_regression(guards_cons_bws,
         guards_obs_bws)
         
     return (a, b, r_squared)
