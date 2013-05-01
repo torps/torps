@@ -183,7 +183,7 @@ def get_guard_bws_helper(ns_file):
     guards_cons_bws = []
     guards_obs_bws = []
     # get guards
-    guards = pathsim.filter_guards(cons_rel_stats, descriptors)
+    guards = filter_guards(cons_rel_stats, descriptors)
     # add in circuit requirements (what guard_filter_for_circ would do)
     # because we don't have a circuit it mind, this is just a FAST flag
     for fprint in guards:
@@ -332,6 +332,5 @@ if __name__ == '__main__':
 # exit_r_squared = 0.69361698646482162
 
     in_dir = 'out/network-state/fat/ns-2012-10--2013-03'
-    (guard_a, guard_b, guard_r_squared) = get_guard_regression(in_dir,
-        num_processes)
+    (guard_a, guard_b, guard_r_squared) = get_guard_regression(in_dir, 20)
     
