@@ -337,4 +337,15 @@ if __name__ == '__main__':
     # get guard bandwidth conversion for 10/12-3/13
     in_dir = 'out/network-state/fat/ns-2012-10--2013-03'
     (guard_a, guard_b, guard_r_squared) = get_guard_regression(in_dir, 20)
-    
+### Output:
+# Number of individual bw lists: 4358
+# Max cons bw list length: 1665
+# Max obs bw list length: 1665
+# Min cons bw list length: 716
+# Min obs bw list length: 716
+# len(cons_bws): 4120356
+# len(obs_bws): 4120356
+# First elements: 460; 290137
+# guard_a = 191.94548955003913
+# guard_b = 1368281.674385923
+# guard_r_squared = 0.70610513990802581

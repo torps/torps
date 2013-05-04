@@ -3,19 +3,37 @@
 # total bandwidth experiments
 # allocation is 5:1 guard:exit
 # total bws to test (tot: guard MBps / exit MBps; guard consensus bw / exit consensus bw)
+
+### doing conversion using linear regression coefficients
+### coefficients determined from guard relays on 1/1/13
+### guard_a = 299.45192815560563
+### guard_b = 1104612.6683457776
+### guard_r_squared = 0.74124917207592156
+### coefficients determined from exit relays 1/13-3/13
+### exit_a = 215.85762129136413
+### exit_b = 1010231.1684564484
+### exit_r_squared = 0.68600871839386535
 # 	200: 174762666.0 / 34952533; 579920 / 157244
 #	100: 87381333 / 17476266; 288115 / 76282
 #	50: 43690666 / 8738133; 142213 / 35801
 #	25: 21845333 / 4369066; 69262 / 15560
 #	10: 8738133 / 1747626; 25492 / 3416
-### again, doing conversion using linear regression coefficients
-### coefficients determined from guard relays on 1/1/13
-### a = 299.45192815560563
-### b = 1104612.6683457776
-### coefficients determined from exit relays 1/13-3/13
-### a = 215.85762129136413
-### b = 1010231.1684564484
-### r_squared = 0.68600871839386535
+
+### coefficients determined from guard relays on 10/12 - 3/13
+# guard_a = 191.94548955003913
+# guard_b = 1368281.674385923
+# guard_r_squared = 0.70610513990802581
+### coefficients determined from exit relays 10/12 - 3/13
+# exit_a = 200.49050736264786
+# exit_b = 1029509.7491675143
+# exit_r_squared = 0.69361698646482162
+# 	200: 174762666.0 / 34952533; 903352 / 169200
+#	100: 87381333 / 17476266; 448112 / 82033
+#	50: 43690666 / 8738133; 220492 / 38449
+#	25: 21845333 / 4369066; 106682 / 16657
+#	10: 8738133 / 1747626; 38396 / 3582
+
+
 
 BASE_DIR=/home/ajohnson/research/torps.git
 
