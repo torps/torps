@@ -159,14 +159,23 @@ import os
 #50:1                                   
 guard_bws = [52428800, 69905067, 87381333, 95325091, 102801568]
 exit_bws = [52428800, 34952533, 17476267, 9532509, 2056031]
-guard_cons_bws = [171394, 229755, 288115, 314643, 339610]
-exit_cons_bws = [238205, 157244, 76282, 39481, 4845]
+
+# using regression from 3-month consensuses (1/13-3/13)
+# guard_cons_bws = [171394, 229755, 288115, 314643, 339610]
+# exit_cons_bws = [238205, 157244, 76282, 39481, 4845]
+# date_range = '2013-01--03'
+
+# using regression from 6-month consensuses (10/12-3/13)
+guard_cons_bws = [266016, 357064, 448112, 489497, 528558]
+exit_cons_bws = [256368, 169200, 82033, 42411, 5120]
+date_range = '2012-10--2013-03'
+
 guard_compromise_probs = []
 exit_compromise_probs = []
 guard_exit_compromise_probs = []
 for guard_cons_bw, exit_cons_bw in zip(guard_cons_bws, exit_cons_bws):
-    in_dir = 'out/analyze/typical.2013-01--03.' + str(guard_cons_bw) + '-' + \
-        str(exit_cons_bw) + '-0-adv/data/'
+    in_dir = 'out/analyze/typical.' + date_range + '.' + str(guard_cons_bw) +\
+        '-' + str(exit_cons_bw) + '-0-adv/data/'
     print('Calculating compromise probs for {0}'.format(in_dir))
     pathnames = []
     for dirpath, dirnames, fnames in os.walk(in_dir):
@@ -179,13 +188,42 @@ for guard_cons_bw, exit_cons_bw in zip(guard_cons_bws, exit_cons_bws):
     exit_compromise_probs.append(exit_comp_prob)
     guard_exit_compromise_probs.append(guard_exit_comp_prob)
     
-# Output
+# Output for 1/13 - 3/13
 >>> guard_compromise_probs
 [0.3759, 0.46332, 0.54293, 0.57084, 0.59832]
 >>> exit_compromise_probs
 [1.0, 1.0, 1.0, 1.0, 0.78898]
 >>> guard_exit_compromise_probs
 [0.37018, 0.45306, 0.51329, 0.48526, 0.14866]
+
+# Output for 10/12 - 3/13
+>>> guard_compromise_probs
+[0.72073, 0.81337, 0.8724, 0.89328, 0.91033]
+>>> exit_compromise_probs
+[1.0, 1.0, 1.0, 1.0, 0.967]
+>>> guard_exit_compromise_probs
+[0.71705, 0.8086, 0.85816, 0.84255, 0.36203]
+
+
+guard_compromise_rates = []
+exit_compromise_rates = []
+guard_exit_compromise_rates = []
+for guard_cons_bw, exit_cons_bw in zip(guard_cons_bws, exit_cons_bws):
+    in_dir = 'out/analyze/typical.' + date_range + '.' + str(guard_cons_bw) +\
+        '-' + str(exit_cons_bw) + '-0-adv/data/'
+    print('Calculating compromise rates for {0}'.format(in_dir))
+    pathnames = []
+    for dirpath, dirnames, fnames in os.walk(in_dir):
+        for fname in fnames:
+            pathnames.append(os.path.join(dirpath,fname))
+    pathnames.sort()
+    (guard_comp_rate, exit_comp_rate, guard_exit_comp_rate) =\
+        pathsim_analysis.compromised_set_get_compromise_rates(pathnames)
+    guard_compromise_rates.append(guard_comp_rate)
+    exit_compromise_rates.append(exit_comp_rate)
+    guard_exit_compromise_rates.append(guard_exit_comp_rate)
+
+
 # Plot output
 import numpy
 import matplotlib
@@ -195,21 +233,24 @@ fig = matplotlib.pyplot.figure()
 
 # fraction of bandwidth allocated to guard
 x = [1.0/2.0, 2.0/3.0, 5.0/6.0, 10.0/11.0, 50.0/51.0]
-matplotlib.pyplot.plot(x, guard_exit_compromise_probs, '-s',
-    label = 'Prob. of guard & exit compromise')
+matplotlib.pyplot.plot(x, guard_exit_compromise_probs, '-v',
+    label = 'Prob. of guard & exit compromise', linewidth = 2,
+    markersize = 8)
 matplotlib.pyplot.plot(x, guard_compromise_probs, '-o',
-    label = 'Prob. of guard compromise')
-matplotlib.pyplot.plot(x, exit_compromise_probs, '-v',
-    label = 'Prob. of exit compromise')
-matplotlib.pyplot.legend(loc='upper left')
+    label = 'Prob. of guard compromise', linewidth = 2,
+    markersize = 8)
+matplotlib.pyplot.plot(x, exit_compromise_probs, '-s',
+    label = 'Prob. of exit compromise', linewidth = 2,
+    markersize = 8)
+matplotlib.pyplot.legend(loc='lower left')
 matplotlib.pyplot.ylim(ymin=0.0)
 matplotlib.pyplot.yticks(numpy.arange(0, 1.1, 0.1))
 matplotlib.pyplot.xlabel('Fraction of 100MBps total bandwidth allocated to guard')
 matplotlib.pyplot.ylabel('Probability')
-matplotlib.pyplot.title('Probability of at least one compromise, 1/13 - 3/13')
+matplotlib.pyplot.title('Probability of at least one compromise, 10/12 - 3/13')
 
 # output
-matplotlib.pyplot.savefig('out/analyze/vary_allocation.2013-01--03/vary_allocation.2013-01--03.compromise_probs.pdf')
+matplotlib.pyplot.savefig('out/analyze/vary_allocation.2012-10--2013-03/vary_allocation.2013-01--03.compromise_probs.pdf')
 
 ##### Working out parallelization of network analysis #####
 import os
@@ -289,3 +330,24 @@ for in_dir in in_dirs:
 pathsim_plot.compromised_set_plot(pathnames_list, line_labels, out_dir, out_name)
 
 ##########
+
+##### Getting all destination IPs from any trace #####
+from models import *
+tracefilename = 'in/users2-processed.traces.pickle'
+ut = UserTraces.from_pickle(tracefilename)
+
+trace_dest_ips = {}
+for tracename in ["facebook", "gmailgchat", "gcalgdocs", "websearch", "irc",
+    "bittorrent"]:
+    trace_dest_ips[tracename] = set()    
+    for seconds, ip, port in ut.trace[tracename]:
+        trace_dest_ips[tracename].add(ip)
+trace_dest_ips['typical'] = set()
+for tracename in ["facebook", "gmailgchat", "gcalgdocs", "websearch"]:
+    trace_dest_ips['typical'].update(trace_dest_ips[tracename])
+
+for tracename in ['typical', 'irc', 'bittorrent']:
+    out_file = '{0}_dest_ips.txt'.format(tracename)
+    with open(out_file, 'w') as f:
+        for ip in trace_dest_ips[tracename]:
+            f.write('{0}\n'.format(ip))

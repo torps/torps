@@ -12,6 +12,34 @@ from pathsim import *
 import multiprocessing
 
 
+def compromised_set_get_compromise_rates(pathnames):
+    """Takes output of pathsim_analysis.compromised_set_process_log()
+    and return the fraction of *streams* (among all samples) that have
+    guard/exit/guard+exit compromise."""      
+    num_streams = 0
+    num_guard_compromised = 0
+    num_exit_compromised = 0
+    num_guard_exit_compromised = 0
+    for pathname in pathnames:
+        with open(pathname) as f:
+            print('Processing {0}.'.format(pathname))
+            start_time = pickle.load(f)
+            end_time = pickle.load(f)
+            compromise_stats = pickle.load(f)
+            for stats in compromise_stats:
+                num_streams += stats['guard_only_bad'] +\
+                    stats['exit_only_bad'] + stats['guard_and_exit_bad'] +\
+                    stats['good']
+                num_guard_compromised += stats['guard_only_bad'] +\
+                    stats['guard_and_exit_bad']
+                num_exit_compromised += stats['exit_only_bad'] +\
+                    stats['guard_and_exit_bad']
+                num_guard_exit_compromised += stats['guard_and_exit_bad']
+    print('Num streams: {0}'.format(num_streams))
+    return (float(num_guard_compromised)/num_streams,
+        float(num_exit_compromised)/num_streams,
+        float(num_guard_exit_compromised)/num_streams)
+
 def compromised_set_get_compromise_probs(pathnames):
     """Takes output of pathsim_analysis.compromised_set_process_log()
     and return the fraction of  samples that experience at least one
