@@ -3,7 +3,9 @@
 import os, sys
 import cPickle as pickle
 
+TOPN = 20 # find best N and worst N ports
 longlivedports = [21, 22, 706, 1863, 5050, 5190, 5222, 5223, 6523, 6667, 6697, 8300]
+totaltotalexitbw = 2863685984666.0 # total exit weights from all relays for all 90 days
 
 def main():
     exitbw = {} # exitbw[port] = list of exit bw weights
@@ -29,13 +31,15 @@ def main():
 
     sortedexitbw = sorted(exitbw, key=lambda x:sum(exitbw[x]))
     l = len(sortedexitbw)
-    print "exit bw weight by port:\nrank port mean_weight"
-    for i in xrange(10):
-        port = sortedexitbw[i]
-        print i, port, sum(exitbw[port])/l
-    for i in xrange(l-10, l):
-        port = sortedexitbw[i]
-        print i, port, sum(exitbw[port])/l
+    print "exit bw weight by port:\nrank port mean_weight %_weight"
+    for i in xrange(TOPN):
+        p = sortedexitbw[i]
+        s = float(sum(exitbw[p]))
+        print i, p, s/l, s/totaltotalexitbw
+    for i in xrange(l-TOPN, l):
+        p = sortedexitbw[i]
+        s = float(sum(exitbw[p]))
+        print i, p, s/l, s/totaltotalexitbw
         
 def get_portscans(portscan_dir):
     scans = []
