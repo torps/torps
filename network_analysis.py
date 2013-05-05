@@ -307,7 +307,7 @@ def get_normalized_family(family):
     
     normalized_family = set()
     for element in family:
-        if (len(element) == 41) and (element[0] = '$'):
+        if (len(element) == 41) and (element[0] == '$'):
             # assume is the hex fingerprint
             normalized_family.add(element[1:].upper())
         else:
