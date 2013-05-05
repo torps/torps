@@ -302,7 +302,7 @@ def print_guards_and_exits(initial_guards, exits_tot_bw, guard_cum_prob,
         i += 1
     
         
-def get_families(network_state_file, num_families):
+def get_families(network_state_file):
     """Finds top num_families families in a consensus by total consensus
     bandwidth."""
     #map_files(in_dir, map_files_map_fn, num_processes)
@@ -349,7 +349,7 @@ def get_families(network_state_file, num_families):
             tot_cons_bw += cons_rel_stats[fprint].bandwidth
             tot_obs_bw += descriptors[fprint].observed_bandwidth
         families_bw.append((tot_cons_bw, tot_obs_bw, family))
-    families_bw.sort(lambda x: x[0], reverse = True)
+    families_bw.sort(key = lambda x: x[0], reverse = True)
     return families_bw
         
         
