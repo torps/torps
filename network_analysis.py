@@ -301,6 +301,18 @@ def print_guards_and_exits(initial_guards, exits_tot_bw, guard_cum_prob,
                 bw_dict['nickname']))
         i += 1
     
+def get_normalized_family(family):
+    """Turn fingerprint string as listed in descriptor into normalized
+    form."""
+    
+    normalized_family = set()
+    for element in family:
+        if (len(element) == 41) and (element[0] = '$'):
+            # assume is the hex fingerprint
+            normalized_family.add(element[1:].upper())
+        else:
+            normalized_family.add(element)
+    return normalized_family
         
 def get_families(network_state_file):
     """Finds top num_families families in a consensus by total consensus
@@ -323,7 +335,7 @@ def get_families(network_state_file):
         nickname = cons_rel_stats[fprint].nickname
         cur_fprints = {fprint}
         cur_nicknames = {nickname}
-        cur_ptrs = set(descriptors[fprint].family)
+        cur_ptrs = get_normalized_family(descriptors[fprint].family)
         new_families = []
         while families:
             family_fprints, family_nicknames, family_ptrs = families.pop()
