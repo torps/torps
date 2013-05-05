@@ -10,6 +10,7 @@ from pathsim import *
 ##import matplotlib.mlab
 #import math
 import multiprocessing
+import network_analysis
 
 
 def compromised_set_get_compromise_rates(pathnames):
@@ -326,239 +327,6 @@ def compromised_top_relays_print(in_file, top_guards, top_exits):
             num_guards = 1
         else:
             num_guards *= 2
-        
-        
-def network_analysis_get_guards_and_exits(network_state_files):
-    """Takes list of network state files (expects fat ones), pads the sorted
-    list for missing periods, and returns selection statistics about initial
-    guards and exits."""
-    network_state_files.sort(key = lambda x: os.path.basename(x))
-    network_state_files = pad_network_state_files(network_state_files)
-    
-    initial_guards = {}
-    exits_tot_bw = {} # rel_stat -> sum of hours active weighted by exit prob.
-    
-    need_fast = True
-    need_stable = False
-    need_internal = False
-
-    consensus = None
-    descriptors = None
-    cons_valid_after = None
-    cons_fresh_until = None
-    cons_bw_weights = None
-    cons_bwweightscale = None        
-    init = True
-    for ns_file in network_state_files:
-        if (ns_file != None):
-            print('Using file {0}'.format(ns_file))
-        
-            with open(ns_file, 'r') as nsf:
-                consensus = pickle.load(nsf)
-                descriptors = pickle.load(nsf)
-                hibernating_statuses = pickle.load(nsf)
-                cons_rel_stats = {}
-                
-                # set variables from consensus
-                cons_valid_after = timestamp(consensus.valid_after)            
-                cons_fresh_until = timestamp(consensus.fresh_until)
-                cons_bw_weights = consensus.bandwidth_weights
-                if ('bwweightscale' not in consensus.params):
-                    cons_bwweightscale = TorOptions.default_bwweightscale
-                else:
-                    cons_bwweightscale = \
-                        consensus.params['bwweightscale']
-                
-                for relay in consensus.routers:
-                    if (relay in descriptors):
-                        cons_rel_stats[relay] = consensus.routers[relay]
-        else:
-            if (cons_valid_after == None) or (cons_fresh_until == None):
-                raise ValueError('Network status files begin with "None".')
-            # gap in consensuses, just advance an hour, keeping network state  
-            cons_valid_after += 3600
-            cons_fresh_until += 3600
-            print('Filling in gap from {0} to {1}'.format(cons_valid_after,\
-                cons_fresh_until))
-            # set empty statuses, even though previous should have been emptied
-            hibernating_statuses = []
-            
-        # don't bother to maintain or use hibernating statuses
-        
-        # get initial entry guards w/ selection prob., uptime, and other stats
-        if init:
-            init = False
-            guards = filter_guards(cons_rel_stats, descriptors)
-            guard_weights = get_position_weights(guards,\
-                cons_rel_stats, 'g', cons_bw_weights, cons_bwweightscale)
-            cum_weighted_guards = get_weighted_nodes(guards,\
-                guard_weights)
-            # add in circuit requirements (what guard_filter_for_circ would do)
-            # because we don't have a circuit it mind, this is just a FAST flag
-            # also turn cumulative probs into individual ones
-            cum_weight_old = 0
-            for fprint, cum_weight in cum_weighted_guards:
-                rel_stat = cons_rel_stats[fprint]
-                if (stem.Flag.FAST in rel_stat.flags):
-                   desc = descriptors[fprint]
-                   initial_guards[fprint] = {\
-                    'rel_stat':rel_stat,
-                    'prob':cum_weight-cum_weight_old,
-                    'uptime':1,
-                    'tot_average_bandwidth':desc.average_bandwidth,
-                    'tot_burst_bandwidth':desc.burst_bandwidth,
-                    'tot_observed_bandwidth':desc.observed_bandwidth}
-                cum_weight_old = cum_weight
-        else:
-            # apply criteria used in setting bad_since
-            for guard in initial_guards:
-                if (guard in cons_rel_stats) and\
-                    (stem.Flag.RUNNING in cons_rel_stats[guard].flags) and\
-                    (stem.Flag.GUARD in cons_rel_stats[guard].flags):
-                    desc = descriptors[guard]
-                    initial_guards[guard]['uptime'] += 1
-                    initial_guards[guard]['tot_average_bandwidth'] +=\
-                        desc.average_bandwidth
-                    initial_guards[guard]['tot_burst_bandwidth'] +=\
-                        desc.burst_bandwidth
-                    initial_guards[guard]['tot_observed_bandwidth'] +=\
-                        desc.observed_bandwidth
-                    
-        # get exit relays - with no ip:port in mind, we just look for
-        # not policy_is_reject_star(exit_policy) 
-        # with sum of weighted selection probabilities
-        exits = filter_exits(cons_rel_stats, descriptors, need_fast,\
-            need_stable, need_internal, None, None)
-        exit_weights = get_position_weights(\
-            exits, cons_rel_stats, 'e',\
-            cons_bw_weights, cons_bwweightscale)
-        weighted_exits = get_weighted_nodes(\
-            exits, exit_weights)
-        
-        cum_weight_old = 0
-        for fprint, cum_weight in weighted_exits:
-            if fprint not in exits_tot_bw:
-                exits_tot_bw[fprint] =\
-                    {'tot_prob':0,\
-                    'nickname':cons_rel_stats[fprint].nickname,\
-                    'max_prob':0,\
-                    'min_prob':1,\
-                    'tot_cons_bw':0,\
-                    'tot_average_bandwidth':0,\
-                    'tot_burst_bandwidth':0,\
-                    'tot_observed_bandwidth':0,\
-                    'uptime':0}
-            prob = cum_weight - cum_weight_old
-            exits_tot_bw[fprint]['tot_prob'] += prob
-            exits_tot_bw[fprint]['max_prob'] = \
-                max(exits_tot_bw[fprint]['max_prob'], prob)
-            exits_tot_bw[fprint]['min_prob'] = \
-                min(exits_tot_bw[fprint]['min_prob'], prob)
-            exits_tot_bw[fprint]['tot_cons_bw'] +=\
-                cons_rel_stats[fprint].bandwidth
-            exits_tot_bw[fprint]['tot_average_bandwidth'] +=\
-                descriptors[fprint].average_bandwidth
-            exits_tot_bw[fprint]['tot_burst_bandwidth'] +=\
-                descriptors[fprint].burst_bandwidth
-            exits_tot_bw[fprint]['tot_observed_bandwidth'] +=\
-                descriptors[fprint].observed_bandwidth
-            exits_tot_bw[fprint]['uptime'] += 1
-            cum_weight_old = cum_weight
-            
-    return (initial_guards, exits_tot_bw)
-    
-
-def network_analysis_print_guards_and_exits(initial_guards, exits_tot_bw,\
-    guard_cum_prob, num_exits):
-    """Prints top initial guards comprising [guard_cum_prob] selection prob.
-    and top [num_exits] exits."""
-    # print out top initial guards comprising some total selection prob.
-    initial_guards_items = initial_guards.items()
-    initial_guards_items.sort(key = lambda x: x[1]['prob'], reverse=True)
-    cum_prob = 0
-    i = 1    
-    print('Top initial guards comprising {0} total selection probability'.\
-        format(guard_cum_prob))
-    print('#\tProb.\tUptime\tCons. BW\tAvg. Avg. BW\tAvg. Observed BW\tFingerprint\t\t\t\t\t\t\tNickname')
-    for fp, guard in initial_guards_items:
-        if (cum_prob >= guard_cum_prob):
-            break
-        avg_average_bw = float(guard['tot_average_bandwidth']) /\
-            float(guard['uptime'])
-        avg_observed_bw = float(guard['tot_observed_bandwidth']) /\
-            float(guard['uptime'])
-        print('{0}\t{1:.4f}\t{2}\t{3}\t{4:.4f}\t{5:.4f}\t{6}\t{7}'.format(i,\
-            guard['prob'], guard['uptime'], guard['rel_stat'].bandwidth,\
-            avg_average_bw, avg_observed_bw, fp, guard['rel_stat'].nickname))
-        cum_prob += guard['prob']
-        i += 1
-
-    # print out top exits by total probability-weighted uptime
-    exits_tot_bw_sorted = exits_tot_bw.items()
-    exits_tot_bw_sorted.sort(key = lambda x: x[1]['tot_prob'], reverse=True)
-    i = 1
-    print('Top {0} exits by probability-weighted uptime'.\
-        format(num_exits))
-    print('#\tCum. prob.\tMax prob.\tMin prob.\tAvg. Cons. BW\tAvg. Avg. BW\tAvg. Observed BW\tUptime\tFingerprint\t\t\t\t\t\t\tNickname')
-    for fprint, bw_dict in exits_tot_bw_sorted[0:num_exits]:
-        avg_cons_bw = float(bw_dict['tot_cons_bw']) / float(bw_dict['uptime'])
-        avg_average_bw = float(bw_dict['tot_average_bandwidth'])/\
-            float(bw_dict['uptime'])
-        avg_observed_bw = float(bw_dict['tot_observed_bandwidth'])/\
-            float(bw_dict['uptime'])
-        print(\
-        '{0}\t{1:.4f}\t{2:.4f}\t{3:.4f}\t{4:.4f}\t{5:.4f}\t{6:.4f}\t{7}\t{8}\t{9}'.\
-            format(i, bw_dict['tot_prob'], bw_dict['max_prob'],\
-                bw_dict['min_prob'], avg_cons_bw, avg_average_bw,\
-                avg_observed_bw, bw_dict['uptime'], fprint,\
-                bw_dict['nickname']))
-        i += 1
-        
-        
-def network_analysis_get_groups(initial_guards, exits_tot_bw,\
-    guard_substr, exit_substr):
-    """Searches for guards and exits with nicknames containing respective
-        input strings."""
-    # find matching guards
-    guard_group = []
-    for fprint, guard in initial_guards.items():
-        if (guard_substr in guard['rel_stat'].nickname):
-            guard_group.append(fprint)
-    #find matching exits
-    exit_group = []
-    for fprint, exit in exits_tot_bw.items():
-        if (exit_substr in exit['nickname']):
-            exit_group.append(fprint)
-            
-    return (guard_group, exit_group)
-    
-    
-def network_analysis_print_groups(initial_guards, exits_tot_bw,\
-    guard_group, exit_group):
-    print('Guard group')
-    print('Probability\tUptime\tFingerprint\tNickname')
-    tot_prob = 0
-    for fprint in guard_group:
-        guard = initial_guards[fprint]
-        tot_prob += guard['prob']
-        print('{0}\t{1}\t{2}\t{3}'.format(guard['prob'], guard['uptime'],\
-            fprint, guard['rel_stat'].nickname))
-    print('Total prob: {0}\n'.format(tot_prob))
-    print('Exit group')
-    tot_cum_prob = 0
-    tot_max_prob = 0
-    tot_min_prob = 0
-    print('Cum. prob\tMax prob\tMin prob\tFingerprint\tNickname')
-    for fprint in exit_group:
-        exit = exits_tot_bw[fprint]
-        tot_cum_prob += exit['tot_bw']
-        tot_max_prob += exit['max_prob']
-        tot_min_prob += exit['min_prob']
-        print('{0}\t{1}\t{2}\t{3}\t{4}'.format(exit['tot_bw'],\
-            exit['max_prob'], exit['min_prob'], fprint, exit['nickname']))
-    print('Total cumulative prob: {0}'.format(tot_cum_prob))
-    print('Total max prob: {0}'.format(tot_max_prob))
-    print('Total min prob: {0}'.format(tot_min_prob))
 
 
 def simulation_analysis(log_files, process_log, process_log_args):
@@ -628,8 +396,8 @@ against adversary compromising a range of top guards and exits.'
         guard_cum_prob = 1
         num_exits = 1000
         (initial_guards, exits_tot_bw) = \
-            network_analysis_get_guards_and_exits(network_state_files)
-        network_analysis_print_guards_and_exits(initial_guards, exits_tot_bw,\
+            network_analysis.get_guards_and_exits(network_state_files)
+        network_analysis.print_guards_and_exits(initial_guards, exits_tot_bw,\
             guard_cum_prob, num_exits)
 
         """
@@ -640,9 +408,9 @@ against adversary compromising a range of top guards and exits.'
         exit_substr = 'chaoscomputerclub'
         #exit_substr = 'TorLand'
         #exit_substr = 'noiseexit'
-        (guard_group, exit_group) = network_analysis_get_groups(\
+        (guard_group, exit_group) = network_analysis.get_groups(\
             initial_guards, exits_tot_bw, guard_substr, exit_substr)
-        network_analysis_print_groups(initial_guards, exits_tot_bw,\
+        network_analysis.print_groups(initial_guards, exits_tot_bw,\
             guard_group, exit_group)
         """
             

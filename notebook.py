@@ -189,20 +189,20 @@ for guard_cons_bw, exit_cons_bw in zip(guard_cons_bws, exit_cons_bws):
     guard_exit_compromise_probs.append(guard_exit_comp_prob)
     
 # Output for 1/13 - 3/13
->>> guard_compromise_probs
-[0.3759, 0.46332, 0.54293, 0.57084, 0.59832]
->>> exit_compromise_probs
-[1.0, 1.0, 1.0, 1.0, 0.78898]
->>> guard_exit_compromise_probs
-[0.37018, 0.45306, 0.51329, 0.48526, 0.14866]
+#>>> guard_compromise_probs
+#[0.3759, 0.46332, 0.54293, 0.57084, 0.59832]
+#>>> exit_compromise_probs
+#[1.0, 1.0, 1.0, 1.0, 0.78898]
+#>>> guard_exit_compromise_probs
+#[0.37018, 0.45306, 0.51329, 0.48526, 0.14866]
 
 # Output for 10/12 - 3/13
->>> guard_compromise_probs
-[0.72073, 0.81337, 0.8724, 0.89328, 0.91033]
->>> exit_compromise_probs
-[1.0, 1.0, 1.0, 1.0, 0.967]
->>> guard_exit_compromise_probs
-[0.71705, 0.8086, 0.85816, 0.84255, 0.36203]
+#>>> guard_compromise_probs
+#[0.72073, 0.81337, 0.8724, 0.89328, 0.91033]
+#>>> exit_compromise_probs
+#[1.0, 1.0, 1.0, 1.0, 0.967]
+#>>> guard_exit_compromise_probs
+#[0.71705, 0.8086, 0.85816, 0.84255, 0.36203]
 
 
 guard_compromise_rates = []
@@ -223,6 +223,15 @@ for guard_cons_bw, exit_cons_bw in zip(guard_cons_bws, exit_cons_bws):
     exit_compromise_rates.append(exit_comp_rate)
     guard_exit_compromise_rates.append(guard_exit_comp_rate)
 
+# Output for 10/12 - 3/13
+#>>> guard_compromise_rates
+#[0.08862985766892682, 0.11062274842179097, 0.12933955561725508, 0.1376146406651859, 0.1444471478255787]
+#>>> exit_compromise_rates
+#[0.06573084390343699, 0.044700403904606036, 0.022366468757306524, 0.011749066080196399, 0.0014427535363572598]
+#>>> guard_exit_compromise_rates
+#[0.005790726999064765, 0.004911905395136778, 0.00288130231470657, 0.0016003154956745382, 0.00020887114215571663]
+
+
 
 # Plot output
 import numpy
@@ -242,15 +251,24 @@ matplotlib.pyplot.plot(x, guard_compromise_probs, '-o',
 matplotlib.pyplot.plot(x, exit_compromise_probs, '-s',
     label = 'Prob. of exit compromise', linewidth = 2,
     markersize = 8)
-matplotlib.pyplot.legend(loc='lower left')
+#guard_compromise_rates = []
+#exit_compromise_rates = []
+#guard_exit_compromise_rates = []
+matplotlib.pyplot.plot(x, guard_compromise_rates, '-*',
+    label = 'Avg. guard compromise rate', linewidth = 2,
+    markersize = 8)
+matplotlib.pyplot.plot(x, exit_compromise_rates, '-x',
+    label = 'Avg. exit compromise rate', linewidth = 2,
+    markersize = 8)
+matplotlib.pyplot.legend(loc='center left')
 matplotlib.pyplot.ylim(ymin=0.0)
 matplotlib.pyplot.yticks(numpy.arange(0, 1.1, 0.1))
-matplotlib.pyplot.xlabel('Fraction of 100MBps total bandwidth allocated to guard')
+matplotlib.pyplot.xlabel('Fraction of 100MiBps total bandwidth allocated to guard')
 matplotlib.pyplot.ylabel('Probability')
-matplotlib.pyplot.title('Probability of at least one compromise, 10/12 - 3/13')
+matplotlib.pyplot.title('Compromise probability and rates, 10/12 - 3/13')
 
 # output
-matplotlib.pyplot.savefig('out/analyze/vary_allocation.2012-10--2013-03/vary_allocation.2013-01--03.compromise_probs.pdf')
+matplotlib.pyplot.savefig('out/analyze/vary_allocation.2012-10--2013-03/vary_allocation.2013-01--03.compromise_probs_rates.pdf')
 
 ##### Working out parallelization of network analysis #####
 import os
