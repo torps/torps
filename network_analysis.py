@@ -357,10 +357,12 @@ def get_families(network_state_file):
         family_fprints = family[0]
         tot_cons_bw = 0
         tot_obs_bw = 0
+        tot_avg_bw = 0
         for fprint in family_fprints:
             tot_cons_bw += cons_rel_stats[fprint].bandwidth
             tot_obs_bw += descriptors[fprint].observed_bandwidth
-        families_bw.append((tot_cons_bw, tot_obs_bw, family))
+            tot_avg_bw += descriptors[fprint].average_bandwidth
+        families_bw.append((tot_cons_bw, tot_obs_bw, tot_avg_bw, family))
     families_bw.sort(key = lambda x: x[0], reverse = True)
     return families_bw
         
