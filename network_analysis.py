@@ -349,6 +349,8 @@ def get_families(network_state_file, num_families):
             tot_cons_bw += cons_rel_stats[fprint].bandwidth
             tot_obs_bw += descriptors[fprint].observed_bandwidth
         families_bw.append((tot_cons_bw, tot_obs_bw, family))
+    families_bw.sort(lambda x: x[0], reverse = True)
+    return families_bw
         
         
 def get_groups(initial_guards, exits_tot_bw, guard_substr, exit_substr):
