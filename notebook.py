@@ -274,7 +274,7 @@ print('tot num relays: {2}'.format(sum(nums)))
 
 ##### Create graphs with lines from multiple experiments #####
 # varying user models
-out_dir = 'out/analyze/user_models.2012-10--2013-03.448112-82033-0-adv'
+out_dir = 'out/analyze/user-models.2012-10--2013-03.448112-82033-0-adv'
 out_name = 'user-models.2012-10--2013-03.448112-82033-0-adv'
 in_dirs = ['out/analyze/typical.2012-10--2013-03.448112-82033-0-adv/data',
     'out/analyze/bittorrent.2012-10--2013-03.448112-82033-0-adv/data',

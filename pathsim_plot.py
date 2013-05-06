@@ -32,7 +32,7 @@ def getcdf(data, shownpercentile=0.99):
 def plot_cdf(lines, line_labels, xlabel, title, location, out_pathname):
     """Saves cdf for given lines in out_name."""
     fig = matplotlib.pyplot.figure()
-    markers = ['-v', '-o', '-s', '-*', '-x', '-D']
+    line_style = ['-', '--', '-.', ':']
 
     # histogram
     #ax = fig.add_subplot(111)
@@ -45,8 +45,9 @@ def plot_cdf(lines, line_labels, xlabel, title, location, out_pathname):
         i = 0
         for data_points, line_label in zip(lines, line_labels):
             x, y = getcdf(data_points)
-            matplotlib.pyplot.plot(x, y, markers[i % len(markers)],
-                label = line_label, linewidth = 2, markersize = 8)
+            matplotlib.pyplot.plot(x, y, line_style[i % len(markers)],
+                label = line_label,
+                linewidth = 2 * int(math.floor(i/len(line_style))))
             i += 1
         matplotlib.pyplot.legend(loc=location)
     else:
