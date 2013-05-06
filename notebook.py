@@ -1,14 +1,17 @@
 
-##### Examine user traces #####
+##### Examine user traces an models #####
 # "facebook"
 # "gmailgchat"
 # "gcalgdocs"
 # "websearch"
 # "irc"
 # "bittorrent"
+# 'typical'
+import models
+import cPickle as pickle
 
-tracefile = 'in/traces.pickle'
-tracename = 'bittorrent'
+tracefile = 'in/users2-processed.traces.pickle'
+tracename = 'typical'
 
 #streams =   get_user_model(start_time, end_time, 'in/traces.pickle', tracename)
 
@@ -24,30 +27,12 @@ ports = set()
 for stream in streams:
     ips.add(stream[1])
     ports.add(stream[2])
-    
-# streams to .exit
-exit_ip_streams = []
-for stream in streams:
-    if ('.exit' in stream[1]):
-        exit_ip_streams.append(stream)
-
-# ips to .exit
-exit_ips = []
-for ip in ips:
-    if ('.exit' in ip):
-        exit_ips.append(ip)
-        
+       
 # streams to 9001
 or_port_streams = []
 for stream in streams:
     if (9001 == stream[2]):
         or_port_streams.append(stream)
-# streams to 9001 but not to a .exit
-or_port_nonexit_streams = []
-for stream in streams:
-    if (9001 == stream[2]) and\
-        ('.exit' not in stream[1]):
-        or_port_nonexit_streams.append(stream)
         
 # print streams
 for stream in streams:
@@ -70,81 +55,63 @@ for stream in streams:
         streams_reduced.append(stream)
 
 ### Results ###
-#start_time: 1330646400
-#end_time: 1335830399
+# start_time: 1330646400
+# end_time: 1335830399
 
-#facebook
-# num streams 3/12-4/12: 107081=1755.4/day
-# num streams reduced (5 min. window, /24): 47
-# num streams in trace: 637
-# num streams to .exit: 4
-# num streams to 9001 but not .exit: 0
+# facebook trace
+# num streams in trace: 43
 # ips
-  # num: 91
-  # num w/ .exit: 4
-# ports
-  # num: 3
-  # [80, 9001, 443]
-  # to non-exit: [80, 443]
-  
-#gmailgchat
-# num streams in trace: 516
-# num streams to .exit: 0
-# num streams reduced (5 min. window, /24): 40
-# ips
-    # num: 70
+  # num: 36
 # ports
   # num: 2
   # [80, 443]
   
-#gcalgdocs
-# num streams in trace: 370
-# num streams to .exit: 0
-# num streams reduced (5 min. window, /24): 17
+# gmailgchat trace
+# num streams in trace: 40
 # ips
-    # num: 42
+    # num: 39
+# ports
+  # num: 2
+  # [80, 443]
+  
+# gcalgdocs trace
+# num streams in trace: 17
+# ips
+    # num: 16
 # ports
   # num: 2
   # [80, 443]  
   
-#websearch
-# num streams in trace: 1343
-# num streams to .exit: 0
-# num streams reduced (5 min. window, /24): 138
+# websearch trace
+# num streams in trace: 138
 # ips
-    # num: 170
+    # num: 123
 # ports
   # num: 2
   # [80, 443] 
   
-#irc
+#irc trace
 # num streams in trace: 1
-# num streams to .exit: 0
 # ips
     # num: 1
 # ports
   # num: 1
   # [6697]  
      
-#bittorrent
-# num streams in trace: 355
-# num streams to .exit: 4
-# num streams to 9001 but not .exit: 0
-# num streams reduced (5 min. window, /24): 321
+# bittorrent trace
+# num streams in trace: 188
 # ips
-    # num: 285
+    # num: 171
 # ports
-  # num: 164  
-  
+  # num: 118  
   
 # Model streams / week
 # simple: 1008
 # irc: 1 * 27 * 5 = 135
-# fb: 47*4*5 = 940
-# websearch: 138*4*5 = 2760
-# bittorrent: 321*18*7 = 40446
-#  OR 321*18*2 = 11556  
-# typical (fb*7+gmail*7+gcalgdocs*7+websearch*14) = 7(47 + 40 + 17 + 2*138) = 2660
+# bittorrent: 2*18*188 = 6768 streams / week
+# typical 7*(1 facebook, 1 gcalgdocs, 1 gmailgchat, 2 websearch)
+#   7*(43 + 17 + 40 + 2*138) = 2632 streams/week
+
 ###### 
 
 ##### Finding and plotting the probabilities of compromise for the
@@ -307,12 +274,14 @@ print('tot num relays: {2}'.format(sum(nums)))
 
 ##### Create graphs with lines from multiple experiments #####
 # varying user models
-out_dir = 'out/analyze/user_models.2013-01--03'
-out_name = 'user-models.2013-01--03.288115-76282-0-adv'
-in_dirs = ['out/analyze/typical.2013-01--03.288115-76282-0-adv/data',
-    'out/analyze/bittorrent.2013-01--03.288115-76282-0-adv/data',
-    'out/analyze/irc.2013-01--03.288115-76282-0-adv/data']
-line_labels = ['typical', 'bittorent', 'irc']
+out_dir = 'out/analyze/user_models.2012-10--2013-03.448112-82033-0-adv'
+out_name = 'user-models.2012-10--2013-03.448112-82033-0-adv'
+in_dirs = ['out/analyze/typical.2012-10--2013-03.448112-82033-0-adv/data',
+    'out/analyze/bittorrent.2012-10--2013-03.448112-82033-0-adv/data',
+    'out/analyze/irc.2012-10--2013-03.448112-82033-0-adv/data',
+    'out/analyze/worst.2012-10--2013-03.448112-82033-0-adv/data',
+    'out/analyze/best.2012-10--2013-03.448112-82033-0-adv/data']
+line_labels = ['typical', 'bittorent', 'irc', 'worst', 'best']
 pathnames_list = []
 for in_dir in in_dirs:
     pathnames = []
@@ -369,3 +338,98 @@ for tracename in ['typical', 'irc', 'bittorrent']:
     with open(out_file, 'w') as f:
         for ip in trace_dest_ips[tracename]:
             f.write('{0}\n'.format(ip))
+
+##### Finding families and total bandwidths #####
+import network_analysis
+network_state_file = 'out/network-state/fat/network-state-2013-03/2013-03-31-23-00-00-network_state'
+families_bw = network_analysis.get_families(network_state_file)
+# look at largest by min(obs_bw, avg_bw)
+families_bw.sort(key = lambda x: min(x[1], x[2]), reverse=True)
+#(tot_cons_bw, tot_obs_bw, tot_avg_bw, family)
+with open(network_state_file) as nsf:
+    consensus = pickle.load(nsf)
+    descriptors = pickle.load(nsf)
+print('Tot cons bw\tTot bw est.\tTot obs bw (MiBps)\tTot avg bw (MiBps)\tLargest member')
+for i in xrange(10):
+    cons_bw = families_bw[i][0]
+    # use 10/12-3/13 exit regression coefficients to estimate bw in another way
+    exit_a = 200.49050736264786
+    exit_b = 1029509.7491675143
+    est_cons_bw = float(exit_a * cons_bw + exit_b) / (1024*1024)
+    obs_bw = float(families_bw[i][1])/(1024*1024)
+    avg_bw = float(families_bw[i][2])/(1024*1024)
+    # use relay with largest consensus bw as representative
+    rep = None
+    rep_cons_bw = 0
+    for fprint in families_bw[i][3][0]:
+        if (rep == None) or\
+            (consensus.routers[fprint].bandwidth >= rep_cons_bw):
+            rep = consensus.routers[fprint].nickname
+            rep_cons_bw = consensus.routers[fprint].bandwidth
+    print('{0}\t{1}\t{2}\t{3}\t{4}'.format(cons_bw, est_cons_bw, obs_bw,
+        avg_bw, rep))
+
+# Output
+# 500008	96.584670405	260.515003204	683.53515625	herngaard
+# 601100	115.913728452	115.710887909	5120.0	chaoscomputerclub19
+# 245291	47.8821056277	107.816354752	132.421875	ndnr1
+# 231900	45.3217109743	95.2884531021	6144.0	GoldDragon
+# 171346	33.7436258542	86.9247703552	80.5224609375	Paint
+
+##########
+
+##### Examine exit distributions  for the ip/port pairs in traces #####
+# "irc"
+# "bittorrent"
+# 'typical'
+import os.path
+from pathsim import *
+import cPickle as pickle
+import models
+
+nsf_dir = 'out/network-state/slim/network-state-2013-03'
+network_state_file = '2013-03-31-23-00-00-network_state'
+nsf_pathname = os.path.join(nsf_dir, network_state_file)
+with open(nsf_pathname, 'rb') as nsf:
+    consensus = pickle.load(nsf)
+    descriptors = pickle.load(nsf)
+cons_rel_stats = {}
+for fprint in consensus.relays:
+    if (fprint in descriptors):
+        cons_rel_stats[fprint] = consensus.relays[fprint]
+
+tracefile = 'in/users2-processed.traces.pickle'
+with open(tracefile) as f:
+    obj = pickle.load(f)
+bittorrent_streams = obj.trace['bittorrent']
+typical_streams = []
+for tracename in ["facebook", "gmailgchat", "gcalgdocs", "websearch"]:
+    typical_streams.extend(obj.trace[tracename])
+
+# ips and ports
+bittorrent_dests = set()
+for stream in bittorrent_streams:
+    bittorrent_dests.add((stream[1], stream[2]))
+typical_dests = set()
+for stream in typical_streams:
+    typical_dests.add((stream[1], stream[2]))
+
+# find total consensus bw for each ip:port for a given consensus
+bittorrent_dests_weights = []
+for ip, port in bittorrent_dests:
+    fast = True
+    stable = (port in TorOptions.long_lived_ports)
+    internal = False
+    exits = filter_exits(cons_rel_stats, descriptors, fast, stable, internal,
+        ip, port)
+    weights = get_position_weights(exits, cons_rel_stats, 'e',
+        consensus.bandwidth_weights, consensus.bwweightscale)
+    tot_cons_bw = 0
+    for exit in exits:
+        tot_cons_bw += weights[exit]
+    bittorrent_dests_weights.append((ip, port, tot_cons_bw))
+bittorrent_dests_weights.sort(key = lambda x: x[2])
+# print list
+for ip, port, wt in bittorrent_dests_weights:
+    print('{0}\t{1}\t{2}'.format(ip, port, wt))    
+##########

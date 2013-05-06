@@ -100,9 +100,9 @@ class TorOptions:
     max_unused_open_circuits = 14
     
     # long-lived ports (taken from path-spec.txt)
-    long_lived_ports = [21, 22, 706, 1863, 5050, 5190, 5222, 5223, 6667,\
+    # including 6523, which was added in 0.2.4.12-alpha
+    long_lived_ports = [21, 22, 706, 1863, 5050, 5190, 5222, 5223, 6523, 6667,
         6697, 8300]
-        
     # observed port creates a need active for a limited amount of time
     # given with "#define PREDICTED_CIRCS_RELEVANCE_TIME 60*60" in rephist.c
     # need expires after an hour

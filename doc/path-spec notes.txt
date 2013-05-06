@@ -251,6 +251,7 @@ XXX amj: clarify Wbx vs. Wxb
        this by examining the request's target port, and comparing it to a
        list of "long-lived" ports. (Default: 21, 22, 706, 1863, 5050,
        5190, 5222, 5223, 6667, 6697, 8300.)
+XXX amj: add 6523 to list, which was added in 0.2.4.12-alpha
      - DNS resolves require an exit node whose exit policy is not equivalent
        to "reject *:*".
      - Reverse DNS resolves require a version of Tor with advertised eventdns
