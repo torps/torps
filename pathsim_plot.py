@@ -193,7 +193,7 @@ def compromised_set_plot_times(start_times, end_times, compromise_stats,
     plot_cdf(stats_guard_and_exit_times, line_labels,
         'Time to first compromise (days)',
         'Time to first circuit with guard & exit compromised',
-        'lower right', out_pathname)
+        'upper left', out_pathname)
 
     # cdf for exit bad
     out_filename = out_name + '.exit-comp-times.cdf.pdf'
