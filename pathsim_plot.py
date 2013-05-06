@@ -47,7 +47,7 @@ def plot_cdf(lines, line_labels, xlabel, title, location, out_pathname):
             x, y = getcdf(data_points)
             matplotlib.pyplot.plot(x, y, line_styles[i % len(line_styles)],
                 label = line_label,
-                linewidth = 2 * int(math.floor(i/len(line_styles))) + 1)
+                linewidth = int(math.floor(i/len(line_styles))) + 2)
             i += 1
         matplotlib.pyplot.legend(loc=location)
     else:
