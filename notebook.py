@@ -281,7 +281,7 @@ in_dirs = ['out/analyze/typical.2012-10--2013-03.448112-82033-0-adv/data',
     'out/analyze/irc.2012-10--2013-03.448112-82033-0-adv/data',
     'out/analyze/worst.2012-10--2013-03.448112-82033-0-adv/data',
     'out/analyze/best.2012-10--2013-03.448112-82033-0-adv/data']
-line_labels = ['typical', 'bittorent', 'irc', 'worst', 'best']
+line_labels = ['typical', 'bittorrent', 'irc', 'worst', 'best']
 pathnames_list = []
 for in_dir in in_dirs:
     pathnames = []

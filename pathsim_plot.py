@@ -32,7 +32,8 @@ def getcdf(data, shownpercentile=0.99):
 def plot_cdf(lines, line_labels, xlabel, title, location, out_pathname):
     """Saves cdf for given lines in out_name."""
     fig = matplotlib.pyplot.figure()
-    
+    markers = ['-v', '-o', '-s', '-*', '-x', '-D']
+
     # histogram
     #ax = fig.add_subplot(111)
     #ax.hist(lines, bins=30)
@@ -41,9 +42,10 @@ def plot_cdf(lines, line_labels, xlabel, title, location, out_pathname):
     ##matplotlib.pyplot.hist(lines)    
     
     if (line_labels != None):
-        for data_points, line_label in zip(lines, line_labels):
+        for i, data_points, line_label in enumerate(zip(lines, line_labels)):
             x, y = getcdf(data_points)
-            matplotlib.pyplot.plot(x, y, label = line_label)
+            matplotlib.pyplot.plot(x, y, markers[i % len(markers)],
+                label = line_label, linewidth = 2, markersize = 8)
         matplotlib.pyplot.legend(loc=location)
     else:
         x, y = getcdf(lines)
@@ -182,7 +184,7 @@ def compromised_set_plot_times(start_times, end_times, compromise_stats,
     plot_cdf(stats_guard_and_exit_times, line_labels,
         'Time to first compromise (days)',
         'Time to first circuit with guard & exit compromised',
-        'upper left', out_pathname)
+        'lower right', out_pathname)
 
     # cdf for exit bad
     out_filename = out_name + '.exit-comp-times.cdf.pdf'
@@ -190,7 +192,7 @@ def compromised_set_plot_times(start_times, end_times, compromise_stats,
     plot_cdf(stats_exit_times, line_labels,
         'Time to first compromise (days)',
         'Time to first circuit with exit compromised',
-        'upper left', out_pathname)
+        'lower right', out_pathname)
                         
     # cdf for guard bad
     out_filename = out_name + '.guard-comp-times.cdf.pdf'
@@ -198,7 +200,7 @@ def compromised_set_plot_times(start_times, end_times, compromise_stats,
     plot_cdf(stats_guard_times, line_labels,
         'Time to first compromise (days)',
         'Time to first circuit with guard compromised',
-        'upper left', out_pathname)
+        'lower right', out_pathname)
 
                 
 def compromised_set_plot(pathnames_list, line_labels, out_dir, out_name):
