@@ -42,10 +42,12 @@ def plot_cdf(lines, line_labels, xlabel, title, location, out_pathname):
     ##matplotlib.pyplot.hist(lines)    
     
     if (line_labels != None):
-        for i, data_points, line_label in enumerate(zip(lines, line_labels)):
+        i = 0
+        for data_points, line_label in zip(lines, line_labels):
             x, y = getcdf(data_points)
             matplotlib.pyplot.plot(x, y, markers[i % len(markers)],
                 label = line_label, linewidth = 2, markersize = 8)
+            i += 1
         matplotlib.pyplot.legend(loc=location)
     else:
         x, y = getcdf(lines)
