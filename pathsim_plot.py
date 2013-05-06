@@ -44,7 +44,11 @@ def plot_cdf(lines, line_labels, xlabel, title, location, out_pathname):
     if (line_labels != None):
         i = 0
         for data_points, line_label in zip(lines, line_labels):
-            x, y = getcdf(data_points)
+            # cut off points with largest value
+            data_max = max(data_points)
+            data_shown = filter(lambda x: x < data_max, data_points)
+            shown_percentile = float(len(data_shown)) / len(data_points)
+            x, y = getcdf(data_points, shown_percentile)
             matplotlib.pyplot.plot(x, y, line_styles[i % len(line_styles)],
                 label = line_label,
                 linewidth = int(math.floor(i/len(line_styles))) + 2)
@@ -112,21 +116,21 @@ def compromised_set_plot_rates(compromise_stats, line_labels, out_dir,
     # cdf of both bad
     out_filename = out_name + '.exit-guard-comp-rates.cdf.pdf' 
     out_pathname = os.path.join(out_dir, out_filename)
-    plot_cdf(stats_frac_both_bad, line_labels, 'Fraction of paths',
+    plot_cdf(stats_frac_both_bad, line_labels, 'Fraction of streams',
         'Fraction of connections with guard & exit compromised',
         'lower right', out_pathname)                  
 
     # cdf of exit bad
     out_filename = out_name + '.exit-comp-rates.cdf.pdf'
     out_pathname = os.path.join(out_dir, out_filename)                           
-    plot_cdf(stats_frac_exit_bad, line_labels, 'Fraction of paths',
+    plot_cdf(stats_frac_exit_bad, line_labels, 'Fraction of streams',
         'Fraction of connections with exit compromised',
         'lower right', out_pathname)
 
     # cdf of guard bad
     out_filename = out_name + '.guard-comp-rates.cdf.pdf' 
     out_pathname = os.path.join(out_dir, out_filename)                           
-    plot_cdf(stats_frac_guard_bad, line_labels, 'Fraction of paths',
+    plot_cdf(stats_frac_guard_bad, line_labels, 'Fraction of streams',
         'Fraction of connections with guard compromised',
         'lower right', out_pathname)
 
