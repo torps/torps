@@ -45,7 +45,7 @@ def plot_cdf(lines, line_labels, xlabel, title, location, out_pathname):
         i = 0
         for data_points, line_label in zip(lines, line_labels):
             x, y = getcdf(data_points)
-            matplotlib.pyplot.plot(x, y, line_style[i % len(markers)],
+            matplotlib.pyplot.plot(x, y, line_style[i % len(line_style)],
                 label = line_label,
                 linewidth = 2 * int(math.floor(i/len(line_style))))
             i += 1
