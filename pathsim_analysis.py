@@ -10,7 +10,7 @@ from pathsim import *
 ##import matplotlib.mlab
 #import math
 import multiprocessing
-import network_analysis
+#import network_analysis
 
 
 def compromised_set_get_compromise_rates(pathnames):
@@ -366,7 +366,6 @@ def read_compromised_relays_file(in_file):
 
 if __name__ == '__main__':
     usage = 'Usage: pathsim_analysis.py [command]\nCommands:\n\
-\tnetwork [in_dir]:  Analyze the network status files in in_dir.\n\
 \tsimulation-set [logs_in_dir] [out_dir] [out_name] [set_in_file]: Do analysis against compromised set. Use simulation logs in logs_in_dir and IPs in set_in_file, and write statistics to files in out_dir in files with names containing out_name. If set_in_file omitted, the compact"relay-adv" format is\
 expected.\n\
 \tsimulation-top [logs_in_dir] [top_guards_in_file] [top_exits_in_file] [out_dir] [out_name]: Do analysis\
@@ -376,43 +375,8 @@ against adversary compromising a range of top guards and exits.'
         sys.exit(1)
         
     command = sys.argv[1]
-    if (command != 'network') and (command != 'simulation-set') and\
-        (command != 'simulation-top'):
+    if (command != 'simulation-set') and (command != 'simulation-top'):
         print(usage)
-    elif (command == 'network'):
-        if (len(sys.argv) < 3):
-            print(usage)
-            sys.exit(1)
-        in_dir = sys.argv[2]
-        print('in_dir: {0}'.format(in_dir))
-        
-        network_state_files = []
-        for dirpath, dirnames, filenames in os.walk(in_dir, followlinks=True):
-            for filename in filenames:
-                if (filename[0] != '.'):
-                    network_state_files.append(os.path.join(dirpath,filename))
-        #ip = '74.125.131.105'
-        #port = 80
-        guard_cum_prob = 1
-        num_exits = 1000
-        (initial_guards, exits_tot_bw) = \
-            network_analysis.get_guards_and_exits(network_state_files)
-        network_analysis.print_guards_and_exits(initial_guards, exits_tot_bw,\
-            guard_cum_prob, num_exits)
-
-        """
-        # some group substrings that have been of interest            
-        guard_substr = 'TORy'    
-        #guard_substr = 'PPrivCom'
-        #guard_substr = 'chaoscomputerclub'
-        exit_substr = 'chaoscomputerclub'
-        #exit_substr = 'TorLand'
-        #exit_substr = 'noiseexit'
-        (guard_group, exit_group) = network_analysis.get_groups(\
-            initial_guards, exits_tot_bw, guard_substr, exit_substr)
-        network_analysis.print_groups(initial_guards, exits_tot_bw,\
-            guard_group, exit_group)
-        """
             
     elif (command == 'simulation-set'):
         if (len(sys.argv) < 5):

@@ -401,35 +401,46 @@ for fprint in consensus.relays:
 tracefile = 'in/users2-processed.traces.pickle'
 with open(tracefile) as f:
     obj = pickle.load(f)
-bittorrent_streams = obj.trace['bittorrent']
-typical_streams = []
+streams = dict()
+streams['bittorrent'] = obj.trace['bittorrent']
+streams['typical'] = []
 for tracename in ["facebook", "gmailgchat", "gcalgdocs", "websearch"]:
-    typical_streams.extend(obj.trace[tracename])
+    streams['typical'].extend(obj.trace[tracename])
+streams['irc'] = obj.trace['irc']
 
 # ips and ports
-bittorrent_dests = set()
-for stream in bittorrent_streams:
-    bittorrent_dests.add((stream[1], stream[2]))
-typical_dests = set()
-for stream in typical_streams:
-    typical_dests.add((stream[1], stream[2]))
+dests = dict()
+for model in ['bittorrent', 'typical', 'irc']:
+    dests[model] = set()
+    for stream in streams[model]:
+        dests[model].add((stream[1], stream[2]))
 
-# find total consensus bw for each ip:port for a given consensus
-bittorrent_dests_weights = []
-for ip, port in bittorrent_dests:
+# find total consensus bw for a given ip:port
+def get_exit_bw_for_dest(ip, port, cons_rel_stats, descriptors, bw_weights,
+    bwweightscale):
     fast = True
     stable = (port in TorOptions.long_lived_ports)
     internal = False
     exits = filter_exits(cons_rel_stats, descriptors, fast, stable, internal,
         ip, port)
     weights = get_position_weights(exits, cons_rel_stats, 'e',
-        consensus.bandwidth_weights, consensus.bwweightscale)
+        bw_weights, bwweightscale)
     tot_cons_bw = 0
     for exit in exits:
         tot_cons_bw += weights[exit]
-    bittorrent_dests_weights.append((ip, port, tot_cons_bw))
-bittorrent_dests_weights.sort(key = lambda x: x[2])
+    return tot_cons_bw
+
+# find total consensus bw for each ip:port in given consensus
+dests_weights = dict()
+for model in ['bittorrent', 'typical', 'irc']:
+    dests_weights[model] = []
+    for ip, port in dests[model]:
+        tot_cons_bw = get_exit_bw_for_dest(ip, port, cons_rel_stats,
+            descriptors, consensus.bandwidth_weights, consensus.bwweightscale)
+        dests_weights[model].append((ip, port, tot_cons_bw))
+    dests_weights[model].sort(key = lambda x: x[2])
 # print list
-for ip, port, wt in bittorrent_dests_weights:
+model = 'bittorrent'
+for ip, port, wt in dests_weights[model]:
     print('{0}\t{1}\t{2}'.format(ip, port, wt))    
 ##########

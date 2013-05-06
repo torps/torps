@@ -645,3 +645,31 @@ if __name__ == '__main__':
 # guard_a = 191.94548955003913
 # guard_b = 1368281.674385923
 # guard_r_squared = 0.70610513990802581
+
+#        in_dir = 'out/network-state/slim/ns-2012-10--2013-03''        
+#        network_state_files = []
+#        for dirpath, dirnames, filenames in os.walk(in_dir, followlinks=True):
+#            for filename in filenames:
+#                if (filename[0] != '.'):
+#                    network_state_files.append(os.path.join(dirpath,filename))
+#        guard_cum_prob = 1
+#        num_exits = 1000
+#        (initial_guards, exits_tot_bw) = \
+#            get_guards_and_exits(network_state_files)
+#        print_guards_and_exits(initial_guards, exits_tot_bw, guard_cum_prob,
+#            num_exits)
+
+        """
+        # some group substrings that have been of interest            
+        guard_substr = 'TORy'    
+        #guard_substr = 'PPrivCom'
+        #guard_substr = 'chaoscomputerclub'
+        exit_substr = 'chaoscomputerclub'
+        #exit_substr = 'TorLand'
+        #exit_substr = 'noiseexit'
+        (guard_group, exit_group) = network_analysis.get_groups(\
+            initial_guards, exits_tot_bw, guard_substr, exit_substr)
+        network_analysis.print_groups(initial_guards, exits_tot_bw,\
+            guard_group, exit_group)
+        """
+
