@@ -1732,19 +1732,10 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
         adv_guard_cons_bw = float(sys.argv[7]) if len(sys.argv) >= 8 else 0
         adv_exit_cons_bw = float(sys.argv[8]) if len(sys.argv) >= 9 else 0
         adv_time = int(sys.argv[9]) if len(sys.argv) >= 10 else 0
-        path_sel_alg = sys.argv[10] if len(sys.argv) >= 11 else 'tor'
-        if (path_sel_alg == 'cat') or (path_sel_alg == 'vcs'):
-            congfilename = sys.argv[11] if len(sys.argv) >= 12 else None
-            pdelfilename = sys.argv[12] if len(sys.argv) >= 13 else None
-            num_adv_guards = int(sys.argv[13]) if len(sys.argv) >= 14 else 1
-        elif (path_sel_alg == 'tor'):
-            congfilename = None
-            pdelfilename = None
-            num_adv_guards = int(sys.argv[11]) if len(sys.argv) >= 12 else 1
-        else:
-            print(usage)
-            sys.exit(1)
-            
+        num_adv_guards = int(sys.argv[10]) if len(sys.argv) >= 11 else 1
+        path_sel_alg = sys.argv[11] if len(sys.argv) >= 12 else 'tor'
+        congfilename = sys.argv[12] if len(sys.argv) >= 13 else None
+        pdelfilename = sys.argv[13] if len(sys.argv) >= 14 else None
         
         network_state_files = []
         for dirpath, dirnames, filenames in os.walk(network_state_files_dir,\
