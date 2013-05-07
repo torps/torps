@@ -18,7 +18,7 @@ TRACEFILE=$BASE_DIR/in/users2-processed.traces.pickle
 PATH_ALG=cat
 CONGFILE=$BASE_DIR/in/congestion.cator.pickle
 
-EXP_NAME=$USERMODEL.$DATE_RANGE.$ADV_GUARD_BW-$ADV_EXIT_BW-$ADV_TIME-adv.cat
+EXP_NAME=$USERMODEL.$DATE_RANGE.$ADV_GUARD_BW-$NUM_ADV_GUARDS-$ADV_EXIT_BW-$ADV_TIME-adv.cat
 NSF_DIR=$BASE_DIR/out/network-state/slim-filtered/ns-$DATE_RANGE
 OUT_DIR=$BASE_DIR/out/simulate/$EXP_NAME
 mkdir -p $OUT_DIR
