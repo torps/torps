@@ -452,3 +452,54 @@ model = 'bittorrent'
 for ip, port, wt in dests_weights[model]:
     print('{0}\t{1}\t{2}'.format(ip, port, wt))    
 ##########
+
+##### Calculating network statistics #####
+import pathsim
+import os
+in_dir = '/mnt/ram/out/network-state/fat/network-state-2013-03'
+num_processes = 40
+# total guard cons bw
+# total (non-port) exit bw (maybe 80)
+# total worst-port / best-port exit bw (6523 / 443, maybe 80)
+# total bw for ip/port pairs in streams
+# guard churn, hibernation
+def get_network_stats(network_state_file):
+    """Returns stats on guard bw and exit bw."""
+    if (network_state_file == None):
+        return None
+    with open(nsf_pathname, 'rb') as nsf:
+        consensus = pickle.load(nsf)
+        descriptors = pickle.load(nsf)
+        hibernating_statuses = pickle.load(nsf)    
+    cons_rel_stats = {}
+    # remove relays without a descriptor
+    for fprint in consensus.relays:
+        if (fprint in descriptors):
+            cons_rel_stats[fprint] = consensus.relays[fprint]
+    # remove hibernating relays (ignore hibernating during period)
+    hibernating_status = {}
+    while (hibernating_statuses) and\
+        (hibernating_statuses[-1][0] <= 0):
+        hs = hibernating_statuses.pop()
+        hibernating_status[hs[1]] = hs[2]
+    # get non-hibernating guards
+    guards = pathsim.filter_guards(cons_rel_stats, descriptors)
+    # further use circuit-level filters that apply to all circuits
+    stable = False
+    guards = filter(lambda x: (stem.Flag.FAST in cons_rel_stats[x].flags) and\
+        ((not stable) or (stem.Flag.STABLE in rel_stat.flags)) and\
+        (hibernating_status[x] == False),
+        guards)
+    # calculate total guard consensus weight, obs bw, and adv bw
+    tot_guard_cons_bw = 0
+    tot_guard_avg_bw = 0
+    tot_guard_obs_bw = 0
+    for guard in guards:
+        tot_guard_cons_bw += cons_rel_stats[guard].bandwidth
+        tot_guard_avg_bw += descriptors[guard].average_bandwidth
+        tot_guard_obs_bw += descriptors[guard].observed_bandwidth
+    return (tot_guard_cons_bw, tot_guard_avg_bw, tot_guard_obs_bw)
+
+network_stats = network_analysis.map_files(in_dir, get_network_stats,
+    num_processes)
+##########

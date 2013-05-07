@@ -521,9 +521,7 @@ def get_exit_bws_helper(ns_file):
 
 def map_files(in_dir, map_files_map_fn, num_processes):
     """Applies map_files_map_fn to files in in_dir using num_processes in
-     parallel and returns array of results. Results assumed to be two lists.
-     Useful for getting all consensus and observed bandwidths from network
-    state files for later regression.
+     parallel and returns array of results.
     Inputs:
         in_dir: directory containing network state files to examine
         map_files_map_fn: function taking filename and returning some a pair
@@ -537,14 +535,22 @@ def map_files(in_dir, map_files_map_fn, num_processes):
                 network_state_files.append(os.path.join(dirpath,filename))
     
     network_state_files.sort(key = lambda x: os.path.basename(x))
-    cons_bws = []
-    obs_bws = []    
     
     chunksize = int(math.floor(float(len(network_state_files)) /\
         num_processes))
     pool = multiprocessing.Pool(num_processes)
-    process_bws = pool.map(map_files_map_fn, network_state_files, chunksize)
+    output = pool.map(map_files_map_fn, network_state_files, chunksize)
     pool.close()
+
+    return output
+    
+    
+def get_guard_regression(in_dir, num_processes):
+    """Uses exit relay to calculate regression coefficients for
+    consensus bandwidth to observed bandwidth."""
+
+    process_bws = map_files(in_dir, get_guard_bws_helper, num_processes)
+    
     print('Number of individual bw lists: {0}'.format(len(process_bws)))
     print('Max cons bw list length: {0}'.format(max(map(lambda x: len(x[0]),
         process_bws))))
@@ -554,7 +560,8 @@ def map_files(in_dir, map_files_map_fn, num_processes):
         process_bws))))
     print('Min obs bw list length: {0}'.format(min(map(lambda x: len(x[1]),
         process_bws))))
-
+    cons_bws = []
+    obs_bws = []
     for process_cons_bws, process_obs_bws in process_bws:
         cons_bws.extend(process_cons_bws)
         obs_bws.extend(process_obs_bws)
@@ -562,17 +569,8 @@ def map_files(in_dir, map_files_map_fn, num_processes):
     print('len(obs_bws): {0}'.format(len(obs_bws)))    
     print('First elements: {0}; {1}'.format(cons_bws[0],
         obs_bws[0]))
-    return (cons_bws, obs_bws)
     
-    
-def get_guard_regression(in_dir, num_processes):
-    """Uses exit relay to calculate regression coefficients for
-    consensus bandwidth to observed bandwidth."""
-
-    (guards_cons_bws, guards_obs_bws) =  map_files(in_dir, 
-        get_guard_bws_helper, num_processes)
-    (a, b, r_squared) = linear_regression(guards_cons_bws,
-        guards_obs_bws)
+    (a, b, r_squared) = linear_regression(cons_bws, obs_bws)
         
     return (a, b, r_squared)
     
@@ -659,17 +657,17 @@ if __name__ == '__main__':
 #        print_guards_and_exits(initial_guards, exits_tot_bw, guard_cum_prob,
 #            num_exits)
 
-        """
-        # some group substrings that have been of interest            
-        guard_substr = 'TORy'    
-        #guard_substr = 'PPrivCom'
-        #guard_substr = 'chaoscomputerclub'
-        exit_substr = 'chaoscomputerclub'
-        #exit_substr = 'TorLand'
-        #exit_substr = 'noiseexit'
-        (guard_group, exit_group) = network_analysis.get_groups(\
-            initial_guards, exits_tot_bw, guard_substr, exit_substr)
-        network_analysis.print_groups(initial_guards, exits_tot_bw,\
-            guard_group, exit_group)
-        """
+    """
+    # some group substrings that have been of interest            
+    guard_substr = 'TORy'    
+    #guard_substr = 'PPrivCom'
+    #guard_substr = 'chaoscomputerclub'
+    exit_substr = 'chaoscomputerclub'
+    #exit_substr = 'TorLand'
+    #exit_substr = 'noiseexit'
+    (guard_group, exit_group) = network_analysis.get_groups(\
+        initial_guards, exits_tot_bw, guard_substr, exit_substr)
+    network_analysis.print_groups(initial_guards, exits_tot_bw,\
+        guard_group, exit_group)
+    """
 
