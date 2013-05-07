@@ -456,7 +456,11 @@ for ip, port, wt in dests_weights[model]:
 ##### Calculating network statistics #####
 import pathsim
 import os
-in_dir = '/mnt/ram/out/network-state/fat/network-state-2013-03'
+import cPickle as pickle
+import numpypy # to allow pypy to be used
+import network_analysis
+import stem
+in_dir = '/mnt/ram/out/network-state/fat/ns-2012-10--2013-03'
 num_processes = 40
 # total guard cons bw
 # total (non-port) exit bw (maybe 80)
@@ -467,15 +471,15 @@ def get_network_stats(network_state_file):
     """Returns stats on guard bw and exit bw."""
     if (network_state_file == None):
         return None
-    with open(nsf_pathname, 'rb') as nsf:
+    with open(network_state_file, 'rb') as nsf:
         consensus = pickle.load(nsf)
         descriptors = pickle.load(nsf)
         hibernating_statuses = pickle.load(nsf)    
     cons_rel_stats = {}
     # remove relays without a descriptor
-    for fprint in consensus.relays:
+    for fprint in consensus.routers:
         if (fprint in descriptors):
-            cons_rel_stats[fprint] = consensus.relays[fprint]
+            cons_rel_stats[fprint] = consensus.routers[fprint]
     # remove hibernating relays (ignore hibernating during period)
     hibernating_status = {}
     while (hibernating_statuses) and\
@@ -498,7 +502,7 @@ def get_network_stats(network_state_file):
         tot_guard_cons_bw += cons_rel_stats[guard].bandwidth
         tot_guard_avg_bw += descriptors[guard].average_bandwidth
         tot_guard_obs_bw += descriptors[guard].observed_bandwidth
-    return (tot_guard_cons_bw, tot_guard_avg_bw, tot_guard_obs_bw)
+    return (network_state_file, tot_guard_cons_bw, tot_guard_avg_bw, tot_guard_obs_bw)
 
 network_stats = network_analysis.map_files(in_dir, get_network_stats,
     num_processes)
