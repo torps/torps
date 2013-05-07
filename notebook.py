@@ -313,7 +313,7 @@ in_dirs = ['out/analyze/typical.2012-10--2013-03.903352-169200-0-adv/data',
     'out/analyze/typical.2012-10--2013-03.106682-16657-0-adv/data',
     'out/analyze/typical.2012-10--2013-03.38396-3582-0-adv/data',
     'out/analyze/typical.2012-10--2013-03.448112-82033-1354320000-adv/data']
-line_labels = ['200 MiB/s', '100 MiB/s', '50 MiB/s', '25 MiB/s', '10 MiB/s', 'relay entry day 60']
+line_labels = ['200 MiB/s', '100 MiB/s', '50 MiB/s', '25 MiB/s', '10 MiB/s', 'relay entry day 62']
 pathnames_list = []
 for in_dir in in_dirs:
     pathnames = []
