@@ -111,6 +111,14 @@ for stream in streams:
 # bittorrent: 2*18*188 = 6768 streams / week
 # typical 7*(1 facebook, 1 gcalgdocs, 1 gmailgchat, 2 websearch)
 #   7*(43 + 17 + 40 + 2*138) = 2632 streams/week
+# Model IPs:
+#  typical: 205
+#  irc: 1
+#  bittorrent: 171
+# Model Ports:
+#  typical: 2
+#  irc: 1
+#  bittorrent: 118
 
 ###### 
 
@@ -274,14 +282,14 @@ print('tot num relays: {2}'.format(sum(nums)))
 
 ##### Create graphs with lines from multiple experiments #####
 # varying user models
-out_dir = 'out/analyze/user_models.2012-10--2013-03.448112-82033-0-adv'
+out_dir = 'out/analyze/user-models.2012-10--2013-03.448112-82033-0-adv'
 out_name = 'user-models.2012-10--2013-03.448112-82033-0-adv'
 in_dirs = ['out/analyze/typical.2012-10--2013-03.448112-82033-0-adv/data',
     'out/analyze/bittorrent.2012-10--2013-03.448112-82033-0-adv/data',
     'out/analyze/irc.2012-10--2013-03.448112-82033-0-adv/data',
     'out/analyze/worst.2012-10--2013-03.448112-82033-0-adv/data',
     'out/analyze/best.2012-10--2013-03.448112-82033-0-adv/data']
-line_labels = ['typical', 'bittorent', 'irc', 'worst', 'best']
+line_labels = ['typical', 'bittorrent', 'irc', 'worst', 'best']
 pathnames_list = []
 for in_dir in in_dirs:
     pathnames = []
@@ -292,20 +300,28 @@ for in_dir in in_dirs:
     pathnames_list.append(pathnames)
 pathsim_plot.compromised_set_plot(pathnames_list, line_labels, out_dir, out_name)
 
-# varying total bandwidth
+# varying total bandwidth and entry time
+# using regression from 3-month consensuses (1/13-3/13)
 # 	200: 174762666.0 / 34952533; 579920 / 157244
 #	100: 87381333 / 17476266; 288115 / 76282
 #	50: 43690666 / 8738133; 142213 / 35801
 #	25: 21845333 / 4369066; 69262 / 15560
 #	10: 8738133 / 1747626; 25492 / 3416
-out_dir = 'out/analyze/total_bandwidth.2013-01--03'
-out_name = 'total-bandwidth.2013-01--03'
-in_dirs = ['out/analyze/typical.2013-01--03.579920-157244-0-adv/data',
-    'out/analyze/typical.2013-01--03.288115-76282-0-adv/data',
-    'out/analyze/typical.2013-01--03.142213-35801-0-adv/data',
-    'out/analyze/typical.2013-01--03.69262-15560-0-adv/data',
-    'out/analyze/typical.2013-01--03.25492-3416-0-adv/data']
-line_labels = ['200 MBps', '100 MBps', '50 MBps', '25 MBps', '10 MBps']
+# using regression from 6-month consensuses (10/12-3/13)
+# 	200: 174762666.0 / 34952533; 903352 / 169200
+#	100: 87381333 / 17476266; 448112 / 82033
+#	50: 43690666 / 8738133; 220492 / 38449
+#	25: 21845333 / 4369066; 106682 / 16657
+#	10: 8738133 / 1747626; 38396 / 3582
+out_dir = 'out/analyze/vary-bandwidth.2012-10--2013-03'
+out_name = 'vary-bandwidth.2012-10--2013-03'
+in_dirs = ['out/analyze/typical.2012-10--2013-03.903352-169200-0-adv/data',
+    'out/analyze/typical.2012-10--2013-03.448112-82033-0-adv/data',
+    'out/analyze/typical.2012-10--2013-03.220492-38449-0-adv/data',
+    'out/analyze/typical.2012-10--2013-03.106682-16657-0-adv/data',
+    'out/analyze/typical.2012-10--2013-03.38396-3582-0-adv/data',
+    'out/analyze/typical.2012-10--2013-03.448112-82033-1354320000-adv/data']
+line_labels = ['200 MiB/s', '100 MiB/s', '50 MiB/s', '25 MiB/s', '10 MiB/s', 'relay entry day 62']
 pathnames_list = []
 for in_dir in in_dirs:
     pathnames = []
@@ -414,6 +430,16 @@ for model in ['bittorrent', 'typical', 'irc']:
     dests[model] = set()
     for stream in streams[model]:
         dests[model].add((stream[1], stream[2]))
+ips = dict()
+for model in ['bittorrent', 'typical', 'irc']:
+    ips[model] = set()
+    for stream in streams[model]:
+        ips[model].add(stream[1])
+ports = dict()
+for model in ['bittorrent', 'typical', 'irc']:
+    ports[model] = set()
+    for stream in streams[model]:
+        ports[model].add(stream[2])
 
 # find total consensus bw for a given ip:port
 def get_exit_bw_for_dest(ip, port, cons_rel_stats, descriptors, bw_weights,
@@ -443,4 +469,69 @@ for model in ['bittorrent', 'typical', 'irc']:
 model = 'bittorrent'
 for ip, port, wt in dests_weights[model]:
     print('{0}\t{1}\t{2}'.format(ip, port, wt))    
+##########
+
+##### Calculating network statistics #####
+import pathsim
+import os
+import cPickle as pickle
+import numpypy # to allow pypy to be used
+import network_analysis
+import stem
+in_dir = '/mnt/ram/out/network-state/fat/ns-2012-10--2013-03'
+num_processes = 40
+# total guard cons bw
+# total (non-port) exit bw (maybe 80)
+# total worst-port / best-port exit bw (6523 / 443, maybe 80)
+# total bw for ip/port pairs in streams
+# guard churn, hibernation
+def get_network_stats(network_state_file):
+    """Returns stats on guard bw and exit bw."""
+    if (network_state_file == None):
+        return None
+    with open(network_state_file, 'rb') as nsf:
+        consensus = pickle.load(nsf)
+        descriptors = pickle.load(nsf)
+        hibernating_statuses = pickle.load(nsf)    
+    cons_rel_stats = {}
+    # remove relays without a descriptor
+    for fprint in consensus.routers:
+        if (fprint in descriptors):
+            cons_rel_stats[fprint] = consensus.routers[fprint]
+    # remove hibernating relays (ignore hibernating during period)
+    hibernating_status = {}
+    while (hibernating_statuses) and\
+        (hibernating_statuses[-1][0] <= 0):
+        hs = hibernating_statuses.pop()
+        hibernating_status[hs[1]] = hs[2]
+    # get non-hibernating guards
+    guards = pathsim.filter_guards(cons_rel_stats, descriptors)
+    # further use circuit-level filters that apply to all circuits
+    stable = False
+    guards = filter(lambda x: (stem.Flag.FAST in cons_rel_stats[x].flags) and\
+        ((not stable) or (stem.Flag.STABLE in rel_stat.flags)) and\
+        (hibernating_status[x] == False),
+        guards)
+    # calculate total guard consensus weight, obs bw, and adv bw
+    tot_guard_cons_bw = 0
+    tot_guard_avg_bw = 0
+    tot_guard_obs_bw = 0
+    for guard in guards:
+        tot_guard_cons_bw += cons_rel_stats[guard].bandwidth
+        tot_guard_avg_bw += descriptors[guard].average_bandwidth
+        tot_guard_obs_bw += descriptors[guard].observed_bandwidth
+    return (network_state_file, tot_guard_cons_bw, tot_guard_avg_bw, tot_guard_obs_bw)
+
+network_stats = network_analysis.map_files(in_dir, get_network_stats,
+    num_processes)
+##########
+
+##### Splitting guard bandwidth among multiple relays #####
+#	100: 87381333 / 17476266; 448112 / 82033
+# regression parameters from 10/12 - 3/13
+# guard_a = 191.94548955003913
+# guard_b = 1368281.674385923
+num_adv_guards = 3
+#>>> (87381333 / float(num_adv_guards) - guard_b) / guard_a
+#144618.29444748428
 ##########
