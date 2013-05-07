@@ -525,3 +525,13 @@ def get_network_stats(network_state_file):
 network_stats = network_analysis.map_files(in_dir, get_network_stats,
     num_processes)
 ##########
+
+##### Splitting guard bandwidth among multiple relays #####
+#	100: 87381333 / 17476266; 448112 / 82033
+# regression parameters from 10/12 - 3/13
+# guard_a = 191.94548955003913
+# guard_b = 1368281.674385923
+num_adv_guards = 3
+#>>> (87381333 / float(num_adv_guards) - guard_b) / guard_a
+#144618.29444748428
+##########
