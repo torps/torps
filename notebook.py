@@ -111,6 +111,14 @@ for stream in streams:
 # bittorrent: 2*18*188 = 6768 streams / week
 # typical 7*(1 facebook, 1 gcalgdocs, 1 gmailgchat, 2 websearch)
 #   7*(43 + 17 + 40 + 2*138) = 2632 streams/week
+# Model IPs:
+#  typical: 205
+#  irc: 1
+#  bittorrent: 171
+# Model Ports:
+#  typical: 2
+#  irc: 1
+#  bittorrent: 118
 
 ###### 
 
@@ -422,6 +430,16 @@ for model in ['bittorrent', 'typical', 'irc']:
     dests[model] = set()
     for stream in streams[model]:
         dests[model].add((stream[1], stream[2]))
+ips = dict()
+for model in ['bittorrent', 'typical', 'irc']:
+    ips[model] = set()
+    for stream in streams[model]:
+        ips[model].add(stream[1])
+ports = dict()
+for model in ['bittorrent', 'typical', 'irc']:
+    ports[model] = set()
+    for stream in streams[model]:
+        ports[model].add(stream[2])
 
 # find total consensus bw for a given ip:port
 def get_exit_bw_for_dest(ip, port, cons_rel_stats, descriptors, bw_weights,
