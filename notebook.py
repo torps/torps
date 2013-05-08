@@ -213,7 +213,7 @@ import numpy
 import matplotlib
 matplotlib.use('PDF')
 import matplotlib.pyplot
-fig = matplotlib.pyplot.figure()
+fig = matplotlib.pyplot.figure(figsize = (8, 4))
 
 # fraction of bandwidth allocated to guard
 x = [1.0/2.0, 2.0/3.0, 5.0/6.0, 10.0/11.0, 50.0/51.0]
@@ -235,15 +235,15 @@ matplotlib.pyplot.plot(x, guard_compromise_rates, '-*',
 matplotlib.pyplot.plot(x, exit_compromise_rates, '-x',
     label = 'Avg. exit compromise rate', linewidth = 2,
     markersize = 8)
-matplotlib.pyplot.legend(loc='center left')
+matplotlib.pyplot.legend(loc='center left', fontsize = 'x-large')
 matplotlib.pyplot.ylim(ymin=0.0)
 matplotlib.pyplot.yticks(numpy.arange(0, 1.1, 0.1))
-matplotlib.pyplot.xlabel('Fraction of 100MiBps total bandwidth allocated to guard')
-matplotlib.pyplot.ylabel('Probability')
-matplotlib.pyplot.title('Compromise probability and rates, 10/12 - 3/13')
+matplotlib.pyplot.xlabel('Fraction of 100MiBps total bandwidth allocated to guard', fontsize = 'x-large')
+matplotlib.pyplot.ylabel('Probability', fontsize = 'x-large')
+#matplotlib.pyplot.title('Compromise probability and rates, 10/12 - 3/13')
 
 # output
-matplotlib.pyplot.savefig('out/analyze/vary_allocation.2012-10--2013-03/vary_allocation.2013-01--03.compromise_probs_rates.pdf')
+matplotlib.pyplot.savefig('out/analyze/vary_allocation.2012-10--2013-03/vary_allocation.2012-10--2013-03.compromise_probs_rates.pdf')
 
 ##### Working out parallelization of network analysis #####
 import os
@@ -298,7 +298,7 @@ for in_dir in in_dirs:
             if (filename[0] != '.'):
                 pathnames.append(os.path.join(dirpath,filename))
     pathnames_list.append(pathnames)
-pathsim_plot.compromised_set_plot(pathnames_list, line_labels, out_dir, out_name, figsize = (8, 3.5), fontsize = 'large')
+pathsim_plot.compromised_set_plot(pathnames_list, line_labels, out_dir, out_name, figsize = (8, 4.5), fontsize = 'x-large')
 
 # varying total bandwidth and entry time
 # using regression from 3-month consensuses (1/13-3/13)
