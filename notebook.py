@@ -298,7 +298,7 @@ for in_dir in in_dirs:
             if (filename[0] != '.'):
                 pathnames.append(os.path.join(dirpath,filename))
     pathnames_list.append(pathnames)
-pathsim_plot.compromised_set_plot(pathnames_list, line_labels, out_dir, out_name, figsize = (8, 4.5), fontsize = 'x-large')
+pathsim_plot.compromised_set_plot(pathnames_list, line_labels, out_dir, out_name, figsize = (8, 4.5), fontsize = 'xx-large')
 
 # varying total bandwidth and entry time
 # using regression from 3-month consensuses (1/13-3/13)

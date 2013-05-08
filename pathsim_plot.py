@@ -54,7 +54,7 @@ def plot_cdf(lines, line_labels, xlabel, title, location, out_pathname,
             matplotlib.pyplot.plot(x, y, line_styles[i % len(line_styles)],
                 label = line_label,
                 linewidth = 2,
-                markevery = int(math.floor(len(data_shown)/num_markers)))
+                markevery = int(math.floor(len(x)/num_markers)))
             i += 1
         matplotlib.pyplot.legend(loc=location, fontsize = fontsize)
     else:
