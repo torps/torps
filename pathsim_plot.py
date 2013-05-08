@@ -66,6 +66,7 @@ def plot_cdf(lines, line_labels, xlabel, title, location, out_pathname,
     matplotlib.pyplot.xlabel(xlabel, fontsize=fontsize)
     matplotlib.pyplot.ylabel('Cumulative probability', fontsize=fontsize)
 #    matplotlib.pyplot.title(title, fontsize=fontsize)
+    matplotlib.pyplot.legend(fontsize = fontsize)
     matplotlib.pyplot.grid()
     
     # output    
