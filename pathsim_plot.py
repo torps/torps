@@ -56,7 +56,7 @@ def plot_cdf(lines, line_labels, xlabel, title, location, out_pathname,
                 linewidth = 2,
                 markevery = int(math.floor(len(data_shown)/num_markers)))
             i += 1
-        matplotlib.pyplot.legend(loc=location)
+        matplotlib.pyplot.legend(loc=location, fontsize = fontsize)
     else:
         x, y = getcdf(lines)
         matplotlib.pyplot.plot(x, y)
@@ -66,7 +66,6 @@ def plot_cdf(lines, line_labels, xlabel, title, location, out_pathname,
     matplotlib.pyplot.xlabel(xlabel, fontsize=fontsize)
     matplotlib.pyplot.ylabel('Cumulative probability', fontsize=fontsize)
 #    matplotlib.pyplot.title(title, fontsize=fontsize)
-    matplotlib.pyplot.legend(fontsize = fontsize)
     matplotlib.pyplot.grid()
     
     # output    
