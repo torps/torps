@@ -67,7 +67,7 @@ def plot_cdf(lines, line_labels, xlabel, title, location, out_pathname,
     matplotlib.pyplot.ylabel('Cumulative probability', fontsize=fontsize)
 #    matplotlib.pyplot.title(title, fontsize=fontsize)
     matplotlib.pyplot.grid()
-    matplotlib.tight_layout()
+    matplotlib.pyplot.tight_layout()
     
     # output    
     #matplotlib.pyplot.show()
