@@ -3,15 +3,15 @@
 #  experiment for adversary inserting relays after user's guard selection
 # 1/1/2013 00:00:00 timestamp: 1356998400
 
-BASE_DIR=/home/ajohnson/research/pathsim.git
+BASE_DIR=/mnt/shared/orsec_data
 
 TOT_PROCESSES=20
-PARALLEL_PROCESSES=10
-DATE_RANGE=2012-11--2013-03
+PARALLEL_PROCESSES=$1
+DATE_RANGE=$2
 OUTPUT=2
-ADV_GUARD_BW=288115
-ADV_EXIT_BW=76282
-ADV_TIME=1356998400
+ADV_GUARD_BW=$3
+ADV_EXIT_BW=$4
+ADV_TIME=$5
 NUM_ADV_GUARDS=1
 USERMODEL=typical
 NUM_SAMPLES=5000
