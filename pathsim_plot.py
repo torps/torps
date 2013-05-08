@@ -191,7 +191,7 @@ def compromised_set_plot_times(start_times, end_times, compromise_stats,
     out_pathname = os.path.join(out_dir, out_filename)
     plot_cdf(stats_guard_and_exit_times, line_labels,
         'Days from first stream',
-        '', 'lower right', out_pathname, figsize, fontsize)
+        '', 'upper left', out_pathname, figsize, fontsize)
 
     # cdf for exit bad
     out_filename = out_name + '.exit-comp-times.cdf.pdf'

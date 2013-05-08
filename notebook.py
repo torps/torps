@@ -330,7 +330,7 @@ for in_dir in in_dirs:
             if (filename[0] != '.'):
                 pathnames.append(os.path.join(dirpath,filename))
     pathnames_list.append(pathnames)
-pathsim_plot.compromised_set_plot(pathnames_list, line_labels, out_dir, out_name)
+pathsim_plot.compromised_set_plot(pathnames_list, line_labels, out_dir, out_name, fontsize = 'large')
 
 ##########
 
