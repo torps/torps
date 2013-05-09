@@ -1601,14 +1601,13 @@ def add_adv_exits(num_adv_guards, num_adv_exits, adv_relays, adv_descriptors,
         nickname = 'BadGuyExit' + num_str
         flags = [stem.Flag.FAST, stem.Flag.EXIT, stem.Flag.RUNNING, \
             stem.Flag.STABLE, stem.Flag.VALID]
-        # avoid /16 conflicts
         adv_relays[fingerprint] = RouterStatusEntry(fingerprint, nickname,\
             flags, bandwidth)
             
         # create descriptor
         hibernating = False
         family = {}
-        address = '10.'+str(num_adv_guards+i+1)+'.0.0' 
+        address = '10.'+str(num_adv_guards+i+1)+'.0.0' # avoid /16 conflicts
         exit_policy = stem.exit_policy.ExitPolicy('accept *:*')
         adv_descriptors[fingerprint] = ServerDescriptor(fingerprint,\
             hibernating, nickname, family, address, exit_policy)                
@@ -1641,7 +1640,7 @@ range from start_year and start_month to end_year and end_month. Write the \
 matched descriptors for each consensus to \
 out_dir/processed_descriptors-year-month. Use slim classes if slim=1. Filter our relays without FAST and RUNNING flags if filtered=1.\n\
 \tsimulate \
-[nsf dir] [# samples] [tracefile] [user model] [output] [adv guard cons bw] [adv exit cons bw] [adv time] [path selection alg]: \
+[nsf dir] [# samples] [tracefile] [user model] [output] [adv guard cons bw] [adv exit cons bw] [adv time] [path selection alg] [num adv guards]: \
 Do simulated path selections, where\n\
 \t\t nsf dir stores the network state files to use, \
 default: out/network-state-files\n\
@@ -1658,6 +1657,7 @@ consensuses, default: 0\n\
 \t\t\t tor: uses Tor path selection, is default\n\
 \t\t\t cat [congfile]: uses congestion-aware tor with congfile is the congestion input file\n\
 \t\t\t vcs: uses the virtual-coordinate system.\n\
+\t\t num adv guards indicates the number of adversarial guards to add, default: 1\n\
 \tconcattraces \
 outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, irc.log, bittorrent.log: combine user session traces into a single object used by pathsim, and pickle it. The pickled object is input to the simulate command.'
     if (len(sys.argv) <= 1):
@@ -1732,9 +1732,10 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
         adv_guard_cons_bw = float(sys.argv[7]) if len(sys.argv) >= 8 else 0
         adv_exit_cons_bw = float(sys.argv[8]) if len(sys.argv) >= 9 else 0
         adv_time = int(sys.argv[9]) if len(sys.argv) >= 10 else 0
-        path_sel_alg = sys.argv[10] if len(sys.argv) >= 10 else 'tor'
-        congfilename = sys.argv[11] if len(sys.argv) >= 12 else None
-        pdelfilename = sys.argv[12] if len(sys.argv) >= 13 else None
+        num_adv_guards = int(sys.argv[10]) if len(sys.argv) >= 11 else 1
+        path_sel_alg = sys.argv[11] if len(sys.argv) >= 12 else 'tor'
+        congfilename = sys.argv[12] if len(sys.argv) >= 13 else None
+        pdelfilename = sys.argv[13] if len(sys.argv) >= 14 else None
         
         network_state_files = []
         for dirpath, dirnames, filenames in os.walk(network_state_files_dir,\
@@ -1765,7 +1766,6 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
         congmodel = CongestionModel(congfilename)
         pdelmodel = PropagationDelayModel(pdelfilename)
         
-        num_adv_guards = 1
         num_adv_exits = 1
         adv_relays = {}
         adv_descriptors = {}

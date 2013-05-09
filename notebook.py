@@ -111,6 +111,14 @@ for stream in streams:
 # bittorrent: 2*18*188 = 6768 streams / week
 # typical 7*(1 facebook, 1 gcalgdocs, 1 gmailgchat, 2 websearch)
 #   7*(43 + 17 + 40 + 2*138) = 2632 streams/week
+# Model IPs:
+#  typical: 205
+#  irc: 1
+#  bittorrent: 171
+# Model Ports:
+#  typical: 2
+#  irc: 1
+#  bittorrent: 118
 
 ###### 
 
@@ -205,7 +213,7 @@ import numpy
 import matplotlib
 matplotlib.use('PDF')
 import matplotlib.pyplot
-fig = matplotlib.pyplot.figure()
+fig = matplotlib.pyplot.figure(figsize = (8, 4))
 
 # fraction of bandwidth allocated to guard
 x = [1.0/2.0, 2.0/3.0, 5.0/6.0, 10.0/11.0, 50.0/51.0]
@@ -227,15 +235,15 @@ matplotlib.pyplot.plot(x, guard_compromise_rates, '-*',
 matplotlib.pyplot.plot(x, exit_compromise_rates, '-x',
     label = 'Avg. exit compromise rate', linewidth = 2,
     markersize = 8)
-matplotlib.pyplot.legend(loc='center left')
+matplotlib.pyplot.legend(loc='center left', fontsize = 'x-large')
 matplotlib.pyplot.ylim(ymin=0.0)
 matplotlib.pyplot.yticks(numpy.arange(0, 1.1, 0.1))
-matplotlib.pyplot.xlabel('Fraction of 100MiBps total bandwidth allocated to guard')
-matplotlib.pyplot.ylabel('Probability')
-matplotlib.pyplot.title('Compromise probability and rates, 10/12 - 3/13')
+matplotlib.pyplot.xlabel('Fraction of 100MiBps total bandwidth allocated to guard', fontsize = 'x-large')
+matplotlib.pyplot.ylabel('Probability', fontsize = 'x-large')
+#matplotlib.pyplot.title('Compromise probability and rates, 10/12 - 3/13')
 
 # output
-matplotlib.pyplot.savefig('out/analyze/vary_allocation.2012-10--2013-03/vary_allocation.2013-01--03.compromise_probs_rates.pdf')
+matplotlib.pyplot.savefig('out/analyze/vary_allocation.2012-10--2013-03/vary_allocation.2012-10--2013-03.compromise_probs_rates.pdf')
 
 ##### Working out parallelization of network analysis #####
 import os
@@ -290,7 +298,7 @@ for in_dir in in_dirs:
             if (filename[0] != '.'):
                 pathnames.append(os.path.join(dirpath,filename))
     pathnames_list.append(pathnames)
-pathsim_plot.compromised_set_plot(pathnames_list, line_labels, out_dir, out_name)
+pathsim_plot.compromised_set_plot(pathnames_list, line_labels, out_dir, out_name, figsize = (8, 4.5), fontsize = 'xx-large')
 
 # varying total bandwidth and entry time
 # using regression from 3-month consensuses (1/13-3/13)
@@ -322,7 +330,7 @@ for in_dir in in_dirs:
             if (filename[0] != '.'):
                 pathnames.append(os.path.join(dirpath,filename))
     pathnames_list.append(pathnames)
-pathsim_plot.compromised_set_plot(pathnames_list, line_labels, out_dir, out_name)
+pathsim_plot.compromised_set_plot(pathnames_list, line_labels, out_dir, out_name, fontsize = 'large')
 
 ##########
 
@@ -422,6 +430,16 @@ for model in ['bittorrent', 'typical', 'irc']:
     dests[model] = set()
     for stream in streams[model]:
         dests[model].add((stream[1], stream[2]))
+ips = dict()
+for model in ['bittorrent', 'typical', 'irc']:
+    ips[model] = set()
+    for stream in streams[model]:
+        ips[model].add(stream[1])
+ports = dict()
+for model in ['bittorrent', 'typical', 'irc']:
+    ports[model] = set()
+    for stream in streams[model]:
+        ports[model].add(stream[2])
 
 # find total consensus bw for a given ip:port
 def get_exit_bw_for_dest(ip, port, cons_rel_stats, descriptors, bw_weights,
@@ -506,4 +524,14 @@ def get_network_stats(network_state_file):
 
 network_stats = network_analysis.map_files(in_dir, get_network_stats,
     num_processes)
+##########
+
+##### Splitting guard bandwidth among multiple relays #####
+#	100: 87381333 / 17476266; 448112 / 82033
+# regression parameters from 10/12 - 3/13
+# guard_a = 191.94548955003913
+# guard_b = 1368281.674385923
+num_adv_guards = 3
+#>>> (87381333 / float(num_adv_guards) - guard_b) / guard_a
+#144618.29444748428
 ##########

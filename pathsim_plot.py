@@ -29,9 +29,10 @@ def getcdf(data, shownpercentile=0.99):
         lasty = frac[i]
     return (x, y)
 
-def plot_cdf(lines, line_labels, xlabel, title, location, out_pathname):
+def plot_cdf(lines, line_labels, xlabel, title, location, out_pathname,
+    figsize = None, fontsize = 'small'):
     """Saves cdf for given lines in out_name."""
-    fig = matplotlib.pyplot.figure()
+    fig = matplotlib.pyplot.figure(figsize = figsize)
     line_styles = ['-v', '-o', '-s', '-*', '-x', '-D', '-+']
     num_markers = 10
 
@@ -53,19 +54,20 @@ def plot_cdf(lines, line_labels, xlabel, title, location, out_pathname):
             matplotlib.pyplot.plot(x, y, line_styles[i % len(line_styles)],
                 label = line_label,
                 linewidth = 2,
-                markevery = int(math.floor(len(data_shown)/num_markers)))
+                markevery = int(math.floor(len(x)/num_markers)))
             i += 1
-        matplotlib.pyplot.legend(loc=location)
+        matplotlib.pyplot.legend(loc=location, fontsize = fontsize)
     else:
         x, y = getcdf(lines)
         matplotlib.pyplot.plot(x, y)
     matplotlib.pyplot.xlim(xmin=0.0)
     matplotlib.pyplot.ylim(ymin=0.0)
     matplotlib.pyplot.yticks(numpy.arange(0, 1.1, 0.1))
-    matplotlib.pyplot.xlabel(xlabel)
-    matplotlib.pyplot.ylabel('Cumulative probability')
-    matplotlib.pyplot.title(title)
+    matplotlib.pyplot.xlabel(xlabel, fontsize=fontsize)
+    matplotlib.pyplot.ylabel('Cumulative probability', fontsize=fontsize)
+#    matplotlib.pyplot.title(title, fontsize=fontsize)
     matplotlib.pyplot.grid()
+    matplotlib.pyplot.tight_layout()
     
     # output    
     #matplotlib.pyplot.show()
@@ -73,7 +75,7 @@ def plot_cdf(lines, line_labels, xlabel, title, location, out_pathname):
 ##########
 
 def compromised_set_plot_rates(compromise_stats, line_labels, out_dir,
-    out_name):
+    out_name, figsize = None, fontsize = 'small'):
     """
     Plots cdfs of compromise fractions for compromised-set statistics.
     Input:
@@ -119,26 +121,23 @@ def compromised_set_plot_rates(compromise_stats, line_labels, out_dir,
     out_filename = out_name + '.exit-guard-comp-rates.cdf.pdf' 
     out_pathname = os.path.join(out_dir, out_filename)
     plot_cdf(stats_frac_both_bad, line_labels, 'Fraction of streams',
-        'Fraction of connections with guard & exit compromised',
-        'lower right', out_pathname)                  
+        '', 'lower right', out_pathname, figsize, fontsize)
 
     # cdf of exit bad
     out_filename = out_name + '.exit-comp-rates.cdf.pdf'
     out_pathname = os.path.join(out_dir, out_filename)                           
     plot_cdf(stats_frac_exit_bad, line_labels, 'Fraction of streams',
-        'Fraction of connections with exit compromised',
-        'lower right', out_pathname)
+        '', 'lower right', out_pathname, figsize, fontsize)
 
     # cdf of guard bad
     out_filename = out_name + '.guard-comp-rates.cdf.pdf' 
     out_pathname = os.path.join(out_dir, out_filename)                           
     plot_cdf(stats_frac_guard_bad, line_labels, 'Fraction of streams',
-        'Fraction of connections with guard compromised',
-        'lower right', out_pathname)
+        '', 'lower right', out_pathname, figsize, fontsize)
 
 
 def compromised_set_plot_times(start_times, end_times, compromise_stats,
-    line_labels, out_dir, out_name):
+    line_labels, out_dir, out_name, figsize = None, fontsize = 'small'):
     """
     Plots cdfs of times to compromise for compromised-set statistics.
     Input: 
@@ -191,28 +190,26 @@ def compromised_set_plot_times(start_times, end_times, compromise_stats,
     out_filename = out_name + '.exit-guard-comp-times.cdf.pdf'                
     out_pathname = os.path.join(out_dir, out_filename)
     plot_cdf(stats_guard_and_exit_times, line_labels,
-        'Time to first compromise (days)',
-        'Time to first circuit with guard & exit compromised',
-        'upper left', out_pathname)
+        'Days from first stream',
+        '', 'upper left', out_pathname, figsize, fontsize)
 
     # cdf for exit bad
     out_filename = out_name + '.exit-comp-times.cdf.pdf'
     out_pathname = os.path.join(out_dir, out_filename)       
     plot_cdf(stats_exit_times, line_labels,
-        'Time to first compromise (days)',
-        'Time to first circuit with exit compromised',
-        'lower right', out_pathname)
+        'Days from first stream',
+        '', 'lower right', out_pathname, figsize, fontsize)
                         
     # cdf for guard bad
     out_filename = out_name + '.guard-comp-times.cdf.pdf'
     out_pathname = os.path.join(out_dir, out_filename)        
     plot_cdf(stats_guard_times, line_labels,
-        'Time to first compromise (days)',
-        'Time to first circuit with guard compromised',
-        'lower right', out_pathname)
+        'Days from first stream',
+        '', 'lower right', out_pathname, figsize, fontsize)
 
                 
-def compromised_set_plot(pathnames_list, line_labels, out_dir, out_name):
+def compromised_set_plot(pathnames_list, line_labels, out_dir, out_name,
+    figsize = None, fontsize = 'small'):
     """Plots cdfs for compromised-set statistics."""
     if (line_labels == None): # assume pathnames given as flat list
         pathnames_list = [pathnames_list]
@@ -244,10 +241,10 @@ def compromised_set_plot(pathnames_list, line_labels, out_dir, out_name):
                 compromise_stats[i].extend(new_compromise_stats)
     
     compromised_set_plot_rates(compromise_stats, line_labels, out_dir,
-        out_name)
+        out_name, figsize, fontsize)
 
     compromised_set_plot_times(start_times, end_times, compromise_stats,
-        line_labels, out_dir, out_name)
+        line_labels, out_dir, out_name, figsize, fontsize)
         
                    
 def compromised_top_relays_plot_rates(compromise_stats, out_dir, out_name):
