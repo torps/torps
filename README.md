@@ -24,13 +24,13 @@
 - util: Code for various useful intermediate operations
 
 TorPS was used to produce the results in
-> Users Get Routed: Traffic Correlation on Tor by Realistic Adversaries  
-> Aaron Johnson, Chris Wacek, Rob Jansen, Micah Sherr, and Paul Syverson  
+> **Users Get Routed: Traffic Correlation on Tor by Realistic Adversaries**  
+> by _Aaron Johnson, Chris Wacek, Rob Jansen, Micah Sherr, and Paul Syverson_  
 > To appear in Proceedings of the 20th ACM Conference on Computer and Communications Security (CCS 2013).  
 
 The BibTeX citation for this paper is
 <pre><code>
-    @inproceedings{trust-ccs11,
+    @inproceedings{usersrouted-ccs13,
       author = {Aaron Johnson and Chris Wacek and Rob Jansen and Micah Sherr and Paul Syverson},
       title = {Users Get Routed: Traffic Correlation on Tor by Realistic Adversaries},
       booktitle = {Proceedings of the 20th ACM Conference on Computer and Communications Security (CCS 2013)},
