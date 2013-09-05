@@ -15,7 +15,7 @@ import congestion_aware_pathsim
 #import vcs_pathsim
 import process_consensuses
 
-_testing = False#True
+_testing = False
 
 class RouterStatusEntry:
     """
@@ -27,12 +27,6 @@ class RouterStatusEntry:
         self.nickname = nickname
         self.flags = flags
         self.bandwidth = bandwidth
-        
-        # not currently used, but potentially useful
-        # exist in an set of "extended" network state files, uncomment to use
-#        self.address = address # IP address in consensus
-#        self.or_port = or_port
-#        self.exit_policy = exit_policy # micro exit policy
     
 
 class NetworkStatusDocument:
@@ -48,10 +42,6 @@ class NetworkStatusDocument:
         self.bwweightscale = bwweightscale
         self.relays = relays
         
-        # not currently used, but potentially useful
-        # exist in an set of "extended" network state files, uncomment to use
-#        self.is_microdescriptor = is_microdescriptor
-
 
 class ServerDescriptor:
     """
@@ -66,14 +56,6 @@ class ServerDescriptor:
         self.family = family
         self.address = address
         self.exit_policy = exit_policy
-        
-        # not currently used, but potentially useful
-        # exist in an set of "extended" network state files, uncomment to use
-#        self.or_port = or_port
-#        self.uptime = uptime
-#        self.average_bandwidth = average_bandwidth
-#        self.burst_bandwidth = burst_bandwidth
-#        self.observed_bandwidth = observed_bandwidth
 
 
 class TorOptions:
@@ -673,10 +655,6 @@ def print_mapped_stream(client_id, circuit, stream, descriptors, format):
         print('{0}\t{1}\t{2}\t{3}\t{4}'.format(client_id, stream['time'],
             guard_ip, exit_ip, dest_ip))
     else:
-# fingerprints aren't being used, and they are long
-#        print('{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}'.format(client_id,
-#            stream['time'], guard_ip, middle_ip, exit_ip, dest_ip,
-#            circuit['path'][0], circuit['path'][1], circuit['path'][2]))
         print('{0}\t{1}\t{2}\t{3}\t{4}\t{5}'.format(client_id,
             stream['time'], guard_ip, middle_ip, exit_ip, dest_ip))
 
@@ -854,10 +832,8 @@ def period_client_update(client_state, cons_rel_stats, cons_fresh_until,\
                 guard_props['bad_since'] = cons_valid_after
         else:
             if (guard in cons_rel_stats) and\
-                (stem.Flag.RUNNING not in\
-                 cons_rel_stats[guard].flags) and\
-                (stem.Flag.GUARD not in\
-                 cons_rel_stats[guard].flags):
+                (stem.Flag.RUNNING in cons_rel_stats[guard].flags) and\
+                (stem.Flag.GUARD in cons_rel_stats[guard].flags):
                 if _testing:
                     print('Bringing up guard {0}'.format(guard))
                 guard_props['bad_since'] = None
@@ -1335,7 +1311,6 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
             'internal':circ_internal,\
             'dirty_time':None,\
             'path':(guard_node, middle_node, exit_node),\
-#            'cons_rel_stats':cons_rel_stats,\
             'covering':[]}
     
 def create_circuits(network_state_files, streams, num_samples, add_relays,\
