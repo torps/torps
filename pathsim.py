@@ -1771,14 +1771,3 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
         if len(sys.argv) != 9: print usage; sys.exit(1)           
         ut = UserTraces(sys.argv[3], sys.argv[4], sys.argv[5], sys.argv[6], sys.argv[7], sys.argv[8])
         ut.save_pickle(sys.argv[2])
-
-# TODO
-# - support IPv6 addresses
-# - We do not consider removing stable/fast requirements if a suitable relay can't be found at some point. Tor does this. Rather, we just error.
-# - Instead of immediately using a new consensus, set a random time to
-#   switch to the new one, following the process in dir-spec.txt (Sec. 5.1).
-# - Do something intelligent with empty node sets rather than just raise error.
-# - circuits only recorded as fast/stable/internal if they were chosen to
-#   satisfy that, but they may just by chance. should we check?
-# - Tor actually seems to build a circuit to cover a port by randomly selecting from exits that cover *some* unhandled port (see choose_good_exit_server_general() in circuitbuild.c). Possibly change procedure for covering ports to act like this.
-# - We should expire descriptors older than router_max_age on a per-minute basis. I'm not sure exactly how relays in the consensus but without descriptors are treated, especially in terms of putting guards down. As an approximation, we expire descriptors while building consensuses, and thus do so at most an hour off from when a running relay would. Given that router_max_age is 48 hours, that not large relative error for how long a relay may be used. Also, I don't think that in the Tor metrics data a relay ever appears in the consensus but does not have a recent descriptor.
