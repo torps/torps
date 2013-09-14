@@ -1,6 +1,5 @@
 import sys
 import os
-import stem
 import cPickle as pickle
 from pathsim import *
 #import numpy

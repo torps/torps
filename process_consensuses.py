@@ -1,9 +1,9 @@
 import pathsim
-import stem.descriptor.reader as sdr
+import stem.descriptor.reader
+import stem.descriptor
+import stem
 import os
 import os.path
-import stem.descriptor as sd
-import stem
 import cPickle as pickle
 
 def process_consensuses(in_dirs, slim, filtered):
@@ -29,8 +29,10 @@ def process_consensuses(in_dirs, slim, filtered):
         num_relays = 0
 
         print('Reading descriptors from: {0}'.format(in_descriptors))
-        with sdr.DescriptorReader(in_descriptors, validate=True) as reader:
-            reader.register_skip_listener(skip_listener)
+        reader = stem.descriptor.reader.DescriptorReader(in_descriptors,
+            validate=True)
+        reader.register_skip_listener(skip_listener)        
+        with reader:
             for desc in reader:
                 if (num_descriptors % 10000 == 0):
                     print('{0} descriptors processed.'.format(num_descriptors))
@@ -70,7 +72,7 @@ def process_consensuses(in_dirs, slim, filtered):
                 consensus = None
             num_not_found = 0
             num_found = 0
-            for r_stat in sd.parse_file(cons_f, validate=True):
+            for r_stat in stem.descriptor.parse_file(cons_f, validate=True):
                 # skip relays not running and not fast for faster simulation
                 # as our current experiments use an all-FAST policy
                 if filtered and (\
