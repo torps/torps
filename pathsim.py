@@ -1,10 +1,8 @@
-import stem.descriptor.reader as sdr
 import datetime
 import os
 import os.path
-import stem.descriptor as sd
-import stem.descriptor.networkstatus as sdn
-import stem
+from stem import Flag
+from stem.exit_policy import ExitPolicy
 from random import random, randint, choice
 import sys
 import collections
@@ -136,36 +134,36 @@ def pad_network_state_files(network_state_files):
 
 def get_bw_weight(flags, position, bw_weights):
     """Returns weight to apply to relay's bandwidth for given position.
-        flags: list of stem.Flag values for relay from a consensus
+        flags: list of Flag values for relay from a consensus
         position: position for which to find selection weight,
              one of 'g' for guard, 'm' for middle, and 'e' for exit
         bw_weights: bandwidth_weights from NetworkStatusDocumentV3 consensus
     """
     
     if (position == 'g'):
-        if (stem.Flag.GUARD in flags) and (stem.Flag.EXIT in flags):
+        if (Flag.GUARD in flags) and (Flag.EXIT in flags):
             return bw_weights['Wgd']
-        elif (stem.Flag.GUARD in flags):
+        elif (Flag.GUARD in flags):
             return bw_weights['Wgg']
-        elif (stem.Flag.EXIT not in flags):
+        elif (Flag.EXIT not in flags):
             return bw_weights['Wgm']
         else:
             raise ValueError('Wge weight does not exist.')
     elif (position == 'm'):
-        if (stem.Flag.GUARD in flags) and (stem.Flag.EXIT in flags):
+        if (Flag.GUARD in flags) and (Flag.EXIT in flags):
             return bw_weights['Wmd']
-        elif (stem.Flag.GUARD in flags):
+        elif (Flag.GUARD in flags):
             return bw_weights['Wmg']
-        elif (stem.Flag.EXIT in flags):
+        elif (Flag.EXIT in flags):
             return bw_weights['Wme']
         else:
             return bw_weights['Wmm']
     elif (position == 'e'):
-        if (stem.Flag.GUARD in flags) and (stem.Flag.EXIT in flags):
+        if (Flag.GUARD in flags) and (Flag.EXIT in flags):
             return bw_weights['Wed']
-        elif (stem.Flag.GUARD in flags):
+        elif (Flag.GUARD in flags):
             return bw_weights['Weg']
-        elif (stem.Flag.EXIT in flags):
+        elif (Flag.EXIT in flags):
             return bw_weights['Wee']
         else:
             return bw_weights['Wem']    
@@ -250,11 +248,11 @@ def exit_filter(exit, cons_rel_stats, descriptors, fast, stable, internal, ip,\
     behavior is for SOCKS RESOLVE requests in particular."""
     rel_stat = cons_rel_stats[exit]
     desc = descriptors[exit]
-    if (stem.Flag.BADEXIT not in rel_stat.flags) and\
-        (stem.Flag.RUNNING in rel_stat.flags) and\
-        (stem.Flag.VALID in rel_stat.flags) and\
-        ((not fast) or (stem.Flag.FAST in rel_stat.flags)) and\
-        ((not stable) or (stem.Flag.STABLE in rel_stat.flags)):
+    if (Flag.BADEXIT not in rel_stat.flags) and\
+        (Flag.RUNNING in rel_stat.flags) and\
+        (Flag.VALID in rel_stat.flags) and\
+        ((not fast) or (Flag.FAST in rel_stat.flags)) and\
+        ((not stable) or (Flag.STABLE in rel_stat.flags)):
         if (internal):
             # In an "internal" circuit final node is chosen just like a
             # middle node (ignoring its exit policy).
@@ -379,11 +377,11 @@ def middle_filter(node, cons_rel_stats, descriptors, fast=None,\
     # Note that we intentionally allow non-Valid routers for middle
     # as per path-spec.txt default config    
     rel_stat = cons_rel_stats[node]
-    return (stem.Flag.RUNNING in rel_stat.flags) and\
+    return (Flag.RUNNING in rel_stat.flags) and\
             ((fast==None) or (not fast) or\
-                (stem.Flag.FAST in rel_stat.flags)) and\
+                (Flag.FAST in rel_stat.flags)) and\
             ((stable==None) or (not stable) or\
-                (stem.Flag.STABLE in rel_stat.flags)) and\
+                (Flag.STABLE in rel_stat.flags)) and\
             ((exit_node==None) or\
                 ((exit_node != node) and\
                     (not in_same_family(descriptors, exit_node, node)) and\
@@ -457,8 +455,8 @@ def guard_filter_for_circ(guard, cons_rel_stats, descriptors, fast,\
     if (guards[guard]['bad_since'] == None):
         if (guard in cons_rel_stats) and (guard in descriptors):
             rel_stat = cons_rel_stats[guard]
-            return ((not fast) or (stem.Flag.FAST in rel_stat.flags)) and\
-                ((not stable) or (stem.Flag.STABLE in rel_stat.flags)) and\
+            return ((not fast) or (Flag.FAST in rel_stat.flags)) and\
+                ((not stable) or (Flag.STABLE in rel_stat.flags)) and\
                 ((guards[guard]['unreachable_since'] == None) or\
                     guard_is_time_to_retry(guards[guard],circ_time)) and\
                 (exit != guard) and\
@@ -478,9 +476,9 @@ def filter_guards(cons_rel_stats, descriptors):
     guards = []
     for fprint in cons_rel_stats:
         rel_stat = cons_rel_stats[fprint]
-        if (stem.Flag.RUNNING in rel_stat.flags) and\
-            (stem.Flag.VALID in rel_stat.flags) and\
-            (stem.Flag.GUARD in rel_stat.flags) and\
+        if (Flag.RUNNING in rel_stat.flags) and\
+            (Flag.VALID in rel_stat.flags) and\
+            (Flag.GUARD in rel_stat.flags) and\
             (fprint in descriptors):
             guards.append(fprint)   
     
@@ -820,18 +818,18 @@ def period_client_update(client_state, cons_rel_stats, cons_fresh_until,\
         # note that hibernating *not* considered here
         if (guard_props['bad_since'] == None):
             if (guard not in cons_rel_stats) or\
-                (stem.Flag.RUNNING not in\
+                (Flag.RUNNING not in\
                  cons_rel_stats[guard].flags) or\
-                (stem.Flag.GUARD not in\
+                (Flag.GUARD not in\
                  cons_rel_stats[guard].flags):
                 if _testing:
                     print('Putting down guard {0}'.format(guard))
                 guard_props['bad_since'] = cons_valid_after
         else:
             if (guard in cons_rel_stats) and\
-                (stem.Flag.RUNNING in\
+                (Flag.RUNNING in\
                  cons_rel_stats[guard].flags) and\
-                (stem.Flag.GUARD in\
+                (Flag.GUARD in\
                  cons_rel_stats[guard].flags):
                 if _testing:
                     print('Bringing up guard {0}'.format(guard))
@@ -855,7 +853,7 @@ def period_client_update(client_state, cons_rel_stats, cons_fresh_until,\
     #  down is not in consensus or without Running flag.            
     kill_circuits_by_relay(client_state, \
         lambda r: (r not in cons_rel_stats) or \
-            (stem.Flag.RUNNING not in cons_rel_stats[r].flags),\
+            (Flag.RUNNING not in cons_rel_stats[r].flags),\
             'is down')    
             
             
@@ -1542,8 +1540,8 @@ def add_adv_guards(num_adv_guards, adv_relays, adv_descriptors, bandwidth):
         num_str = str(i+1)
         fingerprint = '0' * (40-len(num_str)) + num_str
         nickname = 'BadGuyGuard' + num_str
-        flags = [stem.Flag.FAST, stem.Flag.GUARD, stem.Flag.RUNNING, \
-            stem.Flag.STABLE, stem.Flag.VALID]
+        flags = [Flag.FAST, Flag.GUARD, Flag.RUNNING, \
+            Flag.STABLE, Flag.VALID]
         adv_relays[fingerprint] = RouterStatusEntry(fingerprint, nickname,\
             flags, bandwidth)
             
@@ -1551,7 +1549,7 @@ def add_adv_guards(num_adv_guards, adv_relays, adv_descriptors, bandwidth):
         hibernating = False
         family = {}
         address = '10.'+num_str+'.0.0' # avoid /16 conflicts
-        exit_policy = stem.exit_policy.ExitPolicy('reject *:*')
+        exit_policy = ExitPolicy('reject *:*')
         adv_descriptors[fingerprint] = ServerDescriptor(fingerprint,\
             hibernating, nickname, family, address, exit_policy)
 
@@ -1563,8 +1561,8 @@ def add_adv_exits(num_adv_guards, num_adv_exits, adv_relays, adv_descriptors,
         num_str = str(i+1)
         fingerprint = 'F' * (40-len(num_str)) + num_str
         nickname = 'BadGuyExit' + num_str
-        flags = [stem.Flag.FAST, stem.Flag.EXIT, stem.Flag.RUNNING, \
-            stem.Flag.STABLE, stem.Flag.VALID]
+        flags = [Flag.FAST, Flag.EXIT, Flag.RUNNING, \
+            Flag.STABLE, Flag.VALID]
         adv_relays[fingerprint] = RouterStatusEntry(fingerprint, nickname,\
             flags, bandwidth)
             
@@ -1572,7 +1570,7 @@ def add_adv_exits(num_adv_guards, num_adv_exits, adv_relays, adv_descriptors,
         hibernating = False
         family = {}
         address = '10.'+str(num_adv_guards+i+1)+'.0.0' # avoid /16 conflicts
-        exit_policy = stem.exit_policy.ExitPolicy('accept *:*')
+        exit_policy = ExitPolicy('accept *:*')
         adv_descriptors[fingerprint] = ServerDescriptor(fingerprint,\
             hibernating, nickname, family, address, exit_policy)                
                         
