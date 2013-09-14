@@ -14,8 +14,9 @@ from models import *
 import congestion_aware_pathsim
 #import vcs_pathsim
 import process_consensuses
+import re
 
-_testing = False
+_testing = False#True
 
 class RouterStatusEntry:
     """
@@ -41,7 +42,7 @@ class NetworkStatusDocument:
         self.bandwidth_weights = bandwidth_weights
         self.bwweightscale = bwweightscale
         self.relays = relays
-        
+
 
 class ServerDescriptor:
     """
@@ -177,7 +178,6 @@ def select_weighted_node(weighted_nodes):
     """Takes (node,cum_weight) pairs where non-negative cum_weight increases,
     ending at 1. Use cum_weights as cumulative probablity to select a node."""
     r = random()
-    
     begin = 0
     end = len(weighted_nodes)-1
     mid = int((end+begin)/2)
@@ -611,9 +611,6 @@ def print_mapped_streams_header(format):
     elif (format == 'network-adv'):
         print('Sample\tTimestamp\tGuard ip\tExit IP\tDestination IP')
     else:
-# fingerprints aren't being used, and they are long
-#        print('Sample\tTimestamp\tGuard IP\tMiddle IP\tExit IP\tDestination\
-# IP\tGuard Fingerprint\tMiddle Fingerprint\tExit Fingerprint')
         print('Sample\tTimestamp\tGuard IP\tMiddle IP\tExit IP\tDestination IP')
 
         
@@ -832,8 +829,10 @@ def period_client_update(client_state, cons_rel_stats, cons_fresh_until,\
                 guard_props['bad_since'] = cons_valid_after
         else:
             if (guard in cons_rel_stats) and\
-                (stem.Flag.RUNNING in cons_rel_stats[guard].flags) and\
-                (stem.Flag.GUARD in cons_rel_stats[guard].flags):
+                (stem.Flag.RUNNING in\
+                 cons_rel_stats[guard].flags) and\
+                (stem.Flag.GUARD in\
+                 cons_rel_stats[guard].flags):
                 if _testing:
                     print('Bringing up guard {0}'.format(guard))
                 guard_props['bad_since'] = None
@@ -897,8 +896,6 @@ def timed_client_updates(cur_time, client_state,\
     weighted_guards, congmodel, pdelmodel):
     """Performs updates to client state that occur on a time schedule."""
     
-    if _testing:
-        print('Client {0} timed update.'.format(client_state['id']))
     guards = client_state['guards']
             
     # kill old dirty circuits
@@ -1311,6 +1308,7 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
             'internal':circ_internal,\
             'dirty_time':None,\
             'path':(guard_node, middle_node, exit_node),\
+#            'cons_rel_stats':cons_rel_stats,\
             'covering':[]}
     
 def create_circuits(network_state_files, streams, num_samples, add_relays,\
@@ -1440,6 +1438,7 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
             port_need_weighted_exits[port] =\
                 get_weighted_nodes(port_need_exits, port_need_exit_weights)
                 
+                
         # Store filtered exits for streams based only on port.
         # Conservative - never excludes a relay that exits to port for some ip.
         # Use port of None to store exits for resolve circuits.
@@ -1465,7 +1464,7 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
         potential_guard_weights = get_position_weights(potential_guards,\
             cons_rel_stats, 'g', cons_bw_weights, cons_bwweightscale)
         weighted_guards = get_weighted_nodes(potential_guards,\
-            potential_guard_weights)    
+            potential_guard_weights)
        
         # for simplicity, step through time one minute at a time
         time_step = 60
@@ -1484,16 +1483,6 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
                     port_need_weighted_exits, weighted_middles,\
                     weighted_guards, congmodel, pdelmodel)
                     
-            if _testing:
-                for client_state in client_states:
-                    print('Client {0}'.format(client_state['id']))
-                    print('len(client_state[\'dirty_exit_circuits\']): {0}'.\
-                        format(len(client_state['dirty_exit_circuits'])))
-                    print('len(client_state[\'clean_exit_circuits\']): {0}'.\
-                        format(len(client_state['clean_exit_circuits'])))
-                    for pt, ct in client_state['port_needs_covered'].items():
-                        print('port_needs_covered[{0}]: {1}'.format(pt,ct))
-
             # collect streams that occur during current period
             while (stream_start < len(streams)) and\
                 (streams[stream_start]['time'] < cur_time):
@@ -1588,11 +1577,15 @@ def add_adv_exits(num_adv_guards, num_adv_exits, adv_relays, adv_descriptors,
             hibernating, nickname, family, address, exit_policy)                
                         
 
-def get_user_model(start_time, end_time, tracefilename=None, session="simple"):
+def get_user_model(start_time, end_time, tracefilename=None, session='simple=6'):
     streams = []
-    if session == "simple":
+    if (re.match('simple', session)):
         # simple user that makes a port 80 request /resolve every x / y seconds
-        num_requests = 6
+        match = re.match('simple=([0-9]+)', session)
+        if (match):
+            num_requests = int(match.group(1))
+        else:
+            num_requests = 6
         http_request_wait = int(60 / num_requests) * 60
         str_ip = '74.125.131.105' # www.google.com
         for t in xrange(start_time, end_time, http_request_wait):
@@ -1608,31 +1601,35 @@ if __name__ == '__main__':
     command = None
     usage = 'Usage: pathsim.py [command]\nCommands:\n\
 \tprocess \
-[start_year] [start_month] [end_year] [end_month] [in_dir] [out_dir] [slim]  [filtered]:\
- match relays in each consensus in in_dir/consensuses-year-month with \
-descriptors in in_dir/server-descriptors-year-month, where year and month \
+[start_year] [start_month] [end_year] [end_month] [in_dir] [out_dir] [slim] [filtered]:\
+ match relays in each consensus in in_dir/consensuses-[year]-[month] with \
+descriptors in in_dir/server-descriptors-[year]-[month], where year and month \
 range from start_year and start_month to end_year and end_month. Write the \
 matched descriptors for each consensus to \
-out_dir/processed_descriptors-year-month. Use slim classes if slim=1. Filter our relays without FAST and RUNNING flags if filtered=1.\n\
+out_dir/network-state-[year]-[month]. Use slim classes if slim=1. Filter out relays without FAST and RUNNING flags if filtered=1.\n\
 \tsimulate \
-[nsf dir] [# samples] [tracefile] [user model] [output] [adv guard cons bw] [adv exit cons bw] [adv time] [path selection alg] [num adv guards]: \
+[nsf dir] [# samples] [tracefile] [user model] [output] [adv guard cons bw] [adv exit cons bw] [adv time] [num adv guards] [path selection alg] \
+[num guards] [guard expiration]: \
 Do simulated path selections, where\n\
 \t\t nsf dir stores the network state files to use, \
 default: out/network-state-files\n\
 \t\t # samples is the number of simulations to execute, default: 1\n\
 \t\t tracefile indicates the user trace, default: traces.pickle\n\
-\t\t user model is one of "facebook", "gmailgchat", "gcalgdocs", "websearch", "irc", "bittorrent", "typical", "best", "worst", "simple", default: "simple"\n\
+\t\t user model is one of "facebook", "gmailgchat", "gcalgdocs", "websearch", "irc", "bittorrent", "typical", "best", "worst", "simple=[reqs/hour]", default: "simple=6"\n\
 \t\t output sets log level: 0 is normal, 1 is testing, 2 is for the relay adversary, 3 is for the network adversary, default: 0\n\
 \t\t adv guard cons bw indicates the consensus bandwidth of the adversarial guard to add, \
 default: 0\n\
 \t\t adv exit cons bw indicates the consensus bandwidth of the adversarial exit to add, default: 0\n\
 \t\t adv time indicates timestamp after which adv relays added to\
 consensuses, default: 0\n\
+\t\t num adv guards indicates the number of adversarial guards to add, default: 1\n\
 \t\t path selection alg is one of\n\
 \t\t\t tor: uses Tor path selection, is default\n\
 \t\t\t cat [congfile]: uses congestion-aware tor with congfile is the congestion input file\n\
-\t\t\t vcs: uses the virtual-coordinate system.\n\
-\t\t num adv guards indicates the number of adversarial guards to add, default: 1\n\
+\t\t\t vcs [congfile] [pdelfile]: uses the virtual-coordinate system.\n\
+\t\t num guards indicates size of client guard list, default: 3\n\
+\t\t guard expiration indicates time in days until one-month period during \
+which guard may expire, with 0 indicating no guard expiration, default: 30\n\
 \tconcattraces \
 outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, irc.log, bittorrent.log: combine user session traces into a single object used by pathsim, and pickle it. The pickled object is input to the simulate command.'
     if (len(sys.argv) <= 1):
@@ -1653,7 +1650,7 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
         in_dir = sys.argv[6]
         out_dir = sys.argv[7]
         slim = (sys.argv[8] == '1')
-        filtered = (sys.argv[8] == '1')
+        filtered = (sys.argv[9] == '1')
 
         in_dirs = []
         month = start_month
@@ -1683,7 +1680,7 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
         network_state_files_dir = sys.argv[2] if len(sys.argv) >= 3 else 'out/network-state-files'
         num_samples = int(sys.argv[3]) if len(sys.argv) >= 4 else 1
         tracefilename = sys.argv[4] if len(sys.argv) >= 5 else "traces.pickle"
-        usermodel = sys.argv[5] if len(sys.argv) >= 6 else 'simple'
+        usermodel = sys.argv[5] if len(sys.argv) >= 6 else 'simple=6'
         if (len(sys.argv) >= 7):
             level = int(sys.argv[6])
             if (level == 0):
@@ -1709,8 +1706,35 @@ outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, ir
         adv_time = int(sys.argv[9]) if len(sys.argv) >= 10 else 0
         num_adv_guards = int(sys.argv[10]) if len(sys.argv) >= 11 else 1
         path_sel_alg = sys.argv[11] if len(sys.argv) >= 12 else 'tor'
-        congfilename = sys.argv[12] if len(sys.argv) >= 13 else None
-        pdelfilename = sys.argv[13] if len(sys.argv) >= 14 else None
+        if (path_sel_alg == 'tor'):
+            congfilename = None
+            pdelfilename = None
+            cur_arg = 13
+        elif (path_sel_alg == 'cat'):
+            congfilename = sys.argv[12] if len(sys.argv) >= 13 else None
+            pdelfilename = None
+            cur_arg = 14
+        elif (path_sel_alg == 'vcs'):
+            congfilename = sys.argv[12] if len(sys.argv) >= 13 else None
+            pdelfilename = sys.argv[13] if len(sys.argv) >= 14 else None
+            cur_arg = 15
+        num_guards = int(sys.argv[cur_arg-1]) if (len(sys.argv) >= cur_arg)\
+            else 3
+        cur_arg += 1
+        if (len(sys.argv) >= cur_arg):
+            if (int(sys.argv[cur_arg-1]) > 0):
+                guard_expiration_min = int(sys.argv[cur_arg-1])*24*3600
+            else:
+                # long enough that guard should never expire
+                guard_expiration_min = int(100*365.25*24*3600)
+        else:
+            guard_expiration_min = 30*24*3600
+
+        # use arguments to adjust some TorOption parameters
+        TorOptions.num_guards = num_guards
+        TorOptions.min_num_guards = max(num_guards-1, 1)
+        TorOptions.guard_expiration_min = guard_expiration_min
+        TorOptions.guard_expiration_max = guard_expiration_min + 30*24*3600
         
         network_state_files = []
         for dirpath, dirnames, filenames in os.walk(network_state_files_dir,\

@@ -366,7 +366,7 @@ def read_compromised_relays_file(in_file):
 
 if __name__ == '__main__':
     usage = 'Usage: pathsim_analysis.py [command]\nCommands:\n\
-\tsimulation-set [logs_in_dir] [out_dir] [out_name] [set_in_file]: Do analysis against compromised set. Use simulation logs in logs_in_dir and IPs in set_in_file, and write statistics to files in out_dir in files with names containing out_name. If set_in_file omitted, the compact"relay-adv" format is\
+\tsimulation-set [logs_in_dir] [out_dir] [out_name] [set_in_file]: Do analysis against compromised set. Use simulation logs in logs_in_dir and IPs in set_in_file, and write statistics to files in out_dir in files with names containing out_name. If set_in_file omitted, the compact "relay-adv" format is\
 expected.\n\
 \tsimulation-top [logs_in_dir] [top_guards_in_file] [top_exits_in_file] [out_dir] [out_name]: Do analysis\
 against adversary compromising a range of top guards and exits.'
