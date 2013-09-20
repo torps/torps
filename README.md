@@ -70,7 +70,7 @@ Basic path simulation can be done entirely with pathsim.py. It requires Stem
   The arguments are used as follows:
 	- nsf dir stores the network state files to use, default: out/network-state-files
 	- # samples is the number of simulations to execute, default: 1
-	- tracefile indicates the user trace, default: traces.pickle
+	- tracefile indicates the user trace. The tracefile included in TorPS is in/users2-processed.traces.pickle. default: traces.pickle
 	- user model is one of "facebook", "gmailgchat", "gcalgdocs", "websearch", "irc",
 	  "bittorrent", "typical", "best", "worst", "simple=[reqs/hour]", default: "simple=6"
 	- output sets log level: 0 is normal, 1 is testing, 2 is for the relay adversary, 3 is
