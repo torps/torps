@@ -59,6 +59,36 @@ Basic path simulation can be done entirely with pathsim.py. It requires Stem
   classes and will be smaller and faster to process later. If [filtered] is 1 (not
   recommended by default), relays that will not be selected by the path selection
   algorithm won't be included for efficiency.
+    IMPORTANT NOTE: If the consensuses being processed start at the very beginning of a
+  month, which is true assuming you just extract some monthly consensus archives as
+  provided by Tor Metrics, then the first ~18 hours of network state files for the first
+  month of the period being processed will incorrectly contain many fewer relays than
+  actually existed in the Tor network at that time. This is
+  because a relay is only included if its descriptor is found in the descriptor archive,
+  but a relay only publishes a new descriptor only after ~18 hours. Thus the for the
+  initial hours, the needed descriptors are in the descriptor archive of the month before
+  the period being processed. You can see how many relays are included in each network
+  state file by looking at the output lines of the process command. For example, the
+  relevant lines should look something like:
+  <pre><code>
+  Processing consensus file 2013-09-01-00-00-00-consensus
+  Wrote descriptors for 2 relays.
+  Did not find descriptors for 4277 relays
+  </pre></code>
+  Thus when doing a simulation, it is recommended to exclude the network state files from
+  the first 24 hours of processing (or any longer period of time). By then, the number
+  of missing descriptors should be zero or in single digits. Continuing the previous
+  example, we can see there aren't any missing descriptors by the second day:
+  <pre><code>
+  Processing consensus file 2013-09-02-00-00-00-consensus
+  ...
+  Wrote descriptors for 4261 relays.
+  Did not find descriptors for 0 relays
+  </pre></code>
+  The script util/examine_process_output.py can be fed the output of the process command
+  to provide convenient statistics to help make this decision.
+
+  found in the consensus and matched with a descriptor from the descriptor archive.
   2. Run simulations over a given period. This is done with the following command:
     python pathsim.py simulate [nsf dir] [# samples] [tracefile] [user model] [output]
         [adv guard cons bw] [adv exit cons bw] [adv time] [num adv guards]
@@ -90,3 +120,21 @@ Basic path simulation can be done entirely with pathsim.py. It requires Stem
 	- guard expiration indicates the time in days until the one-month period during
 	    which the guard chooses a random expiration time, with 0 indicating no guard
 	    expiration, default: 30
+  Again, it is recommended that the network state files for the simulation should not
+  include the first 24 hours of those produced by the process command to avoid the
+  problem of missing descriptors described above.
+	    
+### Plotting Simulation Data
+TorPS includes some basic functions to quickly analyze and view the results of your
+simulations. Note that the shell script analyze_and_plot.sh gives an example of how to use
+this functionality.
+  1. pathsim_analysis.py will process a number of log files in parallel and store the
+result for each one as a file containing pickled objects. It has command options:
+"simulation-set" and "simulation-top". simulation-set will compute statistics for the
+case that the adversary controls a set of relays. simulation-top will compute statistics
+as if the adversary controls a varying number of the "top" relays. See the script output
+for command options.
+  2. pathsim_plot.py requires numpy and matplotlib. It takes the files output by
+pathsim_analysis.py and produces a set of graphs showing the CDFs of
+compromise time and rate for the guard/exit/guard&exit of user circuits. See the script
+output for command options.
