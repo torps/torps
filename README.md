@@ -122,7 +122,7 @@ Basic path simulation can be done entirely with pathsim.py. It requires Stem
 	- guard expiration indicates the time in days until the one-month period during
 	    which the guard chooses a random expiration time, with 0 indicating no guard
 	    expiration, default: 30
-  Again, it is recommended that the network state files for the simulation should not
+  Again, it is recommended that the network state files for the simulation do not
   include the first 24 hours of those produced by the process command to avoid the
   problem of missing descriptors described above.
 	    
