@@ -41,13 +41,10 @@ Basic path simulation can be done entirely with pathsim.py. It requires Stem
 (https://stem.torproject.org/). Simulation is a two-step process:
   1. Process Tor consensuses and descriptors into a faster and more compact format for
   later path simulation. This is done with the following command:
-  <pre><code>
-  python pathsim.py process [start_year] [start_month] [end_year] [end_month] [in_dir]
-        [out_dir] [slim] [filtered]
+  <pre><code>python pathsim.py process [start_year] [start_month] [end_year] [end_month] [in_dir] [out_dir] [slim] [filtered]
   </pre></code>
   An example of this is:
-  <pre><code>
-  python pathsim.py process 2012 09 2013 03 in out 1 0
+  <pre><code>python pathsim.py process 2012 09 2013 03 in out 1 0
   </pre></code>
     TorPS expects to find all consensuses and descriptors for a given month in the format
   and organization of the metrics.torproject.org consensus archives. Extract the
@@ -94,14 +91,12 @@ Basic path simulation can be done entirely with pathsim.py. It requires Stem
 
   found in the consensus and matched with a descriptor from the descriptor archive.
   2. Run simulations over a given period. This is done with the following command:
-  <pre><code>
-  python pathsim.py simulate [nsf dir] [# samples] [tracefile] [user model] [output]
+  <pre><code>python pathsim.py simulate [nsf dir] [# samples] [tracefile] [user model] [output]
         [adv guard cons bw] [adv exit cons bw] [adv time] [num adv guards]
         [path selection alg] [num guards] [guard expiration]       
   </pre></code>
   An example of this is:
-  <pre><code>
-  python pathsim.py simulate out/ns-2012-09--2013-03 5000 none simple=6 0 0 0 0 0 tor 3 30
+  <pre><code>python pathsim.py simulate out/ns-2012-09--2013-03 5000 none simple=6 0 0 0 0 0 tor 3 30
   </pre></code>
   The arguments are used as follows:
 	- nsf dir stores the network state files to use, default: out/network-state-files
