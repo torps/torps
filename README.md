@@ -74,8 +74,7 @@ Basic path simulation can be done entirely with pathsim.py. It requires Stem
   the period being processed. You can see how many relays are included in each network
   state file by looking at the output lines of the process command. For example, the
   relevant lines should look something like:
-  <pre><code>
-  Processing consensus file 2013-09-01-00-00-00-consensus
+  <pre><code>Processing consensus file 2013-09-01-00-00-00-consensus
   Wrote descriptors for 2 relays.
   Did not find descriptors for 4277 relays
   </pre></code>
@@ -83,8 +82,7 @@ Basic path simulation can be done entirely with pathsim.py. It requires Stem
   the first 24 hours of processing. By then, the number
   of missing descriptors should be zero or in single digits. Continuing the previous
   example, we can see there aren't any missing descriptors by the second day:
-  <pre><code>
-  Processing consensus file 2013-09-02-00-00-00-consensus
+  <pre><code>Processing consensus file 2013-09-02-00-00-00-consensus
   ...
   Wrote descriptors for 4261 relays.
   Did not find descriptors for 0 relays
