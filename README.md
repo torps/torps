@@ -77,6 +77,9 @@ Basic path simulation can be done entirely with pathsim.py. It requires Stem
   Wrote descriptors for 2 relays.
   Did not find descriptors for 4277 relays
   </pre></code>
+  Notice in this example that nearly all relays are missing descriptors here (and thus
+  would not exist in the network state file) because the
+  consensuses to process started 2013-09-01-00-00-00.
   Thus when doing a simulation, it is recommended to exclude the network state files from
   the first 24 hours of processing. By then, the number
   of missing descriptors should be zero or in single digits. Continuing the previous
