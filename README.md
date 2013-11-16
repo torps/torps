@@ -52,14 +52,17 @@ Basic path simulation can be done entirely with pathsim.py. It requires Stem
   "[in-dir]/consensuses-[year]-[month]", where [year] is in YYYY format and [month]
   in is MM format. Similarly, extract the archive of descriptors for a given month into
   the directory "[in-dir]/server-descriptors-[year]-[month]".
+  
     The processing command will go through each month from [start_year]/[start_month] to
   [end_year]/[end_month]. It will output the processed "network state files" for
   a given month into the directory "[out_dir]/network-state-[year]-[month]", which will
   be created if it doesn't exist.
+  
     If [slim] is 1 (recommended), then the network state files will not use the stem
   classes and will be smaller and faster to process later. If [filtered] is 1 (not
   recommended by default), relays that will not be selected by the path selection
   algorithm won't be included for efficiency.
+  
     IMPORTANT NOTE: If the consensuses being processed start at the very beginning of a
   month, which is true assuming you just extract some monthly consensus archives as
   provided by Tor Metrics, then the first ~18 hours of network state files for the first
