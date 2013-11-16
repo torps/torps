@@ -65,11 +65,11 @@ Basic path simulation can be done entirely with pathsim.py. It requires Stem
   
     IMPORTANT NOTE: If the consensuses being processed start at the very beginning of a
   month, which is true assuming you just extract some monthly consensus archives as
-  provided by Tor Metrics, then the first ~18 hours of network state files for the first
+  provided by Tor Metrics, then the first ~18 hours of network state files of the first
   month of the period being processed will incorrectly contain many fewer relays than
   actually existed in the Tor network at that time. This is
   because a relay is only included if its descriptor is found in the descriptor archive,
-  but a relay only publishes a new descriptor only after ~18 hours. Thus the for the
+  but a relay only publishes a new descriptor after ~18 hours. Thus the for the
   initial hours, the needed descriptors are in the descriptor archive of the month before
   the period being processed. You can see how many relays are included in each network
   state file by looking at the output lines of the process command. For example, the
@@ -80,7 +80,7 @@ Basic path simulation can be done entirely with pathsim.py. It requires Stem
   Did not find descriptors for 4277 relays
   </pre></code>
   Thus when doing a simulation, it is recommended to exclude the network state files from
-  the first 24 hours of processing (or any longer period of time). By then, the number
+  the first 24 hours of processing. By then, the number
   of missing descriptors should be zero or in single digits. Continuing the previous
   example, we can see there aren't any missing descriptors by the second day:
   <pre><code>
@@ -91,8 +91,6 @@ Basic path simulation can be done entirely with pathsim.py. It requires Stem
   </pre></code>
   The script util/examine_process_output.py can be fed the output of the process command
   to provide convenient statistics to help make this decision.
-
-  found in the consensus and matched with a descriptor from the descriptor archive.
   2. Run simulations over a given period. This is done with the following command:
   <pre><code>python pathsim.py simulate [nsf dir] [# samples] [tracefile] [user model] [output]
         [adv guard cons bw] [adv exit cons bw] [adv time] [num adv guards]
