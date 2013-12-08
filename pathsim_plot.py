@@ -473,7 +473,7 @@ assumed that input filenames are of form x.y.z, and output files will use x for 
         sys.exit(1)
     in_dir = sys.argv[2]
     out_dir = sys.argv[3]
-    if (sys.argv > 4):
+    if (len(sys.argv) > 4):
         out_name = sys.argv[4]
     else:
         out_name = None
