@@ -10,6 +10,7 @@ from pathsim import *
 #import math
 import multiprocessing
 #import network_analysis
+import re
 
 
 def compromised_set_get_compromise_rates(pathnames):
@@ -87,8 +88,12 @@ def compromised_set_process_log(compromised_relays, out_dir, out_name, format,
 #            if (i % 5000 == 0):
 #                print('Read {0} lines.'.format(i))
 #            i = i+1
+            if line[0]=='#':
+                continue
+
             line = line[0:-1] # cut off final newline
-            line_fields = line.split('\t')
+#            line_fields = line.split('\t')
+            line_fields = re.split('\t|\s+',line)    
             id = int(line_fields[0])
             time = float(line_fields[1])
             if (format == 'relay-adv'):
