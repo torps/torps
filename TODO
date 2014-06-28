@@ -3,7 +3,7 @@
 # - We do not consider removing stable/fast requirements if a suitable relay can't be found at some point. Tor does this. Rather, we just error.
 # - Instead of immediately using a new consensus, set a random time to
 #   switch to the new one, following the process in dir-spec.txt (Sec. 5.1).
-# - Do something intelligent with empty node sets rather than just raise error.
+# - Do something intelligent with empty node sets rather than just raise error. Relatedly, do checks for sufficient nodes to create paths, and raise informative errors if not.
 # - circuits only recorded as fast/stable/internal if they were chosen to
 #   satisfy that, but they may just by chance. should we check?
 # - Tor actually seems to build a circuit to cover a port by randomly selecting from exits that cover *some* unhandled port (see choose_good_exit_server_general() in circuitbuild.c). Possibly change procedure for covering ports to act like this.

@@ -7,7 +7,7 @@ def expect_hour_advance(line, hour, new_hour):
 
 def expect_day_advance(line, hour, day, new_hour, new_day):
     if (new_hour != 0):
-        print('Unexpected hour in {0} old hour:                         {1}'.format(line, hour))
+        print('Unexpected hour in {0} old hour: {1}'.format(line, hour))
     if (new_day - day != 1):
         print('Unexpected day in {0} old day: {1}'.format(line[:-1], day))
         

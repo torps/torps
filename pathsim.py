@@ -330,7 +330,7 @@ def in_same_family(descriptors, node1, node2):
     desc1 = descriptors[node1]
     desc2 = descriptors[node2]
     fprint1 = desc1.fingerprint
-    fprint2 = desc1.fingerprint
+    fprint2 = desc2.fingerprint
     nick1 = desc1.nickname
     nick2 = desc2.nickname
 
