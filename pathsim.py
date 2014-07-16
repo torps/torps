@@ -786,7 +786,8 @@ def set_initial_hibernating_status(hibernating_status, hibernating_statuses,
         hs = hibernating_statuses.pop()
         if (hs[1] in hibernating_status) and _testing:
             print('Reset hibernating of {0}:{1} to {2}.'.format(\
-                cons_rel_stats[hs[1]].nickname, hs[1], hs[2]))
+                cons_rel_stats[hs[1]].nickname, hibernating_status[hs[1]],
+                    hs[2]))
         hibernating_status[hs[1]] = hs[2]
         if _testing:
             if (hs[2]):
