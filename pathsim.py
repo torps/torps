@@ -602,19 +602,20 @@ def circuit_covers_port_need(circuit, descriptors, port, need):
             (can_exit_to_port(descriptors[circuit['path'][-1]], port))
 
 
-def print_mapped_streams_header(format):
+def print_mapped_streams_header(format, file=sys.stdout):
     """Prints log header for stream lines."""
     if (format == 'relay-adv'):
-        print('Sample\tTimestamp\tCompromise Code')
+        file.write('Sample\tTimestamp\tCompromise Code\n')
     elif (format == 'network-adv'):
-        print('Sample\tTimestamp\tGuard ip\tExit IP\tDestination IP')
+        file.write('Sample\tTimestamp\tGuard ip\tExit IP\tDestination IP\n')
     else:
-        print('Sample\tTimestamp\tGuard IP\tMiddle IP\tExit IP\tDestination IP')
+        file.write('Sample\tTimestamp\tGuard IP\tMiddle IP\tExit IP\tDestination IP\n')
 
         
-def print_mapped_stream(client_id, circuit, stream, descriptors, format):
-    """Prints log line showing client, time, IPs, and fingerprints in path of
-    stream."""
+def print_mapped_stream(client_id, circuit, stream, descriptors, format,
+    file=sys.stdout):
+    """Writes log line to file (default stdout) showing client, time, IPs, and
+    fingerprints in path of stream."""
     
     guard_ip = descriptors[circuit['path'][0]].address
     middle_ip = descriptors[circuit['path'][1]].address
@@ -644,13 +645,13 @@ def print_mapped_stream(client_id, circuit, stream, descriptors, format):
             compromise_code = 1
         elif exit_bad:
             compromise_code = 2
-        print('{0}\t{1}\t{2}'.format(client_id, stream['time'],
+        file.write('{0}\t{1}\t{2}\n'.format(client_id, stream['time'],
             compromise_code))
     elif (format == 'network-adv'):
-        print('{0}\t{1}\t{2}\t{3}\t{4}'.format(client_id, stream['time'],
+        file.write('{0}\t{1}\t{2}\t{3}\t{4}\n'.format(client_id, stream['time'],
             guard_ip, exit_ip, dest_ip))
     else:
-        print('{0}\t{1}\t{2}\t{3}\t{4}\t{5}'.format(client_id,
+        file.write('{0}\t{1}\t{2}\t{3}\t{4}\t{5}\n'.format(client_id,
             stream['time'], guard_ip, middle_ip, exit_ip, dest_ip))
 
 
