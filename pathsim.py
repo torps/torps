@@ -856,7 +856,7 @@ def period_client_update(client_state, cons_rel_stats, cons_fresh_until,\
     kill_circuits_by_relay(client_state, \
         lambda r: (r not in cons_rel_stats) or \
             (Flag.RUNNING not in cons_rel_stats[r].flags),\
-            'is down')    
+            'is down')
             
             
 def timed_updates(cur_time, port_needs_global, client_states,
