@@ -4,11 +4,20 @@ BASE_DIR=$1
 USERMODEL=$2
 DATE_RANGE=$3
 ADV_GUARD_BW=$4
-ADV_EXIT_BW=$5
-ADV_TIME=$6
-EXTRA=$7
+NUM_GUARDS=$5
+ADV_EXIT_BW=$6
+ADV_TIME=$7
+EXTRA=$8
 
-EXP_NAME=$USERMODEL.$DATE_RANGE.$ADV_GUARD_BW-$ADV_EXIT_BW-$ADV_TIME-adv$EXTRA
+# for backwards compatibility: old experiments assumed one guard
+if [ $NUM_GUARDS -eq 1 ]
+then
+    NUM_GUARDS_STR=""
+else
+    NUM_GUARDS_STR="-"$NUM_GUARDS"-"
+fi
+
+EXP_NAME=$USERMODEL.$DATE_RANGE.$ADV_GUARD_BW$NUM_GUARDS_STR-$ADV_EXIT_BW-$ADV_TIME-adv$EXTRA
 
 # move timing and logs to separate directories
 mkdir -p $BASE_DIR/out/simulate/$EXP_NAME/logs
