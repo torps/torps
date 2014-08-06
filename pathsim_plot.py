@@ -265,7 +265,7 @@ def compromised_set_plot(pathnames_list, line_labels, out_dir, out_name,
         start_times[i], end_times[i], compromise_stats[i] = read_analysis_files(pathnames)
     
     compromised_set_plot_rates(compromise_stats, line_labels, out_dir,
-        out_name, figsize, fontsize, rate_legend_locs = rate_legend_locs)
+        out_name, figsize, fontsize, legend_locs = rate_legend_locs)
 
     compromised_set_plot_times(start_times, end_times, compromise_stats,
         line_labels, out_dir, out_name, figsize, fontsize, legend_locs = time_legend_locs)
