@@ -217,7 +217,7 @@ def compromised_set_plot_times(start_times, end_times, compromise_stats,
     out_pathname = os.path.join(out_dir, out_filename)        
     plot_cdf(stats_guard_times, line_labels,
         'Days from first stream',
-        '', legend_locs['guard']], out_pathname, figsize, fontsize)
+        '', legend_locs['guard'], out_pathname, figsize, fontsize)
         
         
 def read_analysis_files(pathnames):
@@ -265,11 +265,13 @@ def compromised_set_plot(pathnames_list, line_labels, out_dir, out_name,
         start_times[i], end_times[i], compromise_stats[i] = read_analysis_files(pathnames)
     
     compromised_set_plot_rates(compromise_stats, line_labels, out_dir,
-        out_name, figsize, fontsize)
+        out_name, figsize, fontsize, time_legend_locs = time_legend_locs,
+        rate_legend_locs = rate_legend_locs)
 
     compromised_set_plot_times(start_times, end_times, compromise_stats,
-        line_labels, out_dir, out_name, figsize, fontsize)
-        
+        line_labels, out_dir, out_name, figsize, fontsize, time_legend_locs = time_legend_locs,
+        rate_legend_locs = rate_legend_locs)
+
                    
 def compromised_top_relays_plot_rates(compromise_stats, out_dir, out_name):
     """
