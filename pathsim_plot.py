@@ -245,7 +245,9 @@ def read_analysis_files(pathnames):
 
                 
 def compromised_set_plot(pathnames_list, line_labels, out_dir, out_name,
-    figsize = None, fontsize = 'small'):
+    figsize = None, fontsize = 'small',
+    time_legend_locs = {'guard':'lower right', 'exit':'lower right', 'both':'lower right'},
+    rate_legend_locs = {'guard':'lower right', 'exit':'lower right', 'both':'lower right'}):
     """Plots cdfs for compromised-set statistics."""
     if (line_labels == None): # assume pathnames given as flat list
         pathnames_list = [pathnames_list]
