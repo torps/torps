@@ -75,7 +75,8 @@ def plot_cdf(lines, line_labels, xlabel, title, location, out_pathname,
 ##########
 
 def compromised_set_plot_rates(compromise_stats, line_labels, out_dir,
-    out_name, figsize = None, fontsize = 'small'):
+    out_name, figsize = None, fontsize = 'small',
+    legend_locs = {'guard':'lower right', 'exit':'lower right', 'both':'lower right'}):
     """
     Plots cdfs of compromise fractions for compromised-set statistics.
     Input:
@@ -121,19 +122,19 @@ def compromised_set_plot_rates(compromise_stats, line_labels, out_dir,
     out_filename = out_name + '.exit-guard-comp-rates.cdf.pdf' 
     out_pathname = os.path.join(out_dir, out_filename)
     plot_cdf(stats_frac_both_bad, line_labels, 'Fraction of streams',
-        '', 'lower right', out_pathname, figsize, fontsize)
+        '', legend_locs['both'], out_pathname, figsize, fontsize)
 
     # cdf of exit bad
     out_filename = out_name + '.exit-comp-rates.cdf.pdf'
     out_pathname = os.path.join(out_dir, out_filename)                           
     plot_cdf(stats_frac_exit_bad, line_labels, 'Fraction of streams',
-        '', 'lower right', out_pathname, figsize, fontsize)
+        '', legend_locs['exit'], out_pathname, figsize, fontsize)
 
     # cdf of guard bad
     out_filename = out_name + '.guard-comp-rates.cdf.pdf' 
     out_pathname = os.path.join(out_dir, out_filename)                           
     plot_cdf(stats_frac_guard_bad, line_labels, 'Fraction of streams',
-        '', 'lower right', out_pathname, figsize, fontsize)
+        '', legend_locs['guard'], out_pathname, figsize, fontsize)
 
 
 def first_compromise_times(start_time, end_time, stats_list):
@@ -167,7 +168,8 @@ def first_compromise_times(start_time, end_time, stats_list):
 
 
 def compromised_set_plot_times(start_times, end_times, compromise_stats,
-    line_labels, out_dir, out_name, figsize = None, fontsize = 'small'):
+    line_labels, out_dir, out_name, figsize = None, fontsize = 'small',
+    legend_locs = {'guard':'lower right', 'exit':'lower right', 'both':'lower right'}):
     """
     Plots cdfs of times to compromise for compromised-set statistics.
     Input: 
@@ -201,21 +203,21 @@ def compromised_set_plot_times(start_times, end_times, compromise_stats,
     out_pathname = os.path.join(out_dir, out_filename)
     plot_cdf(stats_guard_and_exit_times, line_labels,
         'Days from first stream',
-        '', 'lower right', out_pathname, figsize, fontsize)
+        '', legend_locs['both'], out_pathname, figsize, fontsize)
 
     # cdf for exit bad
     out_filename = out_name + '.exit-comp-times.cdf.pdf'
     out_pathname = os.path.join(out_dir, out_filename)       
     plot_cdf(stats_exit_times, line_labels,
         'Days from first stream',
-        '', 'lower right', out_pathname, figsize, fontsize)
+        '', legend_locs['exit'], out_pathname, figsize, fontsize)
                         
     # cdf for guard bad
     out_filename = out_name + '.guard-comp-times.cdf.pdf'
     out_pathname = os.path.join(out_dir, out_filename)        
     plot_cdf(stats_guard_times, line_labels,
         'Days from first stream',
-        '', 'lower right', out_pathname, figsize, fontsize)
+        '', legend_locs['guard']], out_pathname, figsize, fontsize)
         
         
 def read_analysis_files(pathnames):
