@@ -269,8 +269,8 @@ def compromised_set_plot(pathnames_list, line_labels, out_dir, out_name,
         rate_legend_locs = rate_legend_locs)
 
     compromised_set_plot_times(start_times, end_times, compromise_stats,
-        line_labels, out_dir, out_name, figsize, fontsize, time_legend_locs = time_legend_locs,
-        rate_legend_locs = rate_legend_locs)
+        line_labels, out_dir, out_name, figsize, fontsize, legend_locs = time_legend_locs,
+        legend_locs = rate_legend_locs)
 
                    
 def compromised_top_relays_plot_rates(compromise_stats, out_dir, out_name):
