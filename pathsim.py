@@ -45,17 +45,18 @@ class NetworkStatusDocument:
 class ServerDescriptor:
     """
     Represents a server descriptor.
-    Slim version of stem.descriptor.server_descriptor.ServerDescriptor.
+    Slim version of stem.descriptor.server_descriptor.ServerDescriptor combined
+    with stem.descriptor.server_descriptor.RelayDescriptor.
     """
-    def __init__(self, fingerprint, hibernating, nickname, family, address,\
-        exit_policy):
+    def __init__(self, fingerprint, hibernating, nickname, family, address,
+        exit_policy, ntor_onion_key):
         self.fingerprint = fingerprint
         self.hibernating = hibernating
         self.nickname = nickname
         self.family = family
         self.address = address
         self.exit_policy = exit_policy
-
+        self.ntor_onion_key = ntor_onion_key
 
 class TorOptions:
     """Stores parameters set by Tor."""
@@ -1585,8 +1586,9 @@ def add_adv_guards(num_adv_guards, adv_relays, adv_descriptors, bandwidth):
         family = {}
         address = '10.'+num_str+'.0.0' # avoid /16 conflicts
         exit_policy = ExitPolicy('reject *:*')
+        ntor_onion_key = num_str # anything but None to indicate ntor support
         adv_descriptors[fingerprint] = ServerDescriptor(fingerprint,\
-            hibernating, nickname, family, address, exit_policy)
+            hibernating, nickname, family, address, exit_policy, ntor_onion_key)
 
 def add_adv_exits(num_adv_guards, num_adv_exits, adv_relays, adv_descriptors,
     bandwidth):
@@ -1606,8 +1608,9 @@ def add_adv_exits(num_adv_guards, num_adv_exits, adv_relays, adv_descriptors,
         family = {}
         address = '10.'+str(num_adv_guards+i+1)+'.0.0' # avoid /16 conflicts
         exit_policy = ExitPolicy('accept *:*')
-        adv_descriptors[fingerprint] = ServerDescriptor(fingerprint,\
-            hibernating, nickname, family, address, exit_policy)                
+        ntor_onion_key = num_str # anything but None to indicate ntor support        
+        adv_descriptors[fingerprint] = ServerDescriptor(fingerprint,
+            hibernating, nickname, family, address, exit_policy, ntor_onion_key)
                         
 
 def get_user_model(start_time, end_time, tracefilename=None, session='simple=6'):

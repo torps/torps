@@ -149,7 +149,7 @@ def process_consensuses(in_dirs, slim, filtered):
                             pathsim.ServerDescriptor(desc.fingerprint, \
                                 desc.hibernating, desc.nickname, \
                                 desc.family, desc.address, \
-                                desc.exit_policy)
+                                desc.exit_policy, desc.ntor_onion_key)
                     else:
                         descriptors_out[r_stat.fingerprint] = desc
                      
