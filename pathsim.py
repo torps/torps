@@ -1634,40 +1634,99 @@ def get_user_model(start_time, end_time, tracefilename=None, session='simple=6')
 
 
 if __name__ == '__main__':
-    command = None
-    usage = 'Usage: pathsim.py [command]\nCommands:\n\
-\tprocess \
-[start_year] [start_month] [end_year] [end_month] [in_dir] [out_dir] [slim] [filtered]:\
- match relays in each consensus in in_dir/consensuses-[year]-[month] with \
-descriptors in in_dir/server-descriptors-[year]-[month], where year and month \
-range from start_year and start_month to end_year and end_month. Write the \
-matched descriptors for each consensus to \
-out_dir/network-state-[year]-[month]. Use slim classes if slim=1. Filter out relays without FAST and RUNNING flags if filtered=1.\n\
-\tsimulate \
-[nsf dir] [# samples] [tracefile] [user model] [output] [adv guard cons bw] [adv exit cons bw] [adv time] [num adv guards] [path selection alg] \
-[num guards] [guard expiration]: \
-Do simulated path selections, where\n\
-\t\t nsf dir stores the network state files to use, \
-default: out/network-state-files\n\
-\t\t # samples is the number of simulations to execute, default: 1\n\
-\t\t tracefile indicates the user trace, default: traces.pickle\n\
-\t\t user model is one of "facebook", "gmailgchat", "gcalgdocs", "websearch", "irc", "bittorrent", "typical", "best", "worst", "simple=[reqs/hour]", default: "simple=6"\n\
-\t\t output sets log level: 0 is normal, 1 is testing, 2 is for the relay adversary, 3 is for the network adversary, default: 0\n\
-\t\t adv guard cons bw indicates the consensus bandwidth of the adversarial guard to add, \
-default: 0\n\
-\t\t adv exit cons bw indicates the consensus bandwidth of the adversarial exit to add, default: 0\n\
-\t\t adv time indicates timestamp after which adv relays added to\
-consensuses, default: 0\n\
-\t\t num adv guards indicates the number of adversarial guards to add, default: 1\n\
-\t\t path selection alg is one of\n\
-\t\t\t tor: uses Tor path selection, is default\n\
-\t\t\t cat [congfile]: uses congestion-aware tor with congfile is the congestion input file\n\
-\t\t\t vcs [congfile] [pdelfile]: uses the virtual-coordinate system.\n\
-\t\t num guards indicates size of client guard list, default: 3\n\
-\t\t guard expiration indicates time in days until one-month period during \
-which guard may expire, with 0 indicating no guard expiration, default: 30\n\
-\tconcattraces \
-outfilename.pickle facebook.log gmailgchat.log, gcalgdocs.log, websearch.log, irc.log, bittorrent.log: combine user session traces into a single object used by pathsim, and pickle it. The pickled object is input to the simulate command.'
+    import argparse
+
+    # parse arguments    
+    parser = argparse.ArgumentParser(description='Commands to run the Tor Path Simulator (TorPS)')
+# should move _testing output to logging package
+#    parser.add_argument('--loglevel', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+#        help='set level of log messages to send to stdout', default='INFO')
+
+    subparsers = parser.add_subparsers(help='commands', dest='subparser')
+
+    process_parser = subparsers.add_parser('process',
+        help='Process Tor consensuses and descriptors. This matches relays in each consensus with\
+the most-recently-seen descriptors. Also store changes in hibernation status that occur during the\
+consensus period as revealed by multiple published descriptors. The consensus, matched descriptors,\
+and hibernating statuses are pickled and written to disk.')
+    process_parser.add_argument('--start_year',
+        help='year in which to begin processing')
+    process_parser.add_argument('--start_month',
+        help='month in which to begin processing')
+    process_parser.add_argument('--end_year',
+        help='year in which to end processing')
+    process_parser.add_argument('--end_month',
+        help='month in which to end processing')
+    process_parser.add_argument('--in_dir',
+        help='directory in which input consensus and descriptor directories are located')
+    process_parser.add_argument('--slim', action='store_true',
+        help='Output the slimmer TorPS classes (e.g. NetworkStatusDocument and ServerDescriptor) instead of the analagous stem classes')
+    process_parser.add_argument('--filtered', action='store_true',
+        help='filter relays without FAST and RUNNING flags out of consensuses')
+
+    simulate_parser = subparsers.add_parser('simulate',
+        help='Do simulated path selections.')
+#[nsf dir] [# samples] [tracefile] [user model] [output] [adv guard cons bw] [adv exit cons bw] [adv time] [num adv guards] [path selection alg] [num guards] [guard expiration]
+    simulate_parser.add_argument('--nsf_dir', default='out/network-state-files',
+        help='stores the network state files to use')
+    simulate_parser.add_argument('--num_samples', type=int, default=1,
+        help='number of simulations to execute')
+    simulate_parser.add_argument('--trace_file', default='traces.pickle',
+        help='name of files containing the user traces')
+    simulate_parser.add_argument('--user_model', default='simple=6',
+        help='user model to build out of traces, with standard trace file one of "facebook",\
+"gmailgchat", "gcalgdocs", "websearch", "irc", "bittorrent", "typical", "best", "worst",\
+"simple=[reqs/hour]"')
+    simulate_parser.add_argument('--output', default='normal',
+        choices=['normal', 'testing', 'relay-adv', 'network-adv'],
+        default='sets the content and format of output')
+    simulate_parser.add_argument('--adv_guard_cons_bw', type=int, default=0,
+        help='indicates the consensus bandwidth of the adversarial guard to add')
+    simulate_parser.add_argument('--adv_exit_cons_bw', type=int, default=0,
+        help='indicates the consensus bandwidth of the adversarial exit to add')
+    simulate_parser.add_argument('--adv_time', type=int, default=0,
+        help='indicates timestamp after which to add adversarial relays to consensuses')
+    simulate_parser.add_argument('--num_adv_guards', type=int, default=1,
+        help='indicates the number of adversarial guards to add')
+    simulate_parser.add_argument('--num_guards', type=int, default=3,
+        help='indicates size of client guard list')
+    simulate_parser.add_argument('--guard_expiration', type=int, default=60,
+        help='indicates time in days until one-month period during which guard\
+may expire, with 0 indicating no guard expiration')
+        
+    pathalg_subparsers = simulate_parser.add_subparsers(help='commands', dest='pathalg_subparser')
+    tor_simulate_parser = pathalg_subparsers.add_parser('tor',
+        help='use vanilla Tor path selection')    
+    cat_simulate_parser = pathalg_subparsers.add_parser('cat',
+        help='use congestion-aware tor (Wang et al., FC12)')
+    cat_simulate_parser.add_argument('--congfile', help='name of input congestion file'
+    vcs_simulate_parser = pathalg_subparsers.add_parser('vcs',
+        help='use virtual-coordinate-system path selection (Sherr, PhD 2009)')
+    vcs_simulate_parser.add_argument('--congfile', help='name of input congestion file')
+    vcs_simulate_parser.add_argument('--pdelfile', help='name of input propagation-delay file')
+    
+    concattraces_parser = subparsers.add_parser('concattraces',
+        help='Combine user session traces into a single object used by pathsim, and pickle it. The pickled object is input to the simulate command')    
+    concattraces_parser.add_argument('--out_name', default='outfilename.pickle',
+        help='filename of output file')
+    concattraces_parser.add_argument('--facebook_filename', default='facebook.log',
+        help='name of file with facebook trace')
+    concattraces_parser.add_argument('--gmailchat_filename', default='gmailgchat.log',
+        help='name of file with gmail/gchat trace')
+    concattraces_parser.add_argument('--gcalgdocs_filename', default='gcalgdocs.log',
+        help='name of file with gcal/gdocs trace')
+    concattraces_parser.add_argument('--websearch_filename', default='websearch.log',
+        help='name of file with Web search trace')
+    concattraces_parser.add_argument('--irc_filename', default='irc.log',
+        help='name of file with IRC trace')
+    concattraces_parser.add_argument('--bittorrent_filename', default='bittorrent.log',
+        help='name of file with BitTorrent trace')
+
+    args = parser.parse_args()
+
+#    logging.basicConfig(stream=sys.stdout, level=getattr(logging, args.loglevel))    
+
+
     if (len(sys.argv) <= 1):
         print(usage)
         sys.exit(1)
