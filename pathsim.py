@@ -64,8 +64,8 @@ class TorOptions:
     
     num_guards = 3
     min_num_guards = 2
-    guard_expiration_min = 30*24*3600 # min time until guard removed from list
-    guard_expiration_max = 60*24*3600 # max time until guard removed from list 
+    guard_expiration_min = 60*24*3600 # min time until guard removed from list
+    guard_expiration_max = 90*24*3600 # max time until guard removed from list 
     default_bwweightscale = 10000   
     
     # max age of a dirty circuit to which new streams can be assigned
@@ -96,6 +96,10 @@ class TorOptions:
     # needs that apply to all samples
     # min coverage given with "#define MIN_CIRCUITS_HANDLING_STREAM 2" in or.h
     port_need_cover_num = 2
+    
+    # number of times to attempt to find circuit with at least one NTor hop
+    # from #define MAX_POPULATE_ATTEMPTS 32 in circuicbuild.c
+    max_populate_attempts = 32
     
 
 def timestamp(t):
@@ -1179,6 +1183,14 @@ def select_exit_node(bw_weights, bwweightscale, cons_rel_stats, descriptors,\
                 return exit_node    
 
 
+def circuit_supports_ntor(guard_node, middle_node, exit_node, descriptors):
+    """Returns True if one node in circuit has ntor key."""
+    
+    for relay in (guard_node, middle_node, exit_node):
+        if (descriptors[relay].ntor_onion_key is not None):
+            return True
+    return False
+
 def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
     cons_bw_weights, cons_bwweightscale, descriptors, hibernating_status,\
     guards, circ_time, circ_fast, circ_stable, circ_internal, circ_ip,\
@@ -1227,80 +1239,101 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
         (circ_time >= cons_fresh_until):
         raise ValueError('consensus not fresh for circ_time in create_circuit')
  
-    # select exit node
-    i = 1
-    while (True):
-        exit_node = select_exit_node(cons_bw_weights, cons_bwweightscale,\
-            cons_rel_stats, descriptors, circ_fast, circ_stable,\
-            circ_internal, circ_ip, circ_port, weighted_exits, exits_exact)
-#        exit_node = select_weighted_node(weighted_exits)
-        if (not hibernating_status[exit_node]):
-            break
-        if _testing:
-            print('Exit selection #{0} is hibernating - retrying.'.format(i))
-        i += 1
-    if _testing:    
-        print('Exit node: {0} [{1}]'.format(
-            cons_rel_stats[exit_node].nickname,
-            cons_rel_stats[exit_node].fingerprint))
-    
-    # select guard node
-    # Hibernation status again checked here to reflect how in Tor
-    # new guards would be chosen and added to the list prior to a circuit-
-    # creation attempt. If the circuit fails at a new guard, that guard
-    # gets removed from the list.
-    while True:
-        # get first <= TorOptions.num_guards guards suitable for circuit
-        circ_guards = get_guards_for_circ(cons_bw_weights,\
-            cons_bwweightscale, cons_rel_stats, descriptors,\
-            circ_fast, circ_stable, guards,\
-            exit_node,\
-            circ_time, weighted_guards)   
-        guard_node = choice(circ_guards)
-        if (hibernating_status[guard_node]):
-            if (not guards[guard_node]['made_contact']):
-                if _testing:
-                    print('[Time {0}]: Removing new hibernating guard: {1}.'.\
-                        format(circ_time, cons_rel_stats[guard_node].nickname))
-                del guards[guard_node]
-            elif (guards[guard_node]['unreachable_since'] != None):
-                if _testing:
-                    print('[Time {0}]: Guard retried but hibernating: {1}'.\
-                        format(circ_time, cons_rel_stats[guard_node].nickname))
-                guards[guard_node]['last_attempted'] = circ_time
+    num_attempt = 0
+    ntor_supported = False
+    while (num_attempt < TorOptions.max_populate_attempts) and\
+        (not ntor_supported):
+        # select exit node
+        i = 1
+        while (True):
+            exit_node = select_exit_node(cons_bw_weights, cons_bwweightscale,\
+                cons_rel_stats, descriptors, circ_fast, circ_stable,\
+                circ_internal, circ_ip, circ_port, weighted_exits, exits_exact)
+    #        exit_node = select_weighted_node(weighted_exits)
+            if (not hibernating_status[exit_node]):
+                break
+            if _testing:
+                print('Exit selection #{0} is hibernating - retrying.'.\
+                    format(i))
+            i += 1
+        if _testing:    
+            print('Exit node: {0} [{1}]'.format(
+                cons_rel_stats[exit_node].nickname,
+                cons_rel_stats[exit_node].fingerprint))
+
+        # select guard node
+        # Hibernation status again checked here to reflect how in Tor
+        # new guards would be chosen and added to the list prior to a circuit-
+        # creation attempt. If the circuit fails at a new guard, that guard
+        # gets removed from the list.
+        while True:
+            # get first <= TorOptions.num_guards guards suitable for circuit
+            circ_guards = get_guards_for_circ(cons_bw_weights,\
+                cons_bwweightscale, cons_rel_stats, descriptors,\
+                circ_fast, circ_stable, guards,\
+                exit_node,\
+                circ_time, weighted_guards)   
+            guard_node = choice(circ_guards)
+            if (hibernating_status[guard_node]):
+                if (not guards[guard_node]['made_contact']):
+                    del guards[guard_node]
+                    if _testing:
+                        print('[Time {0}]: Removed new hibernating guard: {}.'.\
+                            format(circ_time,
+                                cons_rel_stats[guard_node].nickname))
+                elif (guards[guard_node]['unreachable_since'] != None):
+                    guards[guard_node]['last_attempted'] = circ_time
+                    if _testing:
+                        print('[Time {0}]: Guard retried but hibernating: {1}'.\
+                            format(circ_time,
+                                cons_rel_stats[guard_node].nickname))
+                else:
+                    guards[guard_node]['unreachable_since'] = circ_time
+                    guards[guard_node]['last_attempted'] = circ_time
+                    if _testing:
+                        print('[Time {0}]: Guard newly hibernating: {1}'.\
+                            format(circ_time,
+                                cons_rel_stats[guard_node].nickname))
             else:
-                if _testing:
-                    print('[Time {0}]: Guard newly hibernating: {1}'.\
-                        format(circ_time, cons_rel_stats[guard_node].nickname))
-                guards[guard_node]['unreachable_since'] = circ_time
-                guards[guard_node]['last_attempted'] = circ_time
-        else:
-            guards[guard_node]['unreachable_since'] = None
-            guards[guard_node]['made_contact'] = True
-            break
-    if _testing:
-        print('Guard node: {0} [{1}]'.format(
-            cons_rel_stats[guard_node].nickname,
-            cons_rel_stats[guard_node].fingerprint))
-    
-    # select middle node
-    # As with exit selection, hibernating status checked here to mirror Tor
-    # selecting middle, having the circuit fail, reselecting a path,
-    # and attempting circuit creation again.    
-    i = 1
-    while (True):
-        middle_node = select_middle_node(cons_bw_weights, cons_bwweightscale,\
-            cons_rel_stats, descriptors, circ_fast,\
-            circ_stable, exit_node, guard_node, weighted_middles)
-        if (not hibernating_status[middle_node]):
-            break
+                guards[guard_node]['unreachable_since'] = None
+                guards[guard_node]['made_contact'] = True
+                break
         if _testing:
-            print('Middle selection #{0} is hibernating - retrying.'.format(i))
-        i += 1    
+            print('Guard node: {0} [{1}]'.format(
+                cons_rel_stats[guard_node].nickname,
+                cons_rel_stats[guard_node].fingerprint))
+
+        # select middle node
+        # As with exit selection, hibernating status checked here to mirror Tor
+        # selecting middle, having the circuit fail, reselecting a path,
+        # and attempting circuit creation again.    
+        i = 1
+        while (True):
+            middle_node = select_middle_node(cons_bw_weights,
+                cons_bwweightscale, cons_rel_stats, descriptors, circ_fast,
+                circ_stable, exit_node, guard_node, weighted_middles)
+            if (not hibernating_status[middle_node]):
+                break
+            if _testing:
+                print('Middle selection #{0} is hibernating - retrying.'.\
+                    format(i))
+            i += 1    
+        if _testing:
+            print('Middle node: {0} [{1}]'.format(
+                cons_rel_stats[middle_node].nickname,
+                cons_rel_stats[middle_node].fingerprint))
+                
+        # ensure one member of the circuit supports the ntor handshake
+        ntor_supported = circuit_supports_ntor(guard_node, middle_node,
+            exit_node, descriptors)#START
+        num_attempt += 1
     if _testing:
-        print('Middle node: {0} [{1}]'.format(
-            cons_rel_stats[middle_node].nickname,
-            cons_rel_stats[middle_node].fingerprint))
+        if ntor_supported:
+            print('Chose ntor-compatible circuit in {} tries'.\
+                format{num_attempt})
+        else:
+            raise ValueError('ntor-compatible circuit not found in {} tries'.\
+                format(num_attempt))
     
     return {'time':circ_time,\
             'fast':circ_fast,\
