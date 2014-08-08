@@ -1330,7 +1330,7 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
     if _testing:
         if ntor_supported:
             print('Chose ntor-compatible circuit in {} tries'.\
-                format{num_attempt})
+                format(num_attempt))
         else:
             raise ValueError('ntor-compatible circuit not found in {} tries'.\
                 format(num_attempt))
