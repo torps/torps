@@ -633,8 +633,10 @@ def print_mapped_stream(client_id, circuit, stream, descriptors, format,
         raise ValueError('ERROR: Unrecognized stream in print_mapped_stream: \
 {0}'.format(stream['type']))
     if (format == 'relay-adv'):
-        guard_prefix = '000000000000000000000000000000' # as in add_adv_guards
-        exit_prefix = 'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFF' # as in add_adv_exits
+         # as in AdversaryInsertion.add_adv_guards()
+        guard_prefix = '000000000000000000000000000000'
+        # as in AdversaryInsertion.add_adv_exits()
+        exit_prefix = 'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFF'
         guard_bad = False
         exit_bad = False
         if (circuit['path'][0][0:30] == guard_prefix) or\
@@ -741,8 +743,8 @@ def kill_circuits_by_relay(client_state, relay_down_fn, msg):
     client_state['clean_exit_circuits'] = new_clean_exit_circuits
 
 
-def get_network_state(ns_file, add_time, add_relays):
-    """Reads in network state file and added relays, returns needed values."""
+def get_network_state(ns_file):
+    """Reads in network state file, returns lightly-processed values."""
     if _testing:
         print('Using file {0}'.format(ns_file))
 
@@ -763,21 +765,6 @@ def get_network_state(ns_file, add_time, add_relays):
     for relay in consensus.relays:
         if (relay in new_descriptors):
             cons_rel_stats[relay] = consensus.relays[relay]
-            
-    if (add_time <= cons_valid_after):
-        # include additional relays in consensus
-        if _testing:
-            print('Adding {0} relays to consensus.'.format(\
-                len(add_relays)))
-        for fprint, relay in add_relays.items():
-            if fprint in cons_rel_stats:
-                raise ValueError(\
-                    'Added relay exists in consensus: {0}:{1}'.\
-                        format(relay.nickname, fprint))
-            cons_rel_stats[fprint] = relay
-        # include hibernating statuses for added relays
-        hibernating_statuses.extend([(0, fp, False) \
-            for fp in add_relays])
     
     return (cons_valid_after, cons_fresh_until, cons_bw_weights,
         cons_bwweightscale, cons_rel_stats, hibernating_statuses,
@@ -1240,9 +1227,9 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
         (circ_time >= cons_fresh_until):
         raise ValueError('consensus not fresh for circ_time in create_circuit')
  
-    num_attempt = 0
+    num_attempts = 0
     ntor_supported = False
-    while (num_attempt < TorOptions.max_populate_attempts) and\
+    while (num_attempts < TorOptions.max_populate_attempts) and\
         (not ntor_supported):
         # select exit node
         i = 1
@@ -1326,15 +1313,15 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
                 
         # ensure one member of the circuit supports the ntor handshake
         ntor_supported = circuit_supports_ntor(guard_node, middle_node,
-            exit_node, descriptors)#START
-        num_attempt += 1
+            exit_node, descriptors)
+        num_attempts += 1
     if _testing:
         if ntor_supported:
             print('Chose ntor-compatible circuit in {} tries'.\
-                format(num_attempt))
-        else:
-            raise ValueError('ntor-compatible circuit not found in {} tries'.\
-                format(num_attempt))
+                format(num_attempts))
+    if (not ntor_supported):
+        raise ValueError('ntor-compatible circuit not found in {} tries'.\
+            format(num_attempts))
     
     return {'time':circ_time,\
             'fast':circ_fast,\
@@ -1344,9 +1331,10 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
             'path':(guard_node, middle_node, exit_node),\
 #            'cons_rel_stats':cons_rel_stats,\
             'covering':[]}
-    
-def create_circuits(network_state_files, streams, num_samples, add_relays,\
-    add_descriptors, add_time, congmodel, pdelmodel, format):
+
+
+def create_circuits(network_state_files, streams, num_samples, congmodel,
+    pdelmodel, format):
     """Takes streams over time and creates circuits by interaction
     with create_circuit().
       Input:
@@ -1358,12 +1346,8 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
             'ip': IP address of destination
             'port': desired TCP port
         num_samples: (int) # circuit-creation samples to take for given streams
-        add_relays: (dict: fprint->RouterStatusEntry)
-            add to all existing consensuses (as usual network state just
-            continued for missing consensuses)
-        add_descriptors: (dict: fprint->ServerDescriptor) add to descriptors
-        add_time: (int) timestamp after which specified relays will be added
-            to consensuses
+        network_modifiers: (list) list of objs w/ modify_network_state(), will
+            be called in order to modify network state
         congmodel: (CongestionModel) outputs congestion used by some path algs
         pdelmodel: (PropagationDelayModel) outputs prop delay
         format: (str) 'testing', 'normal', 'relay-adv', or 'network-adv'; sets
@@ -1382,7 +1366,6 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
     # store old descriptors (for entry guards that leave consensus)
     # initialize with add_descriptors 
     descriptors = {}
-    descriptors.update(add_descriptors)
     
     port_needs_global = {}
 
@@ -1409,13 +1392,19 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
         if (ns_file != None):
             (cons_valid_after, cons_fresh_until, cons_bw_weights,
             cons_bwweightscale, cons_rel_stats, hibernating_statuses,
-            new_descriptors) = get_network_state(ns_file, add_time, add_relays)
+            new_descriptors) = get_network_state(ns_file)
 
             # clear hibernating status to ensure updates come from ns_file
             hibernating_status = {}
                         
             # update descriptors
             descriptors.update(new_descriptors)
+
+            # apply network modifications
+            for network_modifier in network_modifiers:
+                network_modifier.modify_network_state(cons_valid_after,
+                    cons_fresh_until, cons_bw_weights, cons_bwweightscale,
+                    cons_rel_stats, descriptors, hibernating_statuses)            
         else:
             # gap in consensuses, just advance an hour, keeping network state            
             cons_valid_after += 3600
@@ -1569,49 +1558,95 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
             cur_time += time_step
 
 
-def add_adv_guards(num_adv_guards, adv_relays, adv_descriptors, bandwidth):
-    """"Adds adversarial guards into add_relays and add_descriptors."""
-    for i in xrange(num_adv_guards):
-        # create consensus
-        num_str = str(i+1)
-        fingerprint = '0' * (40-len(num_str)) + num_str
-        nickname = 'BadGuyGuard' + num_str
-        flags = [Flag.FAST, Flag.GUARD, Flag.RUNNING, \
-            Flag.STABLE, Flag.VALID]
-        adv_relays[fingerprint] = RouterStatusEntry(fingerprint, nickname,\
-            flags, bandwidth)
+### class inserting adversary relays ###
+### implements "network modification" interface, i.e. modify_network_state() ###
+class AdversaryInsertion(object):
+    def add_adv_guards(self, num_adv_guards, bandwidth):
+        """"Adds adv guards into self.add_relays and self.add_descriptors."""
+        #, adv_relays, adv_descriptors
+        for i in xrange(num_adv_guards):
+            # create consensus
+            num_str = str(i+1)
+            fingerprint = '0' * (40-len(num_str)) + num_str
+            nickname = 'BadGuyGuard' + num_str
+            flags = [Flag.FAST, Flag.GUARD, Flag.RUNNING, Flag.STABLE,
+                Flag.VALID]
+            self.adv_relays[fingerprint] = RouterStatusEntry(fingerprint,
+                nickname, flags, bandwidth)
             
-        # create descriptor
-        hibernating = False
-        family = {}
-        address = '10.'+num_str+'.0.0' # avoid /16 conflicts
-        exit_policy = ExitPolicy('reject *:*')
-        ntor_onion_key = num_str # anything but None to indicate ntor support
-        adv_descriptors[fingerprint] = ServerDescriptor(fingerprint,\
-            hibernating, nickname, family, address, exit_policy, ntor_onion_key)
+            # create descriptor
+            hibernating = False
+            family = {}
+            address = '10.'+num_str+'.0.0' # avoid /16 conflicts
+            exit_policy = ExitPolicy('reject *:*')
+            ntor_onion_key = num_str # indicate ntor support w/ val != None
+            self.adv_descriptors[fingerprint] = ServerDescriptor(fingerprint,
+                hibernating, nickname, family, address, exit_policy,
+                ntor_onion_key)
 
-def add_adv_exits(num_adv_guards, num_adv_exits, adv_relays, adv_descriptors,
-    bandwidth):
-    """"Adds adversarial exits into add_relays and add_descriptors."""
-    for i in xrange(num_adv_exits):
-        # create consensus
-        num_str = str(i+1)
-        fingerprint = 'F' * (40-len(num_str)) + num_str
-        nickname = 'BadGuyExit' + num_str
-        flags = [Flag.FAST, Flag.EXIT, Flag.RUNNING, \
-            Flag.STABLE, Flag.VALID]
-        adv_relays[fingerprint] = RouterStatusEntry(fingerprint, nickname,\
-            flags, bandwidth)
+
+    def add_adv_exits(self, num_adv_guards, num_adv_exits, bandwidth):
+        """"Adds adv exits into self.add_relays and self.add_descriptors."""
+        for i in xrange(num_adv_exits):
+            # create consensus
+            num_str = str(i+1)
+            fingerprint = 'F' * (40-len(num_str)) + num_str
+            nickname = 'BadGuyExit' + num_str
+            flags = [Flag.FAST, Flag.EXIT, Flag.RUNNING, Flag.STABLE,
+                Flag.VALID]
+            self.adv_relays[fingerprint] = RouterStatusEntry(fingerprint,
+                nickname, flags, bandwidth)
             
-        # create descriptor
-        hibernating = False
-        family = {}
-        address = '10.'+str(num_adv_guards+i+1)+'.0.0' # avoid /16 conflicts
-        exit_policy = ExitPolicy('accept *:*')
-        ntor_onion_key = num_str # anything but None to indicate ntor support        
-        adv_descriptors[fingerprint] = ServerDescriptor(fingerprint,
-            hibernating, nickname, family, address, exit_policy, ntor_onion_key)
-                        
+            # create descriptor
+            hibernating = False
+            family = {}
+            address = '10.'+str(num_adv_guards+i+1)+'.0.0' # avoid /16 conflicts
+            exit_policy = ExitPolicy('accept *:*')
+            ntor_onion_key = num_str # indicate ntor support w/ val != None
+            self.adv_descriptors[fingerprint] = ServerDescriptor(fingerprint,
+                hibernating, nickname, family, address, exit_policy,
+                ntor_onion_key)
+
+
+    def __init__(self, args):
+        self.adv_time = args.adv_time
+        self.adv_relays = {}
+        self.adv_descriptors = {}
+        self.add_adv_guards(args.num_adv_guards, args.adv_guard_cons_bw)
+        self.add_adv_exits(args.num_adv_guards, args.num_adv_exits,
+            args.adv_exit_cons_bw)
+        self.first_modification = True
+
+        
+    def modify_network_state(self, cons_valid_after, cons_fresh_until,
+        cons_bw_weights, cons_bwweightscale, cons_rel_stats, descriptors,
+        hibernating_statuses):
+        """Adds adversarial guards and exits to cons_rel_stats and
+        descriptors dicts."""
+
+        # add adversarial descriptors to nsf descriptors
+        # only add once because descriptors variable is assumed persistant
+        if (self.first_modification == True):
+            descriptors.update(self.adv_descriptors)
+            self.first_modification = False
+
+        # if insertion time has been reached, add adversarial relays into
+        # consensus and hibernating status list
+        if (self.adv_time <= cons_valid_after):
+            # include additional relays in consensus
+            if _testing:
+                print('Adding {0} relays to consensus.'.format(\
+                    len(self.adv_relays)))
+            for fprint, relay in self.adv_relays.iteritems():
+                if fprint in cons_rel_stats:
+                    raise ValueError(\
+                        'Added relay exists in consensus: {0}:{1}'.\
+                            format(relay.nickname, fprint))
+                cons_rel_stats[fprint] = relay
+            # include hibernating statuses for added relays
+            hibernating_statuses.extend([(0, fp, False) \
+                for fp in self.adv_relays])
+            
 
 def get_user_model(start_time, end_time, tracefilename=None, session='simple=6'):
     streams = []
@@ -1637,18 +1672,17 @@ if __name__ == '__main__':
     import argparse
 
     # parse arguments    
-    parser = argparse.ArgumentParser(description='Commands to run the Tor Path Simulator (TorPS)')
-# should move _testing output to logging package
-#    parser.add_argument('--loglevel', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
-#        help='set level of log messages to send to stdout', default='INFO')
+    parser = argparse.ArgumentParser(\
+        description='Commands to run the Tor Path Simulator (TorPS)')
 
     subparsers = parser.add_subparsers(help='TorPS commands', dest='subparser')
 
     process_parser = subparsers.add_parser('process',
-        help='Process Tor consensuses and descriptors. This matches relays in each consensus with\
-the most-recently-seen descriptors. Also store changes in hibernation status that occur during the\
-consensus period as revealed by multiple published descriptors. The consensus, matched descriptors,\
-and hibernating statuses are pickled and written to disk.')
+        help='Process Tor consensuses and descriptors. This matches relays in \
+each consensus with the most-recently-seen descriptors. Also store changes in \
+hibernation status that occur during the consensus period as revealed by \
+multiple published descriptors. The consensus, matched descriptors, and \
+hibernating statuses are pickled and written to disk.')
     process_parser.add_argument('--start_year',
         help='year in which to begin processing')
     process_parser.add_argument('--start_month',
@@ -1663,7 +1697,8 @@ directories are located')
     process_parser.add_argument('--out_dir',
         help='directory in which to locate output network state files')
     process_parser.add_argument('--slim', action='store_true',
-        help='Output the slimmer TorPS classes (e.g. NetworkStatusDocument and ServerDescriptor) instead of the analagous stem classes')
+        help='Output the slimmer TorPS classes (e.g. NetworkStatusDocument and \
+ServerDescriptor) instead of the analagous stem classes')
     process_parser.add_argument('--filtered', action='store_true',
         help='filter relays without FAST and RUNNING flags out of consensuses')
 
@@ -1676,20 +1711,23 @@ directories are located')
     simulate_parser.add_argument('--trace_file', default='traces.pickle',
         help='name of files containing the user traces')
     simulate_parser.add_argument('--user_model', default='simple=6',
-        help='user model to build out of traces, with standard trace file one of "facebook",\
-"gmailgchat", "gcalgdocs", "websearch", "irc", "bittorrent", "typical", "best", "worst",\
-"simple=[reqs/hour]"')
+        help='user model to build out of traces, with standard trace file one \
+of "facebook", "gmailgchat", "gcalgdocs", "websearch", "irc", "bittorrent", \
+"typical", "best", "worst", "simple=[reqs/hour]"')
     simulate_parser.add_argument('--format', default='normal',
         choices=['normal', 'testing', 'relay-adv', 'network-adv'],
-        default='sets the content and format of output')
+        help='sets the content and format of output')
     simulate_parser.add_argument('--adv_guard_cons_bw', type=float, default=0,
-        help='indicates the consensus bandwidth of the adversarial guard to add')
+        help='consensus bandwidth of each adversarial guard to add')
     simulate_parser.add_argument('--adv_exit_cons_bw', type=float, default=0,
-        help='indicates the consensus bandwidth of the adversarial exit to add')
+        help='consensus bandwidth of each adversarial exit to add')
     simulate_parser.add_argument('--adv_time', type=int, default=0,
-        help='indicates timestamp after which to add adversarial relays to consensuses')
+        help='indicates timestamp after which to add adversarial relays to \
+consensuses')
     simulate_parser.add_argument('--num_adv_guards', type=int, default=1,
         help='indicates the number of adversarial guards to add')
+    simulate_parser.add_argument('--num_adv_exits', type=int, default=1,
+        help='indicates the number of adversarial exits to add')
     simulate_parser.add_argument('--num_guards', type=int, default=3,
         help='indicates size of client guard list')
     simulate_parser.add_argument('--guard_expiration', type=int, default=60,
@@ -1703,7 +1741,7 @@ commands', dest='pathalg_subparser')
     cat_simulate_parser = pathalg_subparsers.add_parser('cat',
         help='use congestion-aware tor (Wang et al., FC12)')
     cat_simulate_parser.add_argument('--congfile', default=None,
-        help='name of input congestion file'
+        help='name of input congestion file')
     vcs_simulate_parser = pathalg_subparsers.add_parser('vcs',
         help='use virtual-coordinate-system path selection (Sherr, PhD 2009)')
     vcs_simulate_parser.add_argument('--congfile', default=None,
@@ -1712,20 +1750,26 @@ commands', dest='pathalg_subparser')
         help='name of input propagation-delay file')
     
     concattraces_parser = subparsers.add_parser('concattraces',
-        help='Combine user session traces into a single object used by pathsim, and pickle it. The pickled object is input to the simulate command')    
+        help='Combine user session traces into a single object used by \
+pathsim, and pickle it. The pickled object is input to the simulate command')    
     concattraces_parser.add_argument('--out_name', default='outfilename.pickle',
         help='filename of output file')
-    concattraces_parser.add_argument('--facebook_filename', default='facebook.log',
+    concattraces_parser.add_argument('--facebook_filename', 
+        default='facebook.log',
         help='name of file with facebook trace')
-    concattraces_parser.add_argument('--gmailchat_filename', default='gmailgchat.log',
+    concattraces_parser.add_argument('--gmailchat_filename', 
+        default='gmailgchat.log',
         help='name of file with gmail/gchat trace')
-    concattraces_parser.add_argument('--gcalgdocs_filename', default='gcalgdocs.log',
+    concattraces_parser.add_argument('--gcalgdocs_filename', 
+        default='gcalgdocs.log',
         help='name of file with gcal/gdocs trace')
-    concattraces_parser.add_argument('--websearch_filename', default='websearch.log',
+    concattraces_parser.add_argument('--websearch_filename', 
+        default='websearch.log',
         help='name of file with Web search trace')
     concattraces_parser.add_argument('--irc_filename', default='irc.log',
         help='name of file with IRC trace')
-    concattraces_parser.add_argument('--bittorrent_filename', default='bittorrent.log',
+    concattraces_parser.add_argument('--bittorrent_filename',
+        default='bittorrent.log',
         help='name of file with BitTorrent trace')
 
     args = parser.parse_args()
@@ -1762,12 +1806,10 @@ commands', dest='pathalg_subparser')
         _testing = True if (args.format == 'testing') else False
 
         if (args.guard_expiration > 0):
-            guard_expiration_min = args.guard_expiration*60*60*24
+            guard_expiration_min = args.guard_expiration*24*60*60
         else:
             # long enough that guard should never expire
             guard_expiration_min = int(100*365.25*24*60*60)
-        else:
-            guard_expiration_min = 30*24*3600
 
         # use arguments to adjust some TorOption parameters
         TorOptions.num_guards = args.num_guards
@@ -1803,16 +1845,11 @@ commands', dest='pathalg_subparser')
         streams = get_user_model(start_time, end_time, args.trace_file,
             session=args.user_model)
         
-        num_adv_exits = 1
-        adv_relays = {}
-        adv_descriptors = {}
-        # choose adversarial guards to add to network
-        add_adv_guards(args.num_adv_guards, adv_relays, adv_descriptors,
-            args.adv_guard_cons_bw)
-
-        # choose adversarial exits to add to network
-        add_adv_exits(args.num_adv_guards, num_adv_exits, adv_relays,
-            adv_descriptors, args.adv_exit_cons_bw)
+        # initialize object that will add adversarial relays into network
+        adv_insertion = AdversaryInsertion(args)
+        
+        # create list of objects to modify network each consensus period
+        network_modifiers = [adv_insertion]
 
         # for alternate path-selection algorithms
         # set parameters and substitute simulation functions
@@ -1836,8 +1873,7 @@ commands', dest='pathalg_subparser')
             
         # simulate the circuits for these streams
         create_circuits(network_state_files, streams, args.num_samples,
-            adv_relays, adv_descriptors, args.adv_time, congmodel, pdelmodel,
-            args.format)
+            network_modifiers, congmodel, pdelmodel, args.format)
     elif (args.subparser == 'concattraces'):
         ut = UserTraces(args.facebook_filename, args.gmailchat_filename,
             args.gcalgdocs_filename, args.websearch_filename,

@@ -24,8 +24,8 @@ logger.setLevel(logging.DEBUG)
 num_paths_choose = 3 # number of paths to choose and predict latency for
 ######
 
-def create_circuits(network_state_files, streams, num_samples, add_relays,\
-    add_descriptors, add_time, congmodel, pdelmodel, format):
+def create_circuits(network_state_files, streams, num_samples,
+    network_modifiers, congmodel, pdelmodel, format):#START
     """Takes streams over time and creates circuits by interaction
     with create_circuit().
       Input:
@@ -37,12 +37,8 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
             'ip': IP address of destination
             'port': desired TCP port
         num_samples: (int) # circuit-creation samples to take for given streams
-        add_relays: (dict: fprint->RouterStatusEntry)
-            add to all existing consensuses (as usual network state just
-            continued for missing consensuses)
-        add_descriptors: (dict: fprint->ServerDescriptor) add to descriptors
-        add_time: (int) timestamp after which specified relays will be added
-            to consensuses
+        network_modifiers: (list) list of objs w/ modify_network_state(), will
+            be called in order to modify network state
         congmodel: (CongestionModel) outputs congestion used by some path algs
         pdelmodel: (PropagationDelayModel) outputs prop delay
         format: (str) 'testing', 'normal', 'relay-adv', or 'network-adv'; sets
@@ -59,9 +55,7 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
     init = True
 
     # store old descriptors (for entry guards that leave consensus)
-    # initialize with add_descriptors 
     descriptors = {}
-    descriptors.update(add_descriptors)
     
     port_needs_global = {}
 
@@ -96,14 +90,19 @@ def create_circuits(network_state_files, streams, num_samples, add_relays,\
         if (ns_file != None):
             (cons_valid_after, cons_fresh_until, cons_bw_weights,
             cons_bwweightscale, cons_rel_stats, hibernating_statuses,
-            new_descriptors) = pathsim.get_network_state(ns_file, add_time,
-                add_relays)
+            new_descriptors) = pathsim.get_network_state(ns_file)
 
             # clear hibernating status to ensure updates come from ns_file
             hibernating_status = {}
                         
             # update descriptors
             descriptors.update(new_descriptors)
+            
+            # apply network modifications
+            for network_modifier in network_modifiers:
+                network_modifier.modify_network_state(cons_valid_after,
+                    cons_fresh_until, cons_bw_weights, cons_bwweightscale,
+                    cons_rel_stats, descriptors, hibernating_statuses)                        
         else:
             # gap in consensuses, just advance an hour, keeping network state            
             cons_valid_after += 3600
