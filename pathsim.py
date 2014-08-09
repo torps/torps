@@ -1642,7 +1642,7 @@ if __name__ == '__main__':
 #    parser.add_argument('--loglevel', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
 #        help='set level of log messages to send to stdout', default='INFO')
 
-    subparsers = parser.add_subparsers(help='commands', dest='subparser')
+    subparsers = parser.add_subparsers(help='TorPS commands', dest='subparser')
 
     process_parser = subparsers.add_parser('process',
         help='Process Tor consensuses and descriptors. This matches relays in each consensus with\
@@ -1658,7 +1658,10 @@ and hibernating statuses are pickled and written to disk.')
     process_parser.add_argument('--end_month',
         help='month in which to end processing')
     process_parser.add_argument('--in_dir',
-        help='directory in which input consensus and descriptor directories are located')
+        help='directory in which input consensus and descriptor\
+directories are located')
+    process_parser.add_argument('--out_dir',
+        help='directory in which to locate output network state files')
     process_parser.add_argument('--slim', action='store_true',
         help='Output the slimmer TorPS classes (e.g. NetworkStatusDocument and ServerDescriptor) instead of the analagous stem classes')
     process_parser.add_argument('--filtered', action='store_true',
@@ -1666,7 +1669,6 @@ and hibernating statuses are pickled and written to disk.')
 
     simulate_parser = subparsers.add_parser('simulate',
         help='Do simulated path selections.')
-#[nsf dir] [# samples] [tracefile] [user model] [output] [adv guard cons bw] [adv exit cons bw] [adv time] [num adv guards] [path selection alg] [num guards] [guard expiration]
     simulate_parser.add_argument('--nsf_dir', default='out/network-state-files',
         help='stores the network state files to use')
     simulate_parser.add_argument('--num_samples', type=int, default=1,
@@ -1677,12 +1679,12 @@ and hibernating statuses are pickled and written to disk.')
         help='user model to build out of traces, with standard trace file one of "facebook",\
 "gmailgchat", "gcalgdocs", "websearch", "irc", "bittorrent", "typical", "best", "worst",\
 "simple=[reqs/hour]"')
-    simulate_parser.add_argument('--output', default='normal',
+    simulate_parser.add_argument('--format', default='normal',
         choices=['normal', 'testing', 'relay-adv', 'network-adv'],
         default='sets the content and format of output')
-    simulate_parser.add_argument('--adv_guard_cons_bw', type=int, default=0,
+    simulate_parser.add_argument('--adv_guard_cons_bw', type=float, default=0,
         help='indicates the consensus bandwidth of the adversarial guard to add')
-    simulate_parser.add_argument('--adv_exit_cons_bw', type=int, default=0,
+    simulate_parser.add_argument('--adv_exit_cons_bw', type=float, default=0,
         help='indicates the consensus bandwidth of the adversarial exit to add')
     simulate_parser.add_argument('--adv_time', type=int, default=0,
         help='indicates timestamp after which to add adversarial relays to consensuses')
@@ -1694,16 +1696,20 @@ and hibernating statuses are pickled and written to disk.')
         help='indicates time in days until one-month period during which guard\
 may expire, with 0 indicating no guard expiration')
         
-    pathalg_subparsers = simulate_parser.add_subparsers(help='commands', dest='pathalg_subparser')
+    pathalg_subparsers = simulate_parser.add_subparsers(help='simulate\
+commands', dest='pathalg_subparser')
     tor_simulate_parser = pathalg_subparsers.add_parser('tor',
         help='use vanilla Tor path selection')    
     cat_simulate_parser = pathalg_subparsers.add_parser('cat',
         help='use congestion-aware tor (Wang et al., FC12)')
-    cat_simulate_parser.add_argument('--congfile', help='name of input congestion file'
+    cat_simulate_parser.add_argument('--congfile', default=None,
+        help='name of input congestion file'
     vcs_simulate_parser = pathalg_subparsers.add_parser('vcs',
         help='use virtual-coordinate-system path selection (Sherr, PhD 2009)')
-    vcs_simulate_parser.add_argument('--congfile', help='name of input congestion file')
-    vcs_simulate_parser.add_argument('--pdelfile', help='name of input propagation-delay file')
+    vcs_simulate_parser.add_argument('--congfile', default=None,
+        help='name of input congestion file')
+    vcs_simulate_parser.add_argument('--pdelfile', default=None,
+        help='name of input propagation-delay file')
     
     concattraces_parser = subparsers.add_parser('concattraces',
         help='Combine user session traces into a single object used by pathsim, and pickle it. The pickled object is input to the simulate command')    
@@ -1726,42 +1732,22 @@ may expire, with 0 indicating no guard expiration')
 
 #    logging.basicConfig(stream=sys.stdout, level=getattr(logging, args.loglevel))    
 
-
-    if (len(sys.argv) <= 1):
-        print(usage)
-        sys.exit(1)
-        
-    command = sys.argv[1]
-    if (command != 'process') and (command != 'simulate') and (command != 'concattraces'):
-        print(usage)
-    elif (command == 'process'):
-        if (len(sys.argv) < 10):
-            print(usage)
-            sys.exit(1)
-        start_year = int(sys.argv[2])
-        start_month = int(sys.argv[3])
-        end_year = int(sys.argv[4])
-        end_month = int(sys.argv[5])
-        in_dir = sys.argv[6]
-        out_dir = sys.argv[7]
-        slim = (sys.argv[8] == '1')
-        filtered = (sys.argv[9] == '1')
-
+    if (args.subparser == 'process'):
         in_dirs = []
-        month = start_month
-        for year in range(start_year, end_year+1):
-            while ((year < end_year) and (month <= 12)) or \
-                (month <= end_month):
+        month = args.start_month
+        for year in range(args.start_year, args.end_year+1):
+            while ((year < args.end_year) and (month <= 12)) or \
+                (month <= args.end_month):
                 if (month <= 9):
                     prepend = '0'
                 else:
                     prepend = ''
-                cons_dir = os.path.join(in_dir, 'consensuses-{0}-{1}{2}'.\
+                cons_dir = os.path.join(args.in_dir, 'consensuses-{0}-{1}{2}'.\
                     format(year, prepend, month))
-                desc_dir = os.path.join(in_dir, \
+                desc_dir = os.path.join(args.in_dir,
                     'server-descriptors-{0}-{1}{2}'.\
                     format(year, prepend, month))
-                desc_out_dir = os.path.join(out_dir, \
+                desc_out_dir = os.path.join(args.out_dir,
                     'network-state-{0}-{1}{2}'.\
                     format(year, prepend, month))
                 if (not os.path.exists(desc_out_dir)):
@@ -1769,70 +1755,28 @@ may expire, with 0 indicating no guard expiration')
                 in_dirs.append((cons_dir, desc_dir, desc_out_dir))
                 month += 1
             month = 1
-        process_consensuses.process_consensuses(in_dirs, slim, filtered)
-    elif (command == 'simulate'):
+        process_consensuses.process_consensuses(in_dirs, args.slim,
+            args.filtered)
+    elif (args.subparser == 'simulate'):
         # get lists of consensuses and the related processed-descriptor files 
-        network_state_files_dir = sys.argv[2] if len(sys.argv) >= 3 else 'out/network-state-files'
-        num_samples = int(sys.argv[3]) if len(sys.argv) >= 4 else 1
-        tracefilename = sys.argv[4] if len(sys.argv) >= 5 else "traces.pickle"
-        usermodel = sys.argv[5] if len(sys.argv) >= 6 else 'simple=6'
-        if (len(sys.argv) >= 7):
-            level = int(sys.argv[6])
-            if (level == 0):
-                _testing = False
-                format = 'normal'
-            elif (level == 1):
-                _testing = True
-                format = 'testing'
-            elif (level == 2):
-                _testing = False
-                format = 'relay-adv'
-            elif (level == 3):
-                _testing = False
-                format = 'network-adv'
-            else:
-                _testing = False
-                format = 'normal'
+        _testing = True if (args.format == 'testing') else False
+
+        if (args.guard_expiration > 0):
+            guard_expiration_min = args.guard_expiration*60*60*24
         else:
-            format = 'normal'
-            _testing = False
-        adv_guard_cons_bw = float(sys.argv[7]) if len(sys.argv) >= 8 else 0
-        adv_exit_cons_bw = float(sys.argv[8]) if len(sys.argv) >= 9 else 0
-        adv_time = int(sys.argv[9]) if len(sys.argv) >= 10 else 0
-        num_adv_guards = int(sys.argv[10]) if len(sys.argv) >= 11 else 1
-        path_sel_alg = sys.argv[11] if len(sys.argv) >= 12 else 'tor'
-        if (path_sel_alg == 'tor'):
-            congfilename = None
-            pdelfilename = None
-            cur_arg = 13
-        elif (path_sel_alg == 'cat'):
-            congfilename = sys.argv[12] if len(sys.argv) >= 13 else None
-            pdelfilename = None
-            cur_arg = 14
-        elif (path_sel_alg == 'vcs'):
-            congfilename = sys.argv[12] if len(sys.argv) >= 13 else None
-            pdelfilename = sys.argv[13] if len(sys.argv) >= 14 else None
-            cur_arg = 15
-        num_guards = int(sys.argv[cur_arg-1]) if (len(sys.argv) >= cur_arg)\
-            else 3
-        cur_arg += 1
-        if (len(sys.argv) >= cur_arg):
-            if (int(sys.argv[cur_arg-1]) > 0):
-                guard_expiration_min = int(sys.argv[cur_arg-1])*24*3600
-            else:
-                # long enough that guard should never expire
-                guard_expiration_min = int(100*365.25*24*3600)
+            # long enough that guard should never expire
+            guard_expiration_min = int(100*365.25*24*60*60)
         else:
             guard_expiration_min = 30*24*3600
 
         # use arguments to adjust some TorOption parameters
-        TorOptions.num_guards = num_guards
-        TorOptions.min_num_guards = max(num_guards-1, 1)
+        TorOptions.num_guards = args.num_guards
+        TorOptions.min_num_guards = max(args.num_guards-1, 1)
         TorOptions.guard_expiration_min = guard_expiration_min
         TorOptions.guard_expiration_max = guard_expiration_min + 30*24*3600
         
         network_state_files = []
-        for dirpath, dirnames, filenames in os.walk(network_state_files_dir,\
+        for dirpath, dirnames, filenames in os.walk(args.nsf_dir,
             followlinks=True):
             for filename in filenames:
                 if (filename[0] != '.'):
@@ -1854,39 +1798,48 @@ may expire, with 0 indicating no guard expiration')
 
         # get our stream creation model from our user traces
         # available sessions:
-        # "simple", "facebook", "gmailgchat", "gcalgdocs", "websearch", "irc", "bittorrent"
-        streams = get_user_model(start_time, end_time, tracefilename,\
-            session=usermodel)
-        congmodel = CongestionModel(congfilename)
-        pdelmodel = PropagationDelayModel(pdelfilename)
+        #   "simple", "facebook", "gmailgchat", "gcalgdocs", "websearch", "irc",
+        #   "bittorrent"
+        streams = get_user_model(start_time, end_time, args.trace_file,
+            session=args.user_model)
         
         num_adv_exits = 1
         adv_relays = {}
         adv_descriptors = {}
         # choose adversarial guards to add to network
-        #bandwidth = 128000 # cons bw of top guard on 3/2/12
-        add_adv_guards(num_adv_guards, adv_relays, adv_descriptors,
-            adv_guard_cons_bw)
+        add_adv_guards(args.num_adv_guards, adv_relays, adv_descriptors,
+            args.adv_guard_cons_bw)
 
         # choose adversarial exits to add to network
-        #bandwidth = 85000 # ~bw of top exit 3/2/12-4/30/12 (ZhangPoland1)
-        add_adv_exits(num_adv_guards, num_adv_exits, adv_relays,
-            adv_descriptors, adv_exit_cons_bw)
-        
-        
-        if (path_sel_alg == 'cat'):
+        add_adv_exits(args.num_adv_guards, num_adv_exits, adv_relays,
+            adv_descriptors, args.adv_exit_cons_bw)
+
+        # for alternate path-selection algorithms
+        # set parameters and substitute simulation functions
+        if (args.pathalg_subparser == 'tor'):
+            congfilename = None
+            pdelfilename = None
+        elif (args.pathalg_subparser == 'cat'):
+            congfilename = args.congfile
+            pdelfilename = None
             create_circuit = congestion_aware_pathsim.create_circuit
             client_assign_stream = \
                 congestion_aware_pathsim.client_assign_stream
-        elif (path_sel_alg == 'vcs'):
+        elif (args.pathalg_subparser == 'vcs'):
+            congfilename = args.congfile
+            pdelfilename = args.pdelfile
             create_circuits = vcs_pathsim.create_circuits
             create_circuit = vcs_pathsim.create_circuit
             
+        congmodel = CongestionModel(congfilename)
+        pdelmodel = PropagationDelayModel(pdelfilename)            
+            
         # simulate the circuits for these streams
-        create_circuits(network_state_files, streams, num_samples,
-            adv_relays, adv_descriptors, adv_time, congmodel, pdelmodel,
-            format)              
-    elif (command == 'concattraces'): 
-        if len(sys.argv) != 9: print usage; sys.exit(1)           
-        ut = UserTraces(sys.argv[3], sys.argv[4], sys.argv[5], sys.argv[6], sys.argv[7], sys.argv[8])
-        ut.save_pickle(sys.argv[2])
+        create_circuits(network_state_files, streams, args.num_samples,
+            adv_relays, adv_descriptors, args.adv_time, congmodel, pdelmodel,
+            args.format)
+    elif (args.subparser == 'concattraces'):
+        ut = UserTraces(args.facebook_filename, args.gmailchat_filename,
+            args.gcalgdocs_filename, args.websearch_filename,
+            args.irc_filename, args.bittorrent_filename)
+        ut.save_pickle(args.out_name)
