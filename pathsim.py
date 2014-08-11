@@ -13,6 +13,8 @@ import congestion_aware_pathsim
 #import vcs_pathsim
 import process_consensuses
 import re
+import network_modifiers
+import event_callbacks
 
 _testing = False#True
 
@@ -607,61 +609,6 @@ def circuit_covers_port_need(circuit, descriptors, port, need):
             (can_exit_to_port(descriptors[circuit['path'][-1]], port))
 
 
-def print_mapped_streams_header(format, file=sys.stdout):
-    """Prints log header for stream lines."""
-    if (format == 'relay-adv'):
-        file.write('Sample\tTimestamp\tCompromise Code\n')
-    elif (format == 'network-adv'):
-        file.write('Sample\tTimestamp\tGuard ip\tExit IP\tDestination IP\n')
-    else:
-        file.write('Sample\tTimestamp\tGuard IP\tMiddle IP\tExit IP\tDestination IP\n')
-
-        
-def print_mapped_stream(client_id, circuit, stream, descriptors, format,
-    file=sys.stdout):
-    """Writes log line to file (default stdout) showing client, time, IPs, and
-    fingerprints in path of stream."""
-    
-    guard_ip = descriptors[circuit['path'][0]].address
-    middle_ip = descriptors[circuit['path'][1]].address
-    exit_ip = descriptors[circuit['path'][2]].address
-    if (stream['type'] == 'connect'):
-        dest_ip = stream['ip']
-    elif (stream['type'] == 'resolve'):
-        dest_ip = 0
-    else:
-        raise ValueError('ERROR: Unrecognized stream in print_mapped_stream: \
-{0}'.format(stream['type']))
-    if (format == 'relay-adv'):
-         # as in AdversaryInsertion.add_adv_guards()
-        guard_prefix = '000000000000000000000000000000'
-        # as in AdversaryInsertion.add_adv_exits()
-        exit_prefix = 'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFF'
-        guard_bad = False
-        exit_bad = False
-        if (circuit['path'][0][0:30] == guard_prefix) or\
-            (circuit['path'][0][0:30] == exit_prefix):
-            guard_bad = True
-        if (circuit['path'][2][0:30] == guard_prefix) or\
-            (circuit['path'][2][0:30] == exit_prefix):
-            exit_bad = True
-        compromise_code = 0
-        if (guard_bad and exit_bad):
-            compromise_code = 3
-        elif guard_bad:
-            compromise_code = 1
-        elif exit_bad:
-            compromise_code = 2
-        file.write('{0}\t{1}\t{2}\n'.format(client_id, stream['time'],
-            compromise_code))
-    elif (format == 'network-adv'):
-        file.write('{0}\t{1}\t{2}\t{3}\t{4}\n'.format(client_id, stream['time'],
-            guard_ip, exit_ip, dest_ip))
-    else:
-        file.write('{0}\t{1}\t{2}\t{3}\t{4}\t{5}\n'.format(client_id,
-            stream['time'], guard_ip, middle_ip, exit_ip, dest_ip))
-
-
 def circuit_supports_stream(circuit, stream, descriptors):
     """Returns if stream can run over circuit (which is assumed live)."""
 
@@ -769,8 +716,39 @@ def get_network_state(ns_file):
     return (cons_valid_after, cons_fresh_until, cons_bw_weights,
         cons_bwweightscale, cons_rel_stats, hibernating_statuses,
         new_descriptors)
-        
-        
+
+
+def get_network_states(network_state_files, network_modifiers):
+    """Generator that yields network state (tuple) produced from
+    list of network state files and modifiers to apply.
+    Input:
+        network_state_files: list of filenames with sequential network statuses
+            as produced by pad_network_state_files(), i.e. no time gaps except
+            as indicated by None entries
+        network_modifiers: (list) contains objects to modify to network state in
+            order via modify_network_state() method
+    Output:
+        network_states: iterator yielding sequential network-state tuples with
+            (cons_valid_after, cons_fresh_until, cons_bw_weights,
+            cons_bwweightscale, cons_rel_stats, hibernating_statuses,
+            descriptors) or None
+    """
+
+    for ns_file in network_state_files:
+        # get network state variables from file    
+        network_state = get_network_state(ns_file)
+        if (network_state is not None):
+            (cons_valid_after, cons_fresh_until, cons_bw_weights,
+                cons_bwweightscale, cons_rel_stats, hibernating_statuses,
+                descriptors) = network_state
+            # apply network modifications
+            for network_modifier in network_modifiers:
+                network_modifier.modify_network_state(cons_valid_after,
+                    cons_fresh_until, cons_bw_weights, cons_bwweightscale,
+                    cons_rel_stats, descriptors, hibernating_statuses)
+        yield network_state        
+
+
 def set_initial_hibernating_status(hibernating_status, hibernating_statuses,
     cur_period_start, cons_rel_stats):
     """Reads hibernating statuses and updates initial relay status."""
@@ -880,12 +858,11 @@ def timed_updates(cur_time, port_needs_global, client_states,
         hibernating_status[hs[1]] = hs[2]
             
 
-def timed_client_updates(cur_time, client_state,\
-    port_needs_global,\
-    cons_rel_stats, cons_valid_after,\
-    cons_fresh_until, cons_bw_weights, cons_bwweightscale, descriptors,\
-    hibernating_status, port_need_weighted_exits, weighted_middles,\
-    weighted_guards, congmodel, pdelmodel):
+def timed_client_updates(cur_time, client_state, port_needs_global,
+    cons_rel_stats, cons_valid_after,
+    cons_fresh_until, cons_bw_weights, cons_bwweightscale, descriptors,
+    hibernating_status, port_need_weighted_exits, weighted_middles,
+    weighted_guards, congmodel, pdelmodel, callbacks=None):
     """Performs updates to client state that occur on a time schedule."""
     
     guards = client_state['guards']
@@ -930,14 +907,14 @@ def timed_client_updates(cur_time, client_state,\
                     need['cover_num']) and\
                 (len(client_state['clean_exit_circuits']) < \
                     TorOptions.max_unused_open_circuits):
-                new_circ = create_circuit(cons_rel_stats,\
-                    cons_valid_after, cons_fresh_until,\
-                    cons_bw_weights, cons_bwweightscale,\
-                    descriptors, hibernating_status, guards, cur_time,\
-                    need['fast'], need['stable'], False, None, port,\
-                    congmodel, pdelmodel,\
-                    port_need_weighted_exits[port],\
-                    True, weighted_middles, weighted_guards)
+                new_circ = create_circuit(cons_rel_stats,
+                    cons_valid_after, cons_fresh_until,
+                    cons_bw_weights, cons_bwweightscale,
+                    descriptors, hibernating_status, guards, cur_time,
+                    need['fast'], need['stable'], False, None, port,
+                    congmodel, pdelmodel,
+                    port_need_weighted_exits[port],
+                    True, weighted_middles, weighted_guards, callbacks)
                 client_state['clean_exit_circuits'].appendleft(new_circ)
                 
                 # cover this port and any others
@@ -1032,11 +1009,10 @@ def get_stream_port_weighted_exits(stream_port, stream,
     return stream_weighted_exits                               
         
         
-def client_assign_stream(client_state, stream, cons_rel_stats,\
-    cons_valid_after, cons_fresh_until, cons_bw_weights, cons_bwweightscale,\
-    descriptors, hibernating_status,\
-    stream_weighted_exits,\
-    weighted_middles, weighted_guards, congmodel, pdelmodel):
+def client_assign_stream(client_state, stream, cons_rel_stats,
+    cons_valid_after, cons_fresh_until, cons_bw_weights, cons_bwweightscale,
+    descriptors, hibernating_status, stream_weighted_exits,
+    weighted_middles, weighted_guards, congmodel, pdelmodel, callbacks=None):
     """Assigns a stream to a circuit for a given client."""
         
     guards = client_state['guards']
@@ -1094,23 +1070,21 @@ at {0}'.format(stream['time']))
         new_circ = None
         if (stream['type'] == 'connect'):
             stable = (stream['port'] in TorOptions.long_lived_ports)
-            new_circ = create_circuit(cons_rel_stats,\
-                cons_valid_after, cons_fresh_until,\
-                cons_bw_weights, cons_bwweightscale,\
-                descriptors, hibernating_status, guards, stream['time'], True,\
-                stable, False, stream['ip'], stream['port'],\
-                congmodel, pdelmodel,\
-                stream_weighted_exits, False,\
-                weighted_middles, weighted_guards)
+            new_circ = create_circuit(cons_rel_stats,
+                cons_valid_after, cons_fresh_until,
+                cons_bw_weights, cons_bwweightscale,
+                descriptors, hibernating_status, guards, stream['time'], True,
+                stable, False, stream['ip'], stream['port'],
+                congmodel, pdelmodel, stream_weighted_exits, False,
+                weighted_middles, weighted_guards, callbacks)
         elif (stream['type'] == 'resolve'):
-            new_circ = create_circuit(cons_rel_stats,\
-                cons_valid_after, cons_fresh_until,\
-                cons_bw_weights, cons_bwweightscale,\
-                descriptors, hibernating_status, guards, stream['time'], True,\
-                False, False, None, None,\
-                congmodel, pdelmodel,\
-                stream_weighted_exits, True,\
-                weighted_middles, weighted_guards)
+            new_circ = create_circuit(cons_rel_stats,
+                cons_valid_after, cons_fresh_until,
+                cons_bw_weights, cons_bwweightscale,
+                descriptors, hibernating_status, guards, stream['time'], True,
+                False, False, None, None, congmodel, pdelmodel,
+                stream_weighted_exits, True,
+                weighted_middles, weighted_guards, callbacks)
         else:
             raise ValueError('Unrecognized stream in client_assign_stream(): \
 {0}'.format(stream['type']))        
@@ -1128,6 +1102,9 @@ stream.'.format(stream['time']))
             else: 
                 print('Created circuit at time {0} to cover unrecognized \
 stream.'.format(stream['time']))
+
+    if (callbacks is not None):
+        callbacks.stream_assignment(stream, stream_assigned)
 
     return stream_assigned
 
@@ -1179,12 +1156,12 @@ def circuit_supports_ntor(guard_node, middle_node, exit_node, descriptors):
             return True
     return False
 
-def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
-    cons_bw_weights, cons_bwweightscale, descriptors, hibernating_status,\
-    guards, circ_time, circ_fast, circ_stable, circ_internal, circ_ip,\
-    circ_port,\
-    congmodel, pdelmodel, weighted_exits=None,\
-    exits_exact=False, weighted_middles=None, weighted_guards=None):
+def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,
+    cons_bw_weights, cons_bwweightscale, descriptors, hibernating_status,
+    guards, circ_time, circ_fast, circ_stable, circ_internal, circ_ip,
+    circ_port, congmodel, pdelmodel, weighted_exits=None,
+    exits_exact=False, weighted_middles=None, weighted_guards=None,
+    callbacks=None):
     """Creates path for requested circuit based on the input consensus
     statuses and descriptors.
     Inputs:
@@ -1211,6 +1188,7 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
             precomputed exactly.
         weighted_middles: (list) (middle, cum_weight) pairs for middle position
         weighted_guards: (list) (middle, cum_weight) pairs for middle position
+        callbacks: object w/ method circuit_creation(circuit)
     Output:
         circuit: (dict) a newly created circuit with keys
             'time': (int) seconds from time zero
@@ -1221,7 +1199,6 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
             'path': (tuple) list in-order fingerprints for path's nodes
             'covering': (list) ports with needs covered by circuit        
     """
-#            'cons_rel_stats': (dict) relay stats for active consensus
     
     if (circ_time < cons_valid_after) or\
         (circ_time >= cons_fresh_until):
@@ -1322,38 +1299,57 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
     if (not ntor_supported):
         raise ValueError('ntor-compatible circuit not found in {} tries'.\
             format(num_attempts))
-    
-    return {'time':circ_time,\
-            'fast':circ_fast,\
-            'stable':circ_stable,\
-            'internal':circ_internal,\
-            'dirty_time':None,\
-            'path':(guard_node, middle_node, exit_node),\
-#            'cons_rel_stats':cons_rel_stats,\
+
+    circuit = {'time':circ_time,
+            'fast':circ_fast,
+            'stable':circ_stable,
+            'internal':circ_internal,
+            'dirty_time':None,
+            'path':(guard_node, middle_node, exit_node),
             'covering':[]}
 
+    # execute callback to allow logging on circuit creation
+    if (callbacks is not None):
+        callbacks.circuit_creation(circuit)
 
-def create_circuits(network_state_files, streams, num_samples, congmodel,
-    pdelmodel, format):
+    return circuit
+
+def create_circuits(network_states, streams, num_samples, congmodel,
+    pdelmodel, callbacks=None):
     """Takes streams over time and creates circuits by interaction
     with create_circuit().
       Input:
-        network_state_files: list of filenames with network statuses
-            as produced by process_consensuses.process_consensuses()
+        network_states: iterator yielding network-state tuples containing
+            the sequence of simulation network states, with a None value
+            indicating most recent status should be repeated with consensus
+            valid/fresh times advanced 60 minutes, and where each tuple
+            contains the following:
+            cons_valid_after: timestamp at which consensus is valid
+            cons_fresh_until: timestamp at which consensus freshness ends
+            cons_bw_weights: dict of weight(str) => value(int) mappings,
+                maps relay type and position to load-balancing weight,
+                as contained in bandwidth-weights consensus line
+            cons_bwweightscale: (int) scaling factor for cons_bw_weights,
+                as contained in "bwweightscale" param of consensus
+            cons_rel_stats: (dict) maps relay fingerprints to RouterStatusEntry,
+                indicates relays in consensus and with a descriptor
+            hibernating_statuses: (list) (time, fprint, hibernating) tuples,
+                indicating timestamp of status, relay fingerprint, and change or
+                initial hibernating status, w/ True meaning relay is hibernating
+            descriptors = (dict) maps fingerprints to ServerDescriptor,
+                indicates most recent descriptor for relays, must
+                contain an entry for each fprint in cons_rel_stats
         streams: *ordered* list of streams, where a stream is a dict with keys
             'time': timestamp of when stream request occurs 
             'type': 'connect' for SOCKS CONNECT, 'resolve' for SOCKS RESOLVE
             'ip': IP address of destination
             'port': desired TCP port
         num_samples: (int) # circuit-creation samples to take for given streams
-        network_modifiers: (list) list of objs w/ modify_network_state(), will
-            be called in order to modify network state
         congmodel: (CongestionModel) outputs congestion used by some path algs
         pdelmodel: (PropagationDelayModel) outputs prop delay
-        format: (str) 'testing', 'normal', 'relay-adv', or 'network-adv'; sets
-            output format
+        callbacks: obj providing callback interface, cf. event_callbacks module
     Output:
-        [Prints circuit and guard selections of clients.]
+        Uses callbacks to produce any desired output.
     """
     
     ### Simulation variables ###
@@ -1383,16 +1379,12 @@ def create_circuits(network_state_files, streams, num_samples, congmodel,
                             'dirty_exit_circuits':collections.deque()})
     ### End simulation variables ###
     
-    if (not _testing):
-        print_mapped_streams_header(format)
-
-    # run simulation period one pair of consensus/descriptor files at a time
-    for ns_file in network_state_files:
-        # read in network states            
-        if (ns_file != None):
+    # run simulation period one network state at a time
+    for network_state in network_states:
+        if (network_state != None):
             (cons_valid_after, cons_fresh_until, cons_bw_weights,
             cons_bwweightscale, cons_rel_stats, hibernating_statuses,
-            new_descriptors) = get_network_state(ns_file)
+            new_descriptors) = network_state
 
             # clear hibernating status to ensure updates come from ns_file
             hibernating_status = {}
@@ -1400,11 +1392,6 @@ def create_circuits(network_state_files, streams, num_samples, congmodel,
             # update descriptors
             descriptors.update(new_descriptors)
 
-            # apply network modifications
-            for network_modifier in network_modifiers:
-                network_modifier.modify_network_state(cons_valid_after,
-                    cons_fresh_until, cons_bw_weights, cons_bwweightscale,
-                    cons_rel_stats, descriptors, hibernating_statuses)            
         else:
             # gap in consensuses, just advance an hour, keeping network state            
             cons_valid_after += 3600
@@ -1413,7 +1400,13 @@ def create_circuits(network_state_files, streams, num_samples, congmodel,
             hibernating_statuses = []            
             if _testing:
                 print('Filling in consensus gap from {0} to {1}'.\
-                format(cons_valid_after, cons_fresh_until))            
+                format(cons_valid_after, cons_fresh_until))
+                
+        # update network state of callbacks object
+        if (callbacks is not None):
+            callbacks.set_network_state(cons_valid_after, cons_fresh_until,
+                cons_bw_weights, cons_bwweightscale, cons_rel_stats,
+                descriptors)        
 
         # update simulation period                
         if (cur_period_start == None):
@@ -1461,7 +1454,6 @@ def create_circuits(network_state_files, streams, num_samples, congmodel,
             port_need_weighted_exits[port] =\
                 get_weighted_nodes(port_need_exits, port_need_exit_weights)
                 
-                
         # Store filtered exits for streams based only on port.
         # Conservative - never excludes a relay that exits to port for some ip.
         # Use port of None to store exits for resolve circuits.
@@ -1499,12 +1491,14 @@ def create_circuits(network_state_files, streams, num_samples, congmodel,
 
             # do timed individual client updates
             for client_state in client_states:
-                timed_client_updates(cur_time, client_state,\
-                    port_needs_global, cons_rel_stats,\
-                    cons_valid_after, cons_fresh_until, cons_bw_weights,\
-                    cons_bwweightscale, descriptors, hibernating_status,\
-                    port_need_weighted_exits, weighted_middles,\
-                    weighted_guards, congmodel, pdelmodel)
+                if (callbacks is not None):
+                    callbacks.set_sample_id(client_state['id'])
+                timed_client_updates(cur_time, client_state,
+                    port_needs_global, cons_rel_stats,
+                    cons_valid_after, cons_fresh_until, cons_bw_weights,
+                    cons_bwweightscale, descriptors, hibernating_status,
+                    port_need_weighted_exits, weighted_middles,
+                    weighted_guards, congmodel, pdelmodel, callbacks)
                     
             # collect streams that occur during current period
             while (stream_start < len(streams)) and\
@@ -1538,115 +1532,24 @@ def create_circuits(network_state_files, streams, num_samples, congmodel,
                 
                 # do client stream assignment
                 for client_state in client_states:
+                    if (callbacks is not None):
+                        callbacks.set_sample_id(client_state['id'])                
                     if _testing:                
                         print('Client {0} stream assignment.'.\
                             format(client_state['id']))
                     guards = client_state['guards']
                  
                     stream_assigned = client_assign_stream(\
-                        client_state, stream, cons_rel_stats,\
-                        cons_valid_after, cons_fresh_until,\
-                        cons_bw_weights, cons_bwweightscale,\
-                        descriptors, hibernating_status,\
-                        stream_port_weighted_exits[stream_port],\
-                        weighted_middles, weighted_guards,\
-                        congmodel, pdelmodel)
-                    if (not _testing):
-                        print_mapped_stream(client_state['id'],\
-                            stream_assigned, stream, descriptors, format)
+                        client_state, stream, cons_rel_stats,
+                        cons_valid_after, cons_fresh_until,
+                        cons_bw_weights, cons_bwweightscale,
+                        descriptors, hibernating_status,
+                        stream_port_weighted_exits[stream_port],
+                        weighted_middles, weighted_guards,
+                        congmodel, pdelmodel, callbacks)
             
             cur_time += time_step
 
-
-### class inserting adversary relays ###
-### implements "network modification" interface, i.e. modify_network_state() ###
-class AdversaryInsertion(object):
-    def add_adv_guards(self, num_adv_guards, bandwidth):
-        """"Adds adv guards into self.add_relays and self.add_descriptors."""
-        #, adv_relays, adv_descriptors
-        for i in xrange(num_adv_guards):
-            # create consensus
-            num_str = str(i+1)
-            fingerprint = '0' * (40-len(num_str)) + num_str
-            nickname = 'BadGuyGuard' + num_str
-            flags = [Flag.FAST, Flag.GUARD, Flag.RUNNING, Flag.STABLE,
-                Flag.VALID]
-            self.adv_relays[fingerprint] = RouterStatusEntry(fingerprint,
-                nickname, flags, bandwidth)
-            
-            # create descriptor
-            hibernating = False
-            family = {}
-            address = '10.'+num_str+'.0.0' # avoid /16 conflicts
-            exit_policy = ExitPolicy('reject *:*')
-            ntor_onion_key = num_str # indicate ntor support w/ val != None
-            self.adv_descriptors[fingerprint] = ServerDescriptor(fingerprint,
-                hibernating, nickname, family, address, exit_policy,
-                ntor_onion_key)
-
-
-    def add_adv_exits(self, num_adv_guards, num_adv_exits, bandwidth):
-        """"Adds adv exits into self.add_relays and self.add_descriptors."""
-        for i in xrange(num_adv_exits):
-            # create consensus
-            num_str = str(i+1)
-            fingerprint = 'F' * (40-len(num_str)) + num_str
-            nickname = 'BadGuyExit' + num_str
-            flags = [Flag.FAST, Flag.EXIT, Flag.RUNNING, Flag.STABLE,
-                Flag.VALID]
-            self.adv_relays[fingerprint] = RouterStatusEntry(fingerprint,
-                nickname, flags, bandwidth)
-            
-            # create descriptor
-            hibernating = False
-            family = {}
-            address = '10.'+str(num_adv_guards+i+1)+'.0.0' # avoid /16 conflicts
-            exit_policy = ExitPolicy('accept *:*')
-            ntor_onion_key = num_str # indicate ntor support w/ val != None
-            self.adv_descriptors[fingerprint] = ServerDescriptor(fingerprint,
-                hibernating, nickname, family, address, exit_policy,
-                ntor_onion_key)
-
-
-    def __init__(self, args):
-        self.adv_time = args.adv_time
-        self.adv_relays = {}
-        self.adv_descriptors = {}
-        self.add_adv_guards(args.num_adv_guards, args.adv_guard_cons_bw)
-        self.add_adv_exits(args.num_adv_guards, args.num_adv_exits,
-            args.adv_exit_cons_bw)
-        self.first_modification = True
-
-        
-    def modify_network_state(self, cons_valid_after, cons_fresh_until,
-        cons_bw_weights, cons_bwweightscale, cons_rel_stats, descriptors,
-        hibernating_statuses):
-        """Adds adversarial guards and exits to cons_rel_stats and
-        descriptors dicts."""
-
-        # add adversarial descriptors to nsf descriptors
-        # only add once because descriptors variable is assumed persistant
-        if (self.first_modification == True):
-            descriptors.update(self.adv_descriptors)
-            self.first_modification = False
-
-        # if insertion time has been reached, add adversarial relays into
-        # consensus and hibernating status list
-        if (self.adv_time <= cons_valid_after):
-            # include additional relays in consensus
-            if _testing:
-                print('Adding {0} relays to consensus.'.format(\
-                    len(self.adv_relays)))
-            for fprint, relay in self.adv_relays.iteritems():
-                if fprint in cons_rel_stats:
-                    raise ValueError(\
-                        'Added relay exists in consensus: {0}:{1}'.\
-                            format(relay.nickname, fprint))
-                cons_rel_stats[fprint] = relay
-            # include hibernating statuses for added relays
-            hibernating_statuses.extend([(0, fp, False) \
-                for fp in self.adv_relays])
-            
 
 def get_user_model(start_time, end_time, tracefilename=None, session='simple=6'):
     streams = []
@@ -1817,17 +1720,25 @@ pathsim, and pickle it. The pickled object is input to the simulate command')
         TorOptions.guard_expiration_min = guard_expiration_min
         TorOptions.guard_expiration_max = guard_expiration_min + 30*24*3600
         
+        ## create iterator producing sequence of simulation network states ##
+        # obtain list of network state files contained in nsf_dir
         network_state_files = []
         for dirpath, dirnames, filenames in os.walk(args.nsf_dir,
             followlinks=True):
             for filename in filenames:
                 if (filename[0] != '.'):
                     network_state_files.append(os.path.join(dirpath,filename))
-
         # insert gaps for missing time periods
         network_state_files.sort(key = lambda x: os.path.basename(x))
         network_state_files = pad_network_state_files(network_state_files)
-        
+        # initialize object that will add adversarial relays into network
+        adv_insertion = network_modifiers.AdversaryInsertion(args)        
+        # create list of objects to modify network each consensus period
+        network_modifiers = [adv_insertion]
+        # create iterator that applies network modifiers to nsf list
+        network_states = get_network_states(network_state_files,
+            network_modifiers)
+
         # determine start and end times
         start_time = None
         with open(network_state_files[0]) as nsf:
@@ -1844,12 +1755,6 @@ pathsim, and pickle it. The pickled object is input to the simulate command')
         #   "bittorrent"
         streams = get_user_model(start_time, end_time, args.trace_file,
             session=args.user_model)
-        
-        # initialize object that will add adversarial relays into network
-        adv_insertion = AdversaryInsertion(args)
-        
-        # create list of objects to modify network each consensus period
-        network_modifiers = [adv_insertion]
 
         # for alternate path-selection algorithms
         # set parameters and substitute simulation functions
@@ -1867,13 +1772,18 @@ pathsim, and pickle it. The pickled object is input to the simulate command')
             pdelfilename = args.pdelfile
             create_circuits = vcs_pathsim.create_circuits
             create_circuit = vcs_pathsim.create_circuit
-            
+
         congmodel = CongestionModel(congfilename)
         pdelmodel = PropagationDelayModel(pdelfilename)            
-            
-        # simulate the circuits for these streams
-        create_circuits(network_state_files, streams, args.num_samples,
-            network_modifiers, congmodel, pdelmodel, args.format)
+
+        # set up simulation output and produce header
+        callbacks = event_callbacks.PrintStreamAssignments(args.format,
+            file=sys.stdout)
+        callbacks.print_header()
+
+        # simulate circuit creation and stream assignment
+        create_circuits(network_states, streams, args.num_samples, congmodel,
+            pdelmodel, callbacks)
     elif (args.subparser == 'concattraces'):
         ut = UserTraces(args.facebook_filename, args.gmailchat_filename,
             args.gcalgdocs_filename, args.websearch_filename,

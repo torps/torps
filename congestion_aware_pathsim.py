@@ -43,12 +43,12 @@ def ping_circuit(client_ip, guard_node, middle_node, exit_node,\
     return ping_time
 
 
-def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
-    cons_bw_weights, cons_bwweightscale, descriptors, hibernating_status,\
-    guards, circ_time, circ_fast, circ_stable, circ_internal, circ_ip,\
-    circ_port,\
-    congmodel, pdelmodel, weighted_exits=None,\
-    exits_exact=False, weighted_middles=None, weighted_guards=None):
+def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,
+    cons_bw_weights, cons_bwweightscale, descriptors, hibernating_status,
+    guards, circ_time, circ_fast, circ_stable, circ_internal, circ_ip,
+    circ_port, congmodel, pdelmodel, weighted_exits=None,
+    exits_exact=False, weighted_middles=None, weighted_guards=None,
+    callbacks=None):
     """Creates path for requested circuit based on the input consensus
     statuses and descriptors. Uses congestion-aware path selection.
     Inputs:
@@ -75,6 +75,7 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
             precomputed exactly.
         weighted_middles: (list) (middle, cum_weight) pairs for middle position
         weighted_guards: (list) (middle, cum_weight) pairs for middle position
+        callbacks: object w/ method circuit_creation(circuit)        
     Output:
         circuit: (dict) a newly created circuit with keys
             'time': (int) seconds from time zero
@@ -91,86 +92,103 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
     if (circ_time < cons_valid_after) or\
         (circ_time >= cons_fresh_until):
         raise ValueError('consensus not fresh for circ_time in create_circuit')
-            
-    # select exit node
-    i = 1
-    while (True):
-        exit_node = pathsim.select_exit_node(cons_bw_weights,
-            cons_bwweightscale, cons_rel_stats, descriptors, circ_fast,
-            circ_stable, circ_internal, circ_ip, circ_port, weighted_exits,
-            exits_exact)
-#        exit_node = pathsim.select_weighted_node(weighted_exits)
-        if (not hibernating_status[exit_node]):
-            break
-        if pathsim._testing:
-            print('Exit selection #{0} is hibernating - retrying.'.\
-                format(i))
-        i += 1
-    if pathsim._testing:    
-        print('Exit node: {0} [{1}]'.format(
-            cons_rel_stats[exit_node].nickname,
-            cons_rel_stats[exit_node].fingerprint))
+
+    num_attempts = 0
+    ntor_supported = False
+    while (num_attempts < pathsim.TorOptions.max_populate_attempts) and\
+        (not ntor_supported):            
+        # select exit node
+        i = 1
+        while (True):
+            exit_node = pathsim.select_exit_node(cons_bw_weights,
+                cons_bwweightscale, cons_rel_stats, descriptors, circ_fast,
+                circ_stable, circ_internal, circ_ip, circ_port, weighted_exits,
+                exits_exact)
+    #        exit_node = pathsim.select_weighted_node(weighted_exits)
+            if (not hibernating_status[exit_node]):
+                break
+            if pathsim._testing:
+                print('Exit selection #{0} is hibernating - retrying.'.\
+                    format(i))
+            i += 1
+        if pathsim._testing:    
+            print('Exit node: {0} [{1}]'.format(
+                cons_rel_stats[exit_node].nickname,
+                cons_rel_stats[exit_node].fingerprint))
     
-    # select guard node
-    # Hibernation status again checked here to reflect how in Tor
-    # new guards would be chosen and added to the list prior to a circuit-
-    # creation attempt. If the circuit fails at a new guard, that guard
-    # gets removed from the list.
-    while True:
-        # get first <= num_guards guards suitable for circuit
-        circ_guards = pathsim.get_guards_for_circ(cons_bw_weights,\
-            cons_bwweightscale, cons_rel_stats, descriptors,\
-            circ_fast, circ_stable, guards,\
-            exit_node, circ_time, weighted_guards)   
-        guard_node = choice(circ_guards)
-        if (hibernating_status[guard_node]):
-            if (not guards[guard_node]['made_contact']):
-                if pathsim._testing:
-                    print(\
-                    '[Time {0}]: Removing new hibernating guard: {1}.'.\
-                    format(circ_time, cons_rel_stats[guard_node].nickname))
-                del guards[guard_node]
-            elif (guards[guard_node]['unreachable_since'] != None):
-                if pathsim._testing:
-                    print(\
-                    '[Time {0}]: Guard retried but hibernating: {1}'.\
-                    format(circ_time, cons_rel_stats[guard_node].nickname))
-                guards[guard_node]['last_attempted'] = circ_time
+        # select guard node
+        # Hibernation status again checked here to reflect how in Tor
+        # new guards would be chosen and added to the list prior to a circuit-
+        # creation attempt. If the circuit fails at a new guard, that guard
+        # gets removed from the list.
+        while True:
+            # get first <= num_guards guards suitable for circuit
+            circ_guards = pathsim.get_guards_for_circ(cons_bw_weights,\
+                cons_bwweightscale, cons_rel_stats, descriptors,\
+                circ_fast, circ_stable, guards,\
+                exit_node, circ_time, weighted_guards)   
+            guard_node = choice(circ_guards)
+            if (hibernating_status[guard_node]):
+                if (not guards[guard_node]['made_contact']):
+                    if pathsim._testing:
+                        print(\
+                        '[Time {0}]: Removing new hibernating guard: {1}.'.\
+                        format(circ_time, cons_rel_stats[guard_node].nickname))
+                    del guards[guard_node]
+                elif (guards[guard_node]['unreachable_since'] != None):
+                    if pathsim._testing:
+                        print(\
+                        '[Time {0}]: Guard retried but hibernating: {1}'.\
+                        format(circ_time, cons_rel_stats[guard_node].nickname))
+                    guards[guard_node]['last_attempted'] = circ_time
+                else:
+                    if pathsim._testing:
+                        print('[Time {0}]: Guard newly hibernating: {1}'.\
+                        format(circ_time, \
+                        cons_rel_stats[guard_node].nickname))
+                    guards[guard_node]['unreachable_since'] = circ_time
+                    guards[guard_node]['last_attempted'] = circ_time
             else:
-                if pathsim._testing:
-                    print('[Time {0}]: Guard newly hibernating: {1}'.\
-                    format(circ_time, \
-                    cons_rel_stats[guard_node].nickname))
-                guards[guard_node]['unreachable_since'] = circ_time
-                guards[guard_node]['last_attempted'] = circ_time
-        else:
-            guards[guard_node]['unreachable_since'] = None
-            guards[guard_node]['made_contact'] = True
-            break
-    if pathsim._testing:
-        print('Guard node: {0} [{1}]'.format(
-            cons_rel_stats[guard_node].nickname,
-            cons_rel_stats[guard_node].fingerprint))
-    
-    # select middle node
-    # As with exit selection, hibernating status checked here to mirror Tor
-    # selecting middle, having the circuit fail, reselecting a path,
-    # and attempting circuit creation again.    
-    i = 1
-    while (True):
-        middle_node = pathsim.select_middle_node(cons_bw_weights,\
-            cons_bwweightscale, cons_rel_stats, descriptors, circ_fast,\
-            circ_stable, exit_node, guard_node, weighted_middles)
-        if (not hibernating_status[middle_node]):
-            break
+                guards[guard_node]['unreachable_since'] = None
+                guards[guard_node]['made_contact'] = True
+                break
         if pathsim._testing:
-            print(\
-            'Middle selection #{0} is hibernating - retrying.'.format(i))
-        i += 1    
+            print('Guard node: {0} [{1}]'.format(
+                cons_rel_stats[guard_node].nickname,
+                cons_rel_stats[guard_node].fingerprint))
+    
+        # select middle node
+        # As with exit selection, hibernating status checked here to mirror Tor
+        # selecting middle, having the circuit fail, reselecting a path,
+        # and attempting circuit creation again.    
+        i = 1
+        while (True):
+            middle_node = pathsim.select_middle_node(cons_bw_weights,\
+                cons_bwweightscale, cons_rel_stats, descriptors, circ_fast,\
+                circ_stable, exit_node, guard_node, weighted_middles)
+            if (not hibernating_status[middle_node]):
+                break
+            if pathsim._testing:
+                print(\
+                'Middle selection #{0} is hibernating - retrying.'.format(i))
+            i += 1    
+        if pathsim._testing:
+            print('Middle node: {0} [{1}]'.format(
+                cons_rel_stats[middle_node].nickname,
+                cons_rel_stats[middle_node].fingerprint))
+
+        # ensure one member of the circuit supports the ntor handshake
+        ntor_supported = pathsim.circuit_supports_ntor(guard_node, middle_node,
+            exit_node, descriptors)
+        num_attempts += 1
+
     if pathsim._testing:
-        print('Middle node: {0} [{1}]'.format(
-            cons_rel_stats[middle_node].nickname,
-            cons_rel_stats[middle_node].fingerprint))
+        if ntor_supported:
+            print('Chose ntor-compatible circuit in {} tries'.\
+                format(num_attempts))
+    if (not ntor_supported):
+        raise ValueError('ntor-compatible circuit not found in {} tries'.\
+            format(num_attempts))
 
     cum_ping_time = 0
     if pathsim._testing: print 'Doing {0} circuit pings on creation... '.format(num_pings_create),
@@ -179,23 +197,28 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
             exit_node, cons_rel_stats, descriptors, congmodel, pdelmodel)
     avg_ping_time = float(cum_ping_time)/num_pings_create
     if pathsim._testing: print "ave congestion is {0}".format(avg_ping_time)
-    
-    return {'time':circ_time,\
-            'fast':circ_fast,\
-            'stable':circ_stable,\
-            'internal':circ_internal,\
-            'dirty_time':None,\
-            'path':(guard_node, middle_node, exit_node),\
-#            'cons_rel_stats':cons_rel_stats,\
-            'covering':[],\
+
+    circuit = {'time':circ_time,
+            'fast':circ_fast,
+            'stable':circ_stable,
+            'internal':circ_internal,
+            'dirty_time':None,
+            'path':(guard_node, middle_node, exit_node),
+            'covering':[],
             'initial_avg_ping':avg_ping_time,
             'avg_ping':None}
+
+    # execute callback to allow logging on circuit creation
+    if (callbacks is not None):
+        callbacks.circuit_creation(circuit)
+
+    return circuit
 
 
 def client_assign_stream(client_state, stream, cons_rel_stats,\
     cons_valid_after, cons_fresh_until, cons_bw_weights, cons_bwweightscale,\
     descriptors, hibernating_status, stream_weighted_exits,\
-    weighted_middles, weighted_guards, congmodel, pdelmodel):
+    weighted_middles, weighted_guards, congmodel, pdelmodel, callbacks=None):
     """Assigns a stream to a circuit for a given client.
     Stores circuit measurements (pings) as would be measured during use."""
         
@@ -266,23 +289,23 @@ at {0}'.format(stream['time']))
         new_circ = None
         if (stream['type'] == 'connect'):
             stable = (stream['port'] in pathsim.TorOptions.long_lived_ports)
-            new_circ = create_circuit(cons_rel_stats,\
-                cons_valid_after, cons_fresh_until,\
-                cons_bw_weights, cons_bwweightscale,\
-                descriptors, hibernating_status, guards, stream['time'], True,\
-                stable, False, stream['ip'], stream['port'],\
-                congmodel, pdelmodel,\
-                stream_weighted_exits, False,\
-                weighted_middles, weighted_guards)
+            new_circ = create_circuit(cons_rel_stats,
+                cons_valid_after, cons_fresh_until,
+                cons_bw_weights, cons_bwweightscale,
+                descriptors, hibernating_status, guards, stream['time'], True,
+                stable, False, stream['ip'], stream['port'],
+                congmodel, pdelmodel,
+                stream_weighted_exits, False,
+                weighted_middles, weighted_guards, callbacks)
         elif (stream['type'] == 'resolve'):
-            new_circ = create_circuit(cons_rel_stats,\
-                cons_valid_after, cons_fresh_until,\
-                cons_bw_weights, cons_bwweightscale,\
-                descriptors, hibernating_status, guards, stream['time'], True,\
-                False, False, None, None,\
-                congmodel, pdelmodel,\
-                stream_weighted_exits, True,\
-                weighted_middles, weighted_guards)
+            new_circ = create_circuit(cons_rel_stats,
+                cons_valid_after, cons_fresh_until,
+                cons_bw_weights, cons_bwweightscale,
+                descriptors, hibernating_status, guards, stream['time'], True,
+                False, False, None, None,
+                congmodel, pdelmodel,
+                stream_weighted_exits, True,
+                weighted_middles, weighted_guards, callbacks)
         else:
             raise ValueError('Unrecognized stream in client_assign_stream(): \
 {0}'.format(stream['type']))        
@@ -311,5 +334,8 @@ stream.'.format(stream['time']))
             exit_node, cons_rel_stats, descriptors, congmodel, pdelmodel)
     stream_assigned['avg_ping'] = float(cum_ping_time)/num_pings_use
     if pathsim._testing: print "ave congestion is {0}".format(stream_assigned['avg_ping'])
+    
+    if (callbacks is not None):
+        callbacks.stream_assignment(stream, stream_assigned)    
     
     return stream_assigned

@@ -24,27 +24,41 @@ logger.setLevel(logging.DEBUG)
 num_paths_choose = 3 # number of paths to choose and predict latency for
 ######
 
-def create_circuits(network_state_files, streams, num_samples,
-    network_modifiers, congmodel, pdelmodel, format):#START
+def create_circuits(network_states, streams, num_samples, congmodel, pdelmodel, callbacks=None):
     """Takes streams over time and creates circuits by interaction
     with create_circuit().
       Input:
-        network_state_files: list of filenames with network statuses
-            as produced by process_consensuses        
+        network_states: iterator yielding network-state tuples containing
+            the sequence of simulation network states, with a None value
+            indicating most recent status should be repeated with consensus
+            valid/fresh times advanced 60 minutes, and where each tuple
+            contains the following:
+            cons_valid_after: timestamp at which consensus is valid
+            cons_fresh_until: timestamp at which consensus freshness ends
+            cons_bw_weights: dict of weight(str) => value(int) mappings,
+                maps relay type and position to load-balancing weight,
+                as contained in bandwidth-weights consensus line
+            cons_bwweightscale: (int) scaling factor for cons_bw_weights,
+                as contained in "bwweightscale" param of consensus
+            cons_rel_stats: (dict) maps relay fingerprints to RouterStatusEntry,
+                indicates relays in consensus and with a descriptor
+            hibernating_statuses: (list) (time, fprint, hibernating) tuples,
+                indicating timestamp of status, relay fingerprint, and change or
+                initial hibernating status, w/ True meaning relay is hibernating
+            descriptors = (dict) maps fingerprints to ServerDescriptor,
+                indicates most recent descriptor for relays, must
+                contain an entry for each fprint in cons_rel_stats
         streams: *ordered* list of streams, where a stream is a dict with keys
             'time': timestamp of when stream request occurs 
             'type': 'connect' for SOCKS CONNECT, 'resolve' for SOCKS RESOLVE
             'ip': IP address of destination
             'port': desired TCP port
         num_samples: (int) # circuit-creation samples to take for given streams
-        network_modifiers: (list) list of objs w/ modify_network_state(), will
-            be called in order to modify network state
         congmodel: (CongestionModel) outputs congestion used by some path algs
         pdelmodel: (PropagationDelayModel) outputs prop delay
-        format: (str) 'testing', 'normal', 'relay-adv', or 'network-adv'; sets
-            output format            
+        callbacks: obj providing callback interface, cf. event_callbacks module
     Output:
-        [Prints circuit and guard selections of clients.]
+        Uses callbacks to produce any desired output.
     """
     
     ### Simulation variables ###
@@ -81,28 +95,18 @@ def create_circuits(network_state_files, streams, num_samples,
     #   client.connect("localhost",7000)
     ### End simulation variables ###
     
-    if (not _testing):
-        print_mapped_streams_header(format)
-
-    # run simulation period one pair of consensus/descriptor files at a time
-    for ns_file in network_state_files:
-        # read in network states            
-        if (ns_file != None):
+    # run simulation period one network state at a time
+    for network_state in network_states:
+        if (network_state != None):
             (cons_valid_after, cons_fresh_until, cons_bw_weights,
             cons_bwweightscale, cons_rel_stats, hibernating_statuses,
-            new_descriptors) = pathsim.get_network_state(ns_file)
+            new_descriptors) = network_state
 
             # clear hibernating status to ensure updates come from ns_file
             hibernating_status = {}
                         
             # update descriptors
             descriptors.update(new_descriptors)
-            
-            # apply network modifications
-            for network_modifier in network_modifiers:
-                network_modifier.modify_network_state(cons_valid_after,
-                    cons_fresh_until, cons_bw_weights, cons_bwweightscale,
-                    cons_rel_stats, descriptors, hibernating_statuses)                        
         else:
             # gap in consensuses, just advance an hour, keeping network state            
             cons_valid_after += 3600
@@ -112,6 +116,12 @@ def create_circuits(network_state_files, streams, num_samples,
             if _testing:
                 print('Filling in consensus gap from {0} to {1}'.\
                 format(cons_valid_after, cons_fresh_until))            
+
+        # update network state of callbacks object
+        if (callbacks is not None):
+            callbacks.set_network_state(cons_valid_after, cons_fresh_until,
+                cons_bw_weights, cons_bwweightscale, cons_rel_stats,
+                descriptors)        
 
         # update simulation period                
         if (cur_period_start == None):
@@ -212,12 +222,14 @@ def create_circuits(network_state_files, streams, num_samples,
 
             # do timed individual client updates
             for client_state in client_states:
-                pathsim.timed_client_updates(cur_time, client_state,\
-                    port_needs_global, cons_rel_stats,\
-                    cons_valid_after, cons_fresh_until, cons_bw_weights,\
-                    cons_bwweightscale, descriptors, hibernating_status,\
-                    port_need_weighted_exits, weighted_middles,\
-                    weighted_guards, congmodel, pdelmodel)
+                if (callbacks is not None):
+                    callbacks.set_sample_id(client_state['id'])
+                pathsim.timed_client_updates(cur_time, client_state,
+                    port_needs_global, cons_rel_stats,
+                    cons_valid_after, cons_fresh_until, cons_bw_weights,
+                    cons_bwweightscale, descriptors, hibernating_status,
+                    port_need_weighted_exits, weighted_middles,
+                    weighted_guards, congmodel, pdelmodel, callbacks)
                     
             if _testing:
                 for client_state in client_states:
@@ -263,31 +275,30 @@ def create_circuits(network_state_files, streams, num_samples,
                 
                 # do client stream assignment
                 for client_state in client_states:
+                    if (callbacks is not None):
+                        callbacks.set_sample_id(client_state['id'])                
                     if _testing:                
                         print('Client {0} stream assignment.'.\
                             format(client_state['id']))
                     guards = client_state['guards']
                  
                     stream_assigned = pathsim.client_assign_stream(\
-                        client_state, stream, cons_rel_stats,\
-                        cons_valid_after, cons_fresh_until,\
-                        cons_bw_weights, cons_bwweightscale,\
-                        descriptors, hibernating_status,\
-                        stream_port_weighted_exits[stream_port],\
-                        weighted_middles, weighted_guards,\
-                        congmodel, pdelmodel)
-                    if (not _testing):
-                        print_mapped_stream(client_state['id'],\
-                            stream_assigned, stream, descriptors, format)
+                        client_state, stream, cons_rel_stats,
+                        cons_valid_after, cons_fresh_until,
+                        cons_bw_weights, cons_bwweightscale,
+                        descriptors, hibernating_status,
+                        stream_port_weighted_exits[stream_port],
+                        weighted_middles, weighted_guards,
+                        congmodel, pdelmodel, callbacks)
             
             cur_time += time_step
             
 
-def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
-    cons_bw_weights, cons_bwweightscale, descriptors, hibernating_status,\
-    guards, circ_time, circ_fast, circ_stable, circ_internal, circ_ip,\
-    circ_port, congmodel, pdelmodel, weighted_exits=None,\
-    exits_exact=False, weighted_middles=None, weighted_guards=None):
+def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,
+    cons_bw_weights, cons_bwweightscale, descriptors, hibernating_status,
+    guards, circ_time, circ_fast, circ_stable, circ_internal, circ_ip,
+    circ_port, congmodel, pdelmodel, weighted_exits=None,
+    exits_exact=False, weighted_middles=None, weighted_guards=None, callbacks=None):
     """Creates path for requested circuit based on the input consensus
     statuses and descriptors. Uses congestion-aware path selection.
     Inputs:
@@ -314,6 +325,7 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
             precomputed exactly.
         weighted_middles: (list) (middle, cum_weight) pairs for middle position
         weighted_guards: (list) (middle, cum_weight) pairs for middle position
+        callbacks: object w/ method circuit_creation(circuit)        
     Output:
         circuit: (dict) a newly created circuit with keys
             'time': (int) seconds from time zero
@@ -335,98 +347,121 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,\
     best_path = None
     for k in xrange(num_paths_choose):
         print('Choosing path #{0} to predict latency'.format(k))
-        # select exit node
-        i = 1
-        while (True):
-            exit_node = pathsim.select_exit_node(cons_bw_weights,
-                cons_bwweightscale,
-                cons_rel_stats, descriptors, circ_fast, circ_stable,
-                circ_internal, circ_ip, circ_port, weighted_exits, exits_exact)
-    #        exit_node = select_weighted_node(weighted_exits)
-            if (not hibernating_status[exit_node]):
-                break
-            if _testing:
-                print('Exit selection #{0} is hibernating - retrying.'.\
-                    format(i))
-            i += 1
-        if _testing:    
-            print('Exit node: {0} [{1}]'.format(
-                cons_rel_stats[exit_node].nickname,
-                cons_rel_stats[exit_node].fingerprint))
+        num_attempts = 0
+        ntor_supported = False
+        while (num_attempts < pathsim.TorOptions.max_populate_attempts) and\
+            (not ntor_supported):        
+            # select exit node
+            i = 1
+            while (True):
+                exit_node = pathsim.select_exit_node(cons_bw_weights,
+                    cons_bwweightscale,
+                    cons_rel_stats, descriptors, circ_fast, circ_stable,
+                    circ_internal, circ_ip, circ_port, weighted_exits, exits_exact)
+        #        exit_node = select_weighted_node(weighted_exits)
+                if (not hibernating_status[exit_node]):
+                    break
+                if _testing:
+                    print('Exit selection #{0} is hibernating - retrying.'.\
+                        format(i))
+                i += 1
+            if _testing:    
+                print('Exit node: {0} [{1}]'.format(
+                    cons_rel_stats[exit_node].nickname,
+                    cons_rel_stats[exit_node].fingerprint))
         
-        # select guard node
-        # Hibernation status again checked here to reflect how in Tor
-        # new guards would be chosen and added to the list prior to a circuit-
-        # creation attempt. If the circuit fails at a new guard, that guard
-        # gets removed from the list.
-        while True:
-            # get first <= num_guards guards suitable for circuit
-            circ_guards = pathsim.get_guards_for_circ(cons_bw_weights,\
-                cons_bwweightscale, cons_rel_stats, descriptors,\
-                circ_fast, circ_stable, guards,\
-                exit_node, circ_time, weighted_guards)   
-            guard_node = choice(circ_guards)
-            if (hibernating_status[guard_node]):
-                if (not guards[guard_node]['made_contact']):
-                    if _testing:
-                        print(\
-                        '[Time {0}]: Removing new hibernating guard: {1}.'.\
-                        format(circ_time, cons_rel_stats[guard_node].nickname))
-                    del guards[guard_node]
-                elif (guards[guard_node]['unreachable_since'] != None):
-                    if _testing:
-                        print(\
-                        '[Time {0}]: Guard retried but hibernating: {1}'.\
-                        format(circ_time, cons_rel_stats[guard_node].nickname))
-                    guards[guard_node]['last_attempted'] = circ_time
+            # select guard node
+            # Hibernation status again checked here to reflect how in Tor
+            # new guards would be chosen and added to the list prior to a circuit-
+            # creation attempt. If the circuit fails at a new guard, that guard
+            # gets removed from the list.
+            while True:
+                # get first <= num_guards guards suitable for circuit
+                circ_guards = pathsim.get_guards_for_circ(cons_bw_weights,\
+                    cons_bwweightscale, cons_rel_stats, descriptors,\
+                    circ_fast, circ_stable, guards,\
+                    exit_node, circ_time, weighted_guards)   
+                guard_node = choice(circ_guards)
+                if (hibernating_status[guard_node]):
+                    if (not guards[guard_node]['made_contact']):
+                        if _testing:
+                            print(\
+                            '[Time {0}]: Removing new hibernating guard: {1}.'.\
+                            format(circ_time, cons_rel_stats[guard_node].nickname))
+                        del guards[guard_node]
+                    elif (guards[guard_node]['unreachable_since'] != None):
+                        if _testing:
+                            print(\
+                            '[Time {0}]: Guard retried but hibernating: {1}'.\
+                            format(circ_time, cons_rel_stats[guard_node].nickname))
+                        guards[guard_node]['last_attempted'] = circ_time
+                    else:
+                        if _testing:
+                            print('[Time {0}]: Guard newly hibernating: {1}'.\
+                            format(circ_time, \
+                            cons_rel_stats[guard_node].nickname))
+                        guards[guard_node]['unreachable_since'] = circ_time
+                        guards[guard_node]['last_attempted'] = circ_time
                 else:
-                    if _testing:
-                        print('[Time {0}]: Guard newly hibernating: {1}'.\
-                        format(circ_time, \
-                        cons_rel_stats[guard_node].nickname))
-                    guards[guard_node]['unreachable_since'] = circ_time
-                    guards[guard_node]['last_attempted'] = circ_time
-            else:
-                guards[guard_node]['unreachable_since'] = None
-                guards[guard_node]['made_contact'] = True
-                break
-        if _testing:
-            print('Guard node: {0} [{1}]'.format(
-                cons_rel_stats[guard_node].nickname,
-                cons_rel_stats[guard_node].fingerprint))
-        
-        # select middle node
-        # As with exit selection, hibernating status checked here to mirror Tor
-        # selecting middle, having the circuit fail, reselecting a path,
-        # and attempting circuit creation again.    
-        i = 1
-        while (True):
-            middle_node = pathsim.select_middle_node(cons_bw_weights,\
-                cons_bwweightscale, cons_rel_stats, descriptors, circ_fast,\
-                circ_stable, exit_node, guard_node, weighted_middles)
-            if (not hibernating_status[middle_node]):
-                break
+                    guards[guard_node]['unreachable_since'] = None
+                    guards[guard_node]['made_contact'] = True
+                    break
             if _testing:
-                print(\
-                'Middle selection #{0} is hibernating - retrying.'.format(i))
-            i += 1    
-        if _testing:
-            print('Middle node: {0} [{1}]'.format(
-                cons_rel_stats[middle_node].nickname,
-                cons_rel_stats[middle_node].fingerprint))
+                print('Guard node: {0} [{1}]'.format(
+                    cons_rel_stats[guard_node].nickname,
+                    cons_rel_stats[guard_node].fingerprint))
+        
+            # select middle node
+            # As with exit selection, hibernating status checked here to mirror Tor
+            # selecting middle, having the circuit fail, reselecting a path,
+            # and attempting circuit creation again.    
+            i = 1
+            while (True):
+                middle_node = pathsim.select_middle_node(cons_bw_weights,\
+                    cons_bwweightscale, cons_rel_stats, descriptors, circ_fast,\
+                    circ_stable, exit_node, guard_node, weighted_middles)
+                if (not hibernating_status[middle_node]):
+                    break
+                if _testing:
+                    print(\
+                    'Middle selection #{0} is hibernating - retrying.'.format(i))
+                i += 1    
+            if _testing:
+                print('Middle node: {0} [{1}]'.format(
+                    cons_rel_stats[middle_node].nickname,
+                    cons_rel_stats[middle_node].fingerprint))
+                    
+            # ensure one member of the circuit supports the ntor handshake
+            ntor_supported = pathsim.circuit_supports_ntor(guard_node, middle_node,
+                exit_node, descriptors)
+            num_attempts += 1
+        if pathsim._testing:
+            if ntor_supported:
+                print('Chose ntor-compatible circuit in {} tries'.\
+                    format(num_attempts))
+        if (not ntor_supported):
+            raise ValueError('ntor-compatible circuit not found in {} tries'.\
+                format(num_attempts))
          
         latency = #SAFEST TODO: get latency for circuit from SAFEST VCS service
             
         if (best_latency == None) or (latency < best_latency):
             best_latency = latency
             best_circ = (guard_node, middle_node, exit_node)
-    
-    return {'time':circ_time,\
-            'fast':circ_fast,\
-            'stable':circ_stable,\
-            'internal':circ_internal,\
-            'dirty_time':None,\
-            'path':best_circ,\
-#            'cons_rel_stats':cons_rel_stats,\
-            'covering':[],\
+
+    circuit = {'time':circ_time,
+            'fast':circ_fast,
+            'stable':circ_stable,
+            'internal':circ_internal,
+            'dirty_time':None,
+            'path':best_circ,
+            'covering':[],
             'avg_ping':None}
+
+    # execute callback to allow logging on circuit creation
+    if (callbacks is not None):
+        callbacks.circuit_creation(circuit)
+
+    return circuit
+
+    
