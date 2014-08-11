@@ -15,6 +15,7 @@ import process_consensuses
 import re
 import network_modifiers
 import event_callbacks
+import importlib
 
 _testing = False#True
 
@@ -1634,6 +1635,8 @@ consensuses')
         help='indicates the number of adversarial guards to add')
     simulate_parser.add_argument('--num_adv_exits', type=int, default=1,
         help='indicates the number of adversarial exits to add')
+    simulate_parser.add_argument('--other_network_modifier', default=None,
+        help='class to modify network, argument syntax: module.class:argstring')
     simulate_parser.add_argument('--num_guards', type=int, default=3,
         help='indicates size of client guard list')
     simulate_parser.add_argument('--guard_expiration', type=int, default=60,
@@ -1734,10 +1737,21 @@ pathsim, and pickle it. The pickled object is input to the simulate command')
         # insert gaps for missing time periods
         network_state_files.sort(key = lambda x: os.path.basename(x))
         network_state_files = pad_network_state_files(network_state_files)
-        # initialize object that will add adversarial relays into network
+        # create object that will add adversarial relays into network
         adv_insertion = network_modifiers.AdversaryInsertion(args, _testing)
+        # create other network modification object
+        if (args.other_network_modifier is not None):
+            # dynamically import module and obtain reference to class
+            full_classname, class_arg = args.other_network_modifier.split(':')
+            class_components = full_classname.split('.')
+            modulename = class_components[0:-1]
+            classname = class_components[-1]
+            network_modifier_module = importlib.import_module(modulename)
+            network_modifier_class = getattr(network_modifier_module, classname)
+            # create object of class
+            other_network_modifier = network_modifier_class(args, _testing)
         # create list of objects to modify network each consensus period
-        network_modifiers = [adv_insertion]
+        network_modifiers = [adv_insertion, other_network_modifier]
         # create iterator that applies network modifiers to nsf list
         network_states = get_network_states(network_state_files,
             network_modifiers)

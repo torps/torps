@@ -89,3 +89,43 @@ class AdversaryInsertion(object):
             hibernating_statuses.extend([(0, fp, False) \
                 for fp in self.adv_relays])
 ######
+
+### Class adjusting Guard flags ###
+class GuardFlagAdjustment(object):
+    def __init__(self, args, testing):
+        # obtain desired argument string
+        full_classname, class_arg = args.other_network_modifier.split(':')
+        # interpret arg as consensus weight limit for Guard flag
+        self.guard_bw_threshold = int(class_arg)
+        self.testing = testing
+
+        
+    def modify_network_state(self, cons_valid_after, cons_fresh_until,
+        cons_bw_weights, cons_bwweightscale, cons_rel_stats, descriptors,
+        hibernating_statuses):
+        """Adds adversarial guards and exits to cons_rel_stats and
+        descriptors dicts."""
+
+        # add adversarial descriptors to nsf descriptors
+        # only add once because descriptors variable is assumed persistant
+        if (self.first_modification == True):
+            descriptors.update(self.adv_descriptors)
+            self.first_modification = False
+
+        # if insertion time has been reached, add adversarial relays into
+        # consensus and hibernating status list
+        if (self.adv_time <= cons_valid_after):
+            # include additional relays in consensus
+            if self.testing:
+                print('Adding {0} relays to consensus.'.format(\
+                    len(self.adv_relays)))
+            for fprint, relay in self.adv_relays.iteritems():
+                if fprint in cons_rel_stats:
+                    raise ValueError(\
+                        'Added relay exists in consensus: {0}:{1}'.\
+                            format(relay.nickname, fprint))
+                cons_rel_stats[fprint] = relay
+            # include hibernating statuses for added relays
+            hibernating_statuses.extend([(0, fp, False) \
+                for fp in self.adv_relays])
+######
