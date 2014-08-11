@@ -334,7 +334,7 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,
             'internal': (bool) is internal (e.g. for hidden service)
             'dirty_time': (int) timestamp of time dirtied, None if clean
             'path': (tuple) list in-order fingerprints for path's nodes
-            'covering': (list) ports with needs covered by circuit
+            'covering': (set) ports with needs covered by circuit
     """
 #            'cons_rel_stats': (dict) relay stats for active consensus
     
@@ -455,7 +455,7 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,
             'internal':circ_internal,
             'dirty_time':None,
             'path':best_circ,
-            'covering':[],
+            'covering':set(),
             'avg_ping':None}
 
     # execute callback to allow logging on circuit creation

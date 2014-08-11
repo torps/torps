@@ -647,8 +647,8 @@ def uncover_circuit_ports(circuit, port_needs_covered):
                 print('Decreased cover count for port {0} to {1}.'.\
 format(port, port_needs_covered[port]))
         else:
-            if _testing:                                        
-                print('Port {0} not found in port_needs_covered'.format(port))
+            raise ValueError('Port {0} not found in port_needs_covered'.\
+                format(port))
     
     
 def kill_circuits_by_relay(client_state, relay_down_fn, msg):
@@ -838,10 +838,13 @@ def timed_updates(cur_time, port_needs_global, client_states,
             (need['expires'] <= cur_time):
             if _testing:
                 print('Port need for {0} expiring.'.format(port))
+            # remove need from global list
             del port_needs_global[port]
+            # remove coverage number and per-circuit coverage from client state
             for client_state in client_states:
                 del client_state['port_needs_covered'][port]
-                
+                for circuit in client_state['clean_exit_circuits']
+                    circuit['covering'].discard(port)
     # update hibernating status
     while (hibernating_statuses) and\
         (hibernating_statuses[-1][0] <= cur_time):
@@ -919,13 +922,13 @@ def timed_client_updates(cur_time, client_state, port_needs_global,
                 
                 # cover this port and any others
                 client_state['port_needs_covered'][port] += 1
-                new_circ['covering'].append(port)
+                new_circ['covering'].add(port)
                 for pt, nd in port_needs_global.items():
                     if (pt != port) and\
-                        (circuit_covers_port_need(new_circ,\
+                        (circuit_covers_port_need(new_circ,
                             descriptors, pt, nd)):
                         client_state['port_needs_covered'][pt] += 1
-                        new_circ['covering'].append(pt)
+                        new_circ['covering'].add(pt)
                         
                         
 def stream_update_port_needs(stream, port_needs_global,
@@ -961,7 +964,7 @@ def stream_update_port_needs(stream, port_needs_global,
                         port_needs_global[port])):
                     client_state['port_needs_covered'][port]\
                         += 1
-                    circuit['covering'].append(port)
+                    circuit['covering'].add(port)
         # precompute exit list and weights for new port need
         port_need_exits = filter_exits(cons_rel_stats,\
             descriptors, port_needs_global[port]['fast'],\
@@ -1197,7 +1200,7 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,
             'internal': (bool) is internal (e.g. for hidden service)
             'dirty_time': (int) timestamp of time dirtied, None if clean
             'path': (tuple) list in-order fingerprints for path's nodes
-            'covering': (list) ports with needs covered by circuit        
+            'covering': (set) ports with needs covered by circuit        
     """
     
     if (circ_time < cons_valid_after) or\
@@ -1306,7 +1309,7 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,
             'internal':circ_internal,
             'dirty_time':None,
             'path':(guard_node, middle_node, exit_node),
-            'covering':[]}
+            'covering':set()}
 
     # execute callback to allow logging on circuit creation
     if (callbacks is not None):
