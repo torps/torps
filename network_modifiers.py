@@ -103,8 +103,7 @@ class GuardFlagAdjustment(object):
     def modify_network_state(self, cons_valid_after, cons_fresh_until,
         cons_bw_weights, cons_bwweightscale, cons_rel_stats, descriptors,
         hibernating_statuses):
-        """Adds adversarial guards and exits to cons_rel_stats and
-        descriptors dicts."""
+        """Remove ."""
 
         # add adversarial descriptors to nsf descriptors
         # only add once because descriptors variable is assumed persistant
