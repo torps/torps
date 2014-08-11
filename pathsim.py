@@ -1732,7 +1732,7 @@ pathsim, and pickle it. The pickled object is input to the simulate command')
         network_state_files.sort(key = lambda x: os.path.basename(x))
         network_state_files = pad_network_state_files(network_state_files)
         # initialize object that will add adversarial relays into network
-        adv_insertion = network_modifiers.AdversaryInsertion(args)        
+        adv_insertion = network_modifiers.AdversaryInsertion(args, _testing)
         # create list of objects to modify network each consensus period
         network_modifiers = [adv_insertion]
         # create iterator that applies network modifiers to nsf list

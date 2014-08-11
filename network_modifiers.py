@@ -49,13 +49,14 @@ class AdversaryInsertion(object):
                 ntor_onion_key)
 
 
-    def __init__(self, args):
+    def __init__(self, args, testing):
         self.adv_time = args.adv_time
         self.adv_relays = {}
         self.adv_descriptors = {}
         self.add_adv_guards(args.num_adv_guards, args.adv_guard_cons_bw)
         self.add_adv_exits(args.num_adv_guards, args.num_adv_exits,
             args.adv_exit_cons_bw)
+        self.testing = testing
         self.first_modification = True
 
         
@@ -75,7 +76,7 @@ class AdversaryInsertion(object):
         # consensus and hibernating status list
         if (self.adv_time <= cons_valid_after):
             # include additional relays in consensus
-            if _testing:
+            if self.testing:
                 print('Adding {0} relays to consensus.'.format(\
                     len(self.adv_relays)))
             for fprint, relay in self.adv_relays.iteritems():
