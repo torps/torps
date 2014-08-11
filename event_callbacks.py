@@ -11,13 +11,13 @@ import sys
 
 class PrintStreamAssignments(object):
 
-    def __init__(format, file=sys.stdout):
+    def __init__(self, format, file=sys.stdout):
         self.format = format
         self.file = file
         self.descriptors = None
         self.sample_id = None
 
-    def print_header():
+    def print_header(self):
         """Prints log header for stream lines."""
         if (self.format == 'testing'):
             pass
@@ -28,17 +28,17 @@ class PrintStreamAssignments(object):
         else:
             self.file.write('Sample\tTimestamp\tGuard IP\tMiddle IP\tExit IP\tDestination IP\n')
 
-    def set_network_state(cons_valid_after, cons_fresh_until, cons_bw_weights,
+    def set_network_state(self, cons_valid_after, cons_fresh_until, cons_bw_weights,
         cons_bwweightscale, cons_rel_stats, descriptors):
         self.descriptors = descriptors
 
-    def set_sample_id(id):
+    def set_sample_id(self, id):
         self.sample_id = id
 
-    def circuit_creation(circuit):
+    def circuit_creation(self, circuit):
         pass
 
-    def stream_assignment(stream, circuit):
+    def stream_assignment(self, stream, circuit):
         """Writes log line to file (default stdout) showing client, time, IPs, and
         fingerprints in path of stream."""
         
