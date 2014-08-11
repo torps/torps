@@ -1,5 +1,9 @@
 ### Classes implementing "network modification" interface, i.e. modify_network_state() ###
 
+from stem import Flag
+from stem.exit_policy import ExitPolicy
+import pathsim
+
 ### Class inserting adversary relays ###
 class AdversaryInsertion(object):
     def add_adv_guards(self, num_adv_guards, bandwidth):
@@ -12,7 +16,7 @@ class AdversaryInsertion(object):
             nickname = 'BadGuyGuard' + num_str
             flags = [Flag.FAST, Flag.GUARD, Flag.RUNNING, Flag.STABLE,
                 Flag.VALID]
-            self.adv_relays[fingerprint] = RouterStatusEntry(fingerprint,
+            self.adv_relays[fingerprint] = pathsim.RouterStatusEntry(fingerprint,
                 nickname, flags, bandwidth)
             
             # create descriptor
@@ -21,7 +25,7 @@ class AdversaryInsertion(object):
             address = '10.'+num_str+'.0.0' # avoid /16 conflicts
             exit_policy = ExitPolicy('reject *:*')
             ntor_onion_key = num_str # indicate ntor support w/ val != None
-            self.adv_descriptors[fingerprint] = ServerDescriptor(fingerprint,
+            self.adv_descriptors[fingerprint] = pathsim.ServerDescriptor(fingerprint,
                 hibernating, nickname, family, address, exit_policy,
                 ntor_onion_key)
 
@@ -35,7 +39,7 @@ class AdversaryInsertion(object):
             nickname = 'BadGuyExit' + num_str
             flags = [Flag.FAST, Flag.EXIT, Flag.RUNNING, Flag.STABLE,
                 Flag.VALID]
-            self.adv_relays[fingerprint] = RouterStatusEntry(fingerprint,
+            self.adv_relays[fingerprint] = pathsim.RouterStatusEntry(fingerprint,
                 nickname, flags, bandwidth)
             
             # create descriptor
@@ -44,7 +48,7 @@ class AdversaryInsertion(object):
             address = '10.'+str(num_adv_guards+i+1)+'.0.0' # avoid /16 conflicts
             exit_policy = ExitPolicy('accept *:*')
             ntor_onion_key = num_str # indicate ntor support w/ val != None
-            self.adv_descriptors[fingerprint] = ServerDescriptor(fingerprint,
+            self.adv_descriptors[fingerprint] = pathsim.ServerDescriptor(fingerprint,
                 hibernating, nickname, family, address, exit_policy,
                 ntor_onion_key)
 
@@ -90,8 +94,8 @@ class AdversaryInsertion(object):
                 for fp in self.adv_relays])
 ######
 
-### Class adjusting Guard flags ###
-class GuardFlagAdjustment(object):
+### Class removing Guard flags ###
+class GuardFlagRemoval(object):
     def __init__(self, args, testing):
         # obtain desired argument string
         full_classname, class_arg = args.other_network_modifier.split(':')
@@ -103,28 +107,7 @@ class GuardFlagAdjustment(object):
     def modify_network_state(self, cons_valid_after, cons_fresh_until,
         cons_bw_weights, cons_bwweightscale, cons_rel_stats, descriptors,
         hibernating_statuses):
-        """Remove ."""
-
-        # add adversarial descriptors to nsf descriptors
-        # only add once because descriptors variable is assumed persistant
-        if (self.first_modification == True):
-            descriptors.update(self.adv_descriptors)
-            self.first_modification = False
-
-        # if insertion time has been reached, add adversarial relays into
-        # consensus and hibernating status list
-        if (self.adv_time <= cons_valid_after):
-            # include additional relays in consensus
-            if self.testing:
-                print('Adding {0} relays to consensus.'.format(\
-                    len(self.adv_relays)))
-            for fprint, relay in self.adv_relays.iteritems():
-                if fprint in cons_rel_stats:
-                    raise ValueError(\
-                        'Added relay exists in consensus: {0}:{1}'.\
-                            format(relay.nickname, fprint))
-                cons_rel_stats[fprint] = relay
-            # include hibernating statuses for added relays
-            hibernating_statuses.extend([(0, fp, False) \
-                for fp in self.adv_relays])
-######
+        """Remove Guard flag when bw threshold not reached."""
+        
+        pass
+#####
