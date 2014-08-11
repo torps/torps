@@ -844,7 +844,7 @@ def timed_updates(cur_time, port_needs_global, client_states,
             # remove coverage number and per-circuit coverage from client state
             for client_state in client_states:
                 del client_state['port_needs_covered'][port]
-                for circuit in client_state['clean_exit_circuits']
+                for circuit in client_state['clean_exit_circuits']:
                     circuit['covering'].discard(port)
     # update hibernating status
     while (hibernating_statuses) and\
