@@ -7,6 +7,8 @@
 #     stream_assignment(stream, circuit): called on assignment of stream to circuit
 ###
 
+import sys
+
 class PrintStreamAssignments(object):
 
     def __init__(format, file=sys.stdout):
