@@ -28,26 +28,10 @@ def create_circuits(network_states, streams, num_samples, congmodel, pdelmodel, 
     """Takes streams over time and creates circuits by interaction
     with create_circuit().
       Input:
-        network_states: iterator yielding network-state tuples containing
+        network_states: iterator yielding NetworkState objects containing
             the sequence of simulation network states, with a None value
             indicating most recent status should be repeated with consensus
-            valid/fresh times advanced 60 minutes, and where each tuple
-            contains the following:
-            cons_valid_after: timestamp at which consensus is valid
-            cons_fresh_until: timestamp at which consensus freshness ends
-            cons_bw_weights: dict of weight(str) => value(int) mappings,
-                maps relay type and position to load-balancing weight,
-                as contained in bandwidth-weights consensus line
-            cons_bwweightscale: (int) scaling factor for cons_bw_weights,
-                as contained in "bwweightscale" param of consensus
-            cons_rel_stats: (dict) maps relay fingerprints to RouterStatusEntry,
-                indicates relays in consensus and with a descriptor
-            hibernating_statuses: (list) (time, fprint, hibernating) tuples,
-                indicating timestamp of status, relay fingerprint, and change or
-                initial hibernating status, w/ True meaning relay is hibernating
-            descriptors = (dict) maps fingerprints to ServerDescriptor,
-                indicates most recent descriptor for relays, must
-                contain an entry for each fprint in cons_rel_stats
+            valid/fresh times advanced 60 minutes
         streams: *ordered* list of streams, where a stream is a dict with keys
             'time': timestamp of when stream request occurs 
             'type': 'connect' for SOCKS CONNECT, 'resolve' for SOCKS RESOLVE
@@ -98,9 +82,13 @@ def create_circuits(network_states, streams, num_samples, congmodel, pdelmodel, 
     # run simulation period one network state at a time
     for network_state in network_states:
         if (network_state != None):
-            (cons_valid_after, cons_fresh_until, cons_bw_weights,
-            cons_bwweightscale, cons_rel_stats, hibernating_statuses,
-            new_descriptors) = network_state
+            cons_valid_after = network_state.cons_valid_after
+            cons_fresh_until = network_state.cons_fresh_until
+            cons_bw_weights = network_state.cons_bw_weights
+            cons_bwweightscale = network_state.cons_bwweightscale
+            cons_rel_stats = network_state.cons_rel_stats
+            hibernating_statuses = network_state.hibernating_statuses
+            new_descriptors = network_state.descriptors
 
             # clear hibernating status to ensure updates come from ns_file
             hibernating_status = {}

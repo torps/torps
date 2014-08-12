@@ -19,47 +19,6 @@ import importlib
 
 _testing = False#True
 
-class RouterStatusEntry:
-    """
-    Represents a relay entry in a consensus document.
-    Slim version of stem.descriptor.router_status_entry.RouterStatusEntry.
-    """
-    def __init__(self, fingerprint, nickname, flags, bandwidth):
-        self.fingerprint = fingerprint
-        self.nickname = nickname
-        self.flags = flags
-        self.bandwidth = bandwidth
-    
-
-class NetworkStatusDocument:
-    """
-    Represents a consensus document.
-    Slim version of stem.descriptor.networkstatus.NetworkStatusDocument.
-    """
-    def __init__(self, valid_after, fresh_until, bandwidth_weights, \
-        bwweightscale, relays):
-        self.valid_after = valid_after
-        self.fresh_until = fresh_until
-        self.bandwidth_weights = bandwidth_weights
-        self.bwweightscale = bwweightscale
-        self.relays = relays
-
-
-class ServerDescriptor:
-    """
-    Represents a server descriptor.
-    Slim version of stem.descriptor.server_descriptor.ServerDescriptor combined
-    with stem.descriptor.server_descriptor.RelayDescriptor.
-    """
-    def __init__(self, fingerprint, hibernating, nickname, family, address,
-        exit_policy, ntor_onion_key):
-        self.fingerprint = fingerprint
-        self.hibernating = hibernating
-        self.nickname = nickname
-        self.family = family
-        self.address = address
-        self.exit_policy = exit_policy
-        self.ntor_onion_key = ntor_onion_key
 
 class TorOptions:
     """Stores parameters set by Tor."""
@@ -104,6 +63,64 @@ class TorOptions:
     # number of times to attempt to find circuit with at least one NTor hop
     # from #define MAX_POPULATE_ATTEMPTS 32 in circuicbuild.c
     max_populate_attempts = 32
+    
+    
+class NetworkState:
+    """Contains Tor network state in a consensus period needed to run
+    simulation."""
+    
+    def __init__(self, cons_valid_after, cons_fresh_until, cons_bw_weights,
+        cons_bwweightscale, cons_rel_stats, hibernating_statuses, descriptors):
+        self.cons_valid_after = cons_valid_after
+        self.cons_fresh_until = cons_fresh_until
+        self.cons_bw_weights = cons_bw_weights
+        self.cons_bwweightscale = cons_bwweightscale
+        self.cons_rel_stats = cons_rel_stats
+        self.hibernating_statuses = hibernating_statuses
+        self.descriptors = descriptors
+    
+
+class RouterStatusEntry:
+    """
+    Represents a relay entry in a consensus document.
+    Slim version of stem.descriptor.router_status_entry.RouterStatusEntry.
+    """
+    def __init__(self, fingerprint, nickname, flags, bandwidth):
+        self.fingerprint = fingerprint
+        self.nickname = nickname
+        self.flags = flags
+        self.bandwidth = bandwidth
+    
+
+class NetworkStatusDocument:
+    """
+    Represents a consensus document.
+    Slim version of stem.descriptor.networkstatus.NetworkStatusDocument.
+    """
+    def __init__(self, valid_after, fresh_until, bandwidth_weights, \
+        bwweightscale, relays):
+        self.valid_after = valid_after
+        self.fresh_until = fresh_until
+        self.bandwidth_weights = bandwidth_weights
+        self.bwweightscale = bwweightscale
+        self.relays = relays
+
+
+class ServerDescriptor:
+    """
+    Represents a server descriptor.
+    Slim version of stem.descriptor.server_descriptor.ServerDescriptor combined
+    with stem.descriptor.server_descriptor.RelayDescriptor.
+    """
+    def __init__(self, fingerprint, hibernating, nickname, family, address,
+        exit_policy, ntor_onion_key):
+        self.fingerprint = fingerprint
+        self.hibernating = hibernating
+        self.nickname = nickname
+        self.family = family
+        self.address = address
+        self.exit_policy = exit_policy
+        self.ntor_onion_key = ntor_onion_key
     
 
 def timestamp(t):
@@ -692,7 +709,7 @@ def kill_circuits_by_relay(client_state, relay_down_fn, msg):
 
 
 def get_network_state(ns_file):
-    """Reads in network state file, returns lightly-processed values."""
+    """Reads in network state file, returns NetworkState object."""
     if _testing:
         print('Using file {0}'.format(ns_file))
 
@@ -714,13 +731,13 @@ def get_network_state(ns_file):
         if (relay in new_descriptors):
             cons_rel_stats[relay] = consensus.relays[relay]
     
-    return (cons_valid_after, cons_fresh_until, cons_bw_weights,
+    return NetworkState(cons_valid_after, cons_fresh_until, cons_bw_weights,
         cons_bwweightscale, cons_rel_stats, hibernating_statuses,
         new_descriptors)
 
 
 def get_network_states(network_state_files, network_modifiers):
-    """Generator that yields network state (tuple) produced from
+    """Generator that yields NetworkState object produced from
     list of network state files and modifiers to apply.
     Input:
         network_state_files: list of filenames with sequential network statuses
@@ -729,24 +746,17 @@ def get_network_states(network_state_files, network_modifiers):
         network_modifiers: (list) contains objects to modify to network state in
             order via modify_network_state() method
     Output:
-        network_states: iterator yielding sequential network-state tuples with
-            (cons_valid_after, cons_fresh_until, cons_bw_weights,
-            cons_bwweightscale, cons_rel_stats, hibernating_statuses,
-            descriptors) or None
+        network_states: iterator yielding sequential NetworkState objects or
+            None
     """
 
     for ns_file in network_state_files:
         # get network state variables from file    
         network_state = get_network_state(ns_file)
         if (network_state is not None):
-            (cons_valid_after, cons_fresh_until, cons_bw_weights,
-                cons_bwweightscale, cons_rel_stats, hibernating_statuses,
-                descriptors) = network_state
             # apply network modifications
             for network_modifier in network_modifiers:
-                network_modifier.modify_network_state(cons_valid_after,
-                    cons_fresh_until, cons_bw_weights, cons_bwweightscale,
-                    cons_rel_stats, descriptors, hibernating_statuses)
+                network_modifier.modify_network_state(network_state)
         yield network_state        
 
 
@@ -1323,26 +1333,10 @@ def create_circuits(network_states, streams, num_samples, congmodel,
     """Takes streams over time and creates circuits by interaction
     with create_circuit().
       Input:
-        network_states: iterator yielding network-state tuples containing
+        network_states: iterator yielding NetworkState objects containing
             the sequence of simulation network states, with a None value
             indicating most recent status should be repeated with consensus
-            valid/fresh times advanced 60 minutes, and where each tuple
-            contains the following:
-            cons_valid_after: timestamp at which consensus is valid
-            cons_fresh_until: timestamp at which consensus freshness ends
-            cons_bw_weights: dict of weight(str) => value(int) mappings,
-                maps relay type and position to load-balancing weight,
-                as contained in bandwidth-weights consensus line
-            cons_bwweightscale: (int) scaling factor for cons_bw_weights,
-                as contained in "bwweightscale" param of consensus
-            cons_rel_stats: (dict) maps relay fingerprints to RouterStatusEntry,
-                indicates relays in consensus and with a descriptor
-            hibernating_statuses: (list) (time, fprint, hibernating) tuples,
-                indicating timestamp of status, relay fingerprint, and change or
-                initial hibernating status, w/ True meaning relay is hibernating
-            descriptors = (dict) maps fingerprints to ServerDescriptor,
-                indicates most recent descriptor for relays, must
-                contain an entry for each fprint in cons_rel_stats
+            valid/fresh times advanced 60 minutes
         streams: *ordered* list of streams, where a stream is a dict with keys
             'time': timestamp of when stream request occurs 
             'type': 'connect' for SOCKS CONNECT, 'resolve' for SOCKS RESOLVE
@@ -1386,9 +1380,13 @@ def create_circuits(network_states, streams, num_samples, congmodel,
     # run simulation period one network state at a time
     for network_state in network_states:
         if (network_state != None):
-            (cons_valid_after, cons_fresh_until, cons_bw_weights,
-            cons_bwweightscale, cons_rel_stats, hibernating_statuses,
-            new_descriptors) = network_state
+            cons_valid_after = network_state.cons_valid_after
+            cons_fresh_until = network_state.cons_fresh_until
+            cons_bw_weights = network_state.cons_bw_weights
+            cons_bwweightscale = network_state.cons_bwweightscale
+            cons_rel_stats = network_state.cons_rel_stats
+            hibernating_statuses = network_state.hibernating_statuses
+            new_descriptors = network_state.descriptors
 
             # clear hibernating status to ensure updates come from ns_file
             hibernating_status = {}
