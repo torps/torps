@@ -854,7 +854,7 @@ def timed_updates(cur_time, port_needs_global, client_states,
             # remove coverage number and per-circuit coverage from client state
             for client_state in client_states:
                 del client_state['port_needs_covered'][port]
-                for circuit in client_state['clean_exit_circuits']
+                for circuit in client_state['clean_exit_circuits']:
                     circuit['covering'].discard(port)
     # update hibernating status
     while (hibernating_statuses) and\
@@ -1737,6 +1737,7 @@ pathsim, and pickle it. The pickled object is input to the simulate command')
         network_state_files = pad_network_state_files(network_state_files)
         # create object that will add adversarial relays into network
         adv_insertion = network_modifiers.AdversaryInsertion(args, _testing)
+        network_modifiers = [adv_insertion]
         # create other network modification object
         if (args.other_network_modifier is not None):
             # dynamically import module and obtain reference to class
@@ -1748,8 +1749,7 @@ pathsim, and pickle it. The pickled object is input to the simulate command')
             network_modifier_class = getattr(network_modifier_module, classname)
             # create object of class
             other_network_modifier = network_modifier_class(args, _testing)
-        # create list of objects to modify network each consensus period
-        network_modifiers = [adv_insertion, other_network_modifier]
+            network_modifiers.append(other_network_modifier)
         # create iterator that applies network modifiers to nsf list
         network_states = get_network_states(network_state_files,
             network_modifiers)

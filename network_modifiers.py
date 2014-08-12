@@ -1,5 +1,9 @@
 ### Classes implementing "network modification" interface, i.e. modify_network_state() ###
 
+from stem import Flag
+from stem.exit_policy import ExitPolicy
+import pathsim
+
 ### Class inserting adversary relays ###
 class AdversaryInsertion(object):
     def add_adv_guards(self, num_adv_guards, bandwidth):
@@ -12,7 +16,7 @@ class AdversaryInsertion(object):
             nickname = 'BadGuyGuard' + num_str
             flags = [Flag.FAST, Flag.GUARD, Flag.RUNNING, Flag.STABLE,
                 Flag.VALID]
-            self.adv_relays[fingerprint] = RouterStatusEntry(fingerprint,
+            self.adv_relays[fingerprint] = pathsim.RouterStatusEntry(fingerprint,
                 nickname, flags, bandwidth)
             
             # create descriptor
@@ -21,7 +25,7 @@ class AdversaryInsertion(object):
             address = '10.'+num_str+'.0.0' # avoid /16 conflicts
             exit_policy = ExitPolicy('reject *:*')
             ntor_onion_key = num_str # indicate ntor support w/ val != None
-            self.adv_descriptors[fingerprint] = ServerDescriptor(fingerprint,
+            self.adv_descriptors[fingerprint] = pathsim.ServerDescriptor(fingerprint,
                 hibernating, nickname, family, address, exit_policy,
                 ntor_onion_key)
 
@@ -35,7 +39,7 @@ class AdversaryInsertion(object):
             nickname = 'BadGuyExit' + num_str
             flags = [Flag.FAST, Flag.EXIT, Flag.RUNNING, Flag.STABLE,
                 Flag.VALID]
-            self.adv_relays[fingerprint] = RouterStatusEntry(fingerprint,
+            self.adv_relays[fingerprint] = pathsim.RouterStatusEntry(fingerprint,
                 nickname, flags, bandwidth)
             
             # create descriptor
@@ -44,7 +48,7 @@ class AdversaryInsertion(object):
             address = '10.'+str(num_adv_guards+i+1)+'.0.0' # avoid /16 conflicts
             exit_policy = ExitPolicy('accept *:*')
             ntor_onion_key = num_str # indicate ntor support w/ val != None
-            self.adv_descriptors[fingerprint] = ServerDescriptor(fingerprint,
+            self.adv_descriptors[fingerprint] = pathsim.ServerDescriptor(fingerprint,
                 hibernating, nickname, family, address, exit_policy,
                 ntor_onion_key)
 
@@ -88,8 +92,13 @@ class AdversaryInsertion(object):
                 for fp in self.adv_relays])
 ######
 
+<<<<<<< HEAD
 ### Class adjusting Guard flags ###
 class RaiseGuardConsBWThreshold(object):
+=======
+### Class removing Guard flags ###
+class GuardFlagRemoval(object):
+>>>>>>> ffbbc58c2d6d5a128c16991246b0b13dd5fa1ebc
     def __init__(self, args, testing):
         # obtain argument string, assumed in form: full_classname:cons_bw_threshold
         full_classname, class_arg = args.other_network_modifier.split(':')
@@ -98,6 +107,7 @@ class RaiseGuardConsBWThreshold(object):
         self.testing = testing
 
         
+<<<<<<< HEAD
     def modify_network_state(self, network_state):
         """Remove ."""#START
 
@@ -124,3 +134,12 @@ class RaiseGuardConsBWThreshold(object):
             hibernating_statuses.extend([(0, fp, False) \
                 for fp in self.adv_relays])
 ######
+=======
+    def modify_network_state(self, cons_valid_after, cons_fresh_until,
+        cons_bw_weights, cons_bwweightscale, cons_rel_stats, descriptors,
+        hibernating_statuses):
+        """Remove Guard flag when bw threshold not reached."""
+        
+        pass
+#####
+>>>>>>> ffbbc58c2d6d5a128c16991246b0b13dd5fa1ebc
