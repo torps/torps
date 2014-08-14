@@ -1743,7 +1743,7 @@ pathsim, and pickle it. The pickled object is input to the simulate command')
             # dynamically import module and obtain reference to class
             full_classname, class_arg = args.other_network_modifier.split(':')
             class_components = full_classname.split('.')
-            modulename = class_components[0:-1]
+            modulename = '.'.join(class_components[0:-1])
             classname = class_components[-1]
             network_modifier_module = importlib.import_module(modulename)
             network_modifier_class = getattr(network_modifier_module, classname)
