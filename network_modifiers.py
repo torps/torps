@@ -92,13 +92,8 @@ class AdversaryInsertion(object):
                 for fp in self.adv_relays])
 ######
 
-<<<<<<< HEAD
 ### Class adjusting Guard flags ###
 class RaiseGuardConsBWThreshold(object):
-=======
-### Class removing Guard flags ###
-class GuardFlagRemoval(object):
->>>>>>> ffbbc58c2d6d5a128c16991246b0b13dd5fa1ebc
     def __init__(self, args, testing):
         # obtain argument string, assumed in form: full_classname:cons_bw_threshold
         full_classname, class_arg = args.other_network_modifier.split(':')
@@ -107,39 +102,17 @@ class GuardFlagRemoval(object):
         self.testing = testing
 
         
-<<<<<<< HEAD
     def modify_network_state(self, network_state):
-        """Remove ."""#START
+        """Remove Guard flag when relay doesn't meet consensus bandwidth threshold."""
 
-        # add adversarial descriptors to nsf descriptors
-        # only add once because descriptors variable is assumed persistant
-        if (self.first_modification == True):
-            descriptors.update(self.adv_descriptors)
-            self.first_modification = False
-
-        # if insertion time has been reached, add adversarial relays into
-        # consensus and hibernating status list
-        if (self.adv_time <= cons_valid_after):
-            # include additional relays in consensus
-            if self.testing:
-                print('Adding {0} relays to consensus.'.format(\
-                    len(self.adv_relays)))
-            for fprint, relay in self.adv_relays.iteritems():
-                if fprint in cons_rel_stats:
-                    raise ValueError(\
-                        'Added relay exists in consensus: {0}:{1}'.\
-                            format(relay.nickname, fprint))
-                cons_rel_stats[fprint] = relay
-            # include hibernating statuses for added relays
-            hibernating_statuses.extend([(0, fp, False) \
-                for fp in self.adv_relays])
-######
-=======
-    def modify_network_state(self, cons_valid_after, cons_fresh_until,
-        cons_bw_weights, cons_bwweightscale, cons_rel_stats, descriptors,
-        hibernating_statuses):
-        """Remove Guard flag when bw threshold not reached."""
-        
-        pass
-#####
->>>>>>> ffbbc58c2d6d5a128c16991246b0b13dd5fa1ebc
+        num_guard_flags = 0
+        num_guard_flags_removed = 0
+        for fprint, rel_stat in network_state.cons_rel_stats.iteritems():
+            if (Flag.GUARD in rel_stat.flags):
+                num_guard_flags += 1
+                if (rel_stat.bandwidth < self.guard_bw_threshold):
+                    num_guard_flags_removed += 1
+                    rel_stat.flags = filter(lambda x: x != Flag.GUARD, rel_stat.flags)
+        if self.testing:
+            print('Removed {} guard flags out of {}'.format(num_guard_flags_removed,
+                num_guard_flags))
