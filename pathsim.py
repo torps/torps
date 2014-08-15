@@ -751,12 +751,14 @@ def get_network_states(network_state_files, network_modifiers):
     """
 
     for ns_file in network_state_files:
-        # get network state variables from file    
-        network_state = get_network_state(ns_file)
-        if (network_state is not None):
+        if (ns_file is not None):
+            # get network state variables from file    
+            network_state = get_network_state(ns_file)
             # apply network modifications
             for network_modifier in network_modifiers:
                 network_modifier.modify_network_state(network_state)
+        else:
+            network_state = None
         yield network_state        
 
 
