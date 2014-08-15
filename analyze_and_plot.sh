@@ -40,7 +40,7 @@ pypy pathsim_analysis.py simulation-set $LOGS_IN $DATA_OUT $EXP_NAME
 python pathsim_plot.py set $DATA_OUT $PLOTS_OUT
 
 # archive for easy delivery
-CUR_DIR_SAVE=$PWD
+CUR_DIR_SAVE=`pwd`
 cd $PLOTS_OUT
 tar cvf $EXP_NAME.tar *.pdf
 bzip2 $EXP_NAME.tar
