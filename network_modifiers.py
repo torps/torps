@@ -92,13 +92,8 @@ class AdversaryInsertion(object):
                 for fp in self.adv_relays])
 ######
 
-<<<<<<< HEAD
 ### Class adjusting Guard flags ###
 class RaiseGuardConsBWThreshold(object):
-=======
-### Class removing Guard flags ###
-class GuardFlagRemoval(object):
->>>>>>> ffbbc58c2d6d5a128c16991246b0b13dd5fa1ebc
     def __init__(self, args, testing):
         # obtain argument string, assumed in form: full_classname:cons_bw_threshold
         full_classname, class_arg = args.other_network_modifier.split(':')
@@ -107,7 +102,6 @@ class GuardFlagRemoval(object):
         self.testing = testing
 
         
-<<<<<<< HEAD
     def modify_network_state(self, network_state):
         """Remove ."""#START
 
@@ -133,13 +127,3 @@ class GuardFlagRemoval(object):
             # include hibernating statuses for added relays
             hibernating_statuses.extend([(0, fp, False) \
                 for fp in self.adv_relays])
-######
-=======
-    def modify_network_state(self, cons_valid_after, cons_fresh_until,
-        cons_bw_weights, cons_bwweightscale, cons_rel_stats, descriptors,
-        hibernating_statuses):
-        """Remove Guard flag when bw threshold not reached."""
-        
-        pass
-#####
->>>>>>> ffbbc58c2d6d5a128c16991246b0b13dd5fa1ebc
