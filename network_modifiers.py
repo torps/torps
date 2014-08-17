@@ -116,3 +116,4 @@ class RaiseGuardConsBWThreshold(object):
         if self.testing:
             print('Removed {} guard flags out of {}'.format(num_guard_flags_removed,
                 num_guard_flags))
+######

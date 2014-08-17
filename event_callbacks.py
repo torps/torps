@@ -9,6 +9,7 @@
 
 import sys
 
+### Print just stream assignments in several possible formats ###
 class PrintStreamAssignments(object):
 
     def __init__(self, format, file=sys.stdout):
@@ -83,3 +84,50 @@ class PrintStreamAssignments(object):
         else:
             self.file.write('{0}\t{1}\t{2}\t{3}\t{4}\t{5}\n'.format(self.sample_id,
                 stream['time'], guard_ip, middle_ip, exit_ip, dest_ip))
+######
+
+### Print relay compromised codes of stream assignments, compromise from input adv relays. ###
+class PrintStreamAssignmentsAdvRelays(object):
+
+    def __init__(self, adv_relays_filename, file=sys.stdout):
+        self.file = file
+        self.descriptors = None
+        self.sample_id = None
+        # store adversary relay fingerprints
+        self.adv_relays = set()
+        with open(adv_relays_filename, 'r') as f:
+            for line in f:
+                self.adv_relays.add(line.strip())
+
+    def print_header(self):
+        """Prints log header for stream lines."""
+        self.file.write('Sample\tTimestamp\tCompromise Code\n')
+
+    def set_network_state(self, cons_valid_after, cons_fresh_until, cons_bw_weights,
+        cons_bwweightscale, cons_rel_stats, descriptors):
+        self.descriptors = descriptors
+
+    def set_sample_id(self, id):
+        self.sample_id = id
+
+    def circuit_creation(self, circuit):
+        pass
+
+    def stream_assignment(self, stream, circuit):
+        """Writes log line to file showing client, time and compromise codes:
+        0 if guard & exit good, 1 if guard bad only, 2 if exit bad only, 3 if guard and exit bad."""
+
+        guard_bad = False
+        exit_bad = False
+        if (circuit['path'][0] in self.adv_relays):
+            guard_bad = True
+        if (circuit['path'][2] in self.adv_relays):
+            exit_bad = True
+        compromise_code = 0
+        if (guard_bad and exit_bad):
+            compromise_code = 3
+        elif guard_bad:
+            compromise_code = 1
+        elif exit_bad:
+            compromise_code = 2
+        self.file.write('{0}\t{1}\t{2}\n'.format(self.sample_id, stream['time'], compromise_code))
