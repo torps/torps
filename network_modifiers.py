@@ -96,7 +96,7 @@ class AdversaryInsertion(object):
 class RaiseGuardConsBWThreshold(object):
     def __init__(self, args, testing):
         # obtain argument string, assumed in form: full_classname:cons_bw_threshold
-        full_classname, class_arg = args.other_network_modifier.split(':')
+        full_classname, class_arg = args.other_network_modifier.split('-')
         # interpret arg as consensus weight limit for Guard flag
         self.guard_bw_threshold = int(class_arg)
         self.testing = testing

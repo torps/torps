@@ -228,7 +228,7 @@ def read_analysis_files(pathnames):
     end_time = None
     compromise_stats = []
     for pathname in pathnames:
-        with open(pathname) as f:
+        with open(pathname, 'rb') as f:
             new_start_time = pickle.load(f)
             new_end_time = pickle.load(f)
             new_compromise_stats = pickle.load(f)

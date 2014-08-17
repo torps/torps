@@ -1636,7 +1636,7 @@ consensuses')
     simulate_parser.add_argument('--num_adv_exits', type=int, default=1,
         help='indicates the number of adversarial exits to add')
     simulate_parser.add_argument('--other_network_modifier', default=None,
-        help='class to modify network, argument syntax: module.class:argstring')
+        help='class to modify network, argument syntax: module.class-argstring')
     simulate_parser.add_argument('--num_guards', type=int, default=3,
         help='indicates size of client guard list')
     simulate_parser.add_argument('--guard_expiration', type=int, default=60,
@@ -1743,7 +1743,7 @@ pathsim, and pickle it. The pickled object is input to the simulate command')
         # create other network modification object
         if (args.other_network_modifier is not None):
             # dynamically import module and obtain reference to class
-            full_classname, class_arg = args.other_network_modifier.split(':')
+            full_classname, class_arg = args.other_network_modifier.split('-')
             class_components = full_classname.split('.')
             modulename = '.'.join(class_components[0:-1])
             classname = class_components[-1]
