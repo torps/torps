@@ -18,6 +18,7 @@ import event_callbacks
 import importlib
 import logging
 
+logger = logging.getLogger(__name__)
 _testing = False#True
 
 
