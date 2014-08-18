@@ -12,14 +12,17 @@ import sys
 ### Print just stream assignments in several possible formats ###
 class PrintStreamAssignments(object):
 
-    def __init__(self, format, file=sys.stdout):
+    def __init__(self, format, testing, file=sys.stdout):
         self.format = format
+        self.testing = testing
         self.file = file
         self.descriptors = None
         self.sample_id = None
 
     def print_header(self):
         """Prints log header for stream lines."""
+        if self.testing:
+            return
         if (self.format == 'testing'):
             pass
         elif (self.format == 'relay-adv'):
@@ -53,7 +56,9 @@ class PrintStreamAssignments(object):
         else:
             raise ValueError('ERROR: Unrecognized stream in stream_assignment(): {0}'.\
                 format(stream['type']))
-                
+
+        if self.testing:
+            return                
         if (self.format == 'testing'):
             pass
         elif (self.format == 'relay-adv'):
@@ -89,7 +94,8 @@ class PrintStreamAssignments(object):
 ### Print relay compromised codes of stream assignments, compromise from input adv relays. ###
 class PrintStreamAssignmentsAdvRelays(object):
 
-    def __init__(self, adv_relays_filename, file=sys.stdout):
+    def __init__(self, adv_relays_filename, testing, file=sys.stdout):
+        self.testing = testing
         self.file = file
         self.descriptors = None
         self.sample_id = None
@@ -101,6 +107,9 @@ class PrintStreamAssignmentsAdvRelays(object):
 
     def print_header(self):
         """Prints log header for stream lines."""
+        
+        if self.testing:
+            return
         self.file.write('Sample\tTimestamp\tCompromise Code\n')
 
     def set_network_state(self, cons_valid_after, cons_fresh_until, cons_bw_weights,
@@ -116,6 +125,9 @@ class PrintStreamAssignmentsAdvRelays(object):
     def stream_assignment(self, stream, circuit):
         """Writes log line to file showing client, time and compromise codes:
         0 if guard & exit good, 1 if guard bad only, 2 if exit bad only, 3 if guard and exit bad."""
+
+        if self.testing:
+            return
 
         guard_bad = False
         exit_bad = False
