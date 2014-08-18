@@ -16,6 +16,7 @@ import re
 import network_modifiers
 import event_callbacks
 import importlib
+import logging
 
 _testing = False#True
 
@@ -1621,9 +1622,11 @@ ServerDescriptor) instead of the analagous stem classes')
         help='user model to build out of traces, with standard trace file one \
 of "facebook", "gmailgchat", "gcalgdocs", "websearch", "irc", "bittorrent", \
 "typical", "best", "worst", "simple=[reqs/hour]"')
+    simulate_parser.add_argument('--output_class',
+        default='event_callbacks.PrintStreamAssignments',
+        help='class implementing callbacks on circuit and stream creation, e.g. for producing simulation output')
     simulate_parser.add_argument('--format', default='normal',
-        choices=['normal', 'testing', 'relay-adv', 'network-adv'],
-        help='sets the content and format of output')
+        help='argument sent to output_class, e.g. specifying the format of simulation output, choices for default PrintStreamAssignments class are "normal", "testing", "relay-adv", "network-adv"')
     simulate_parser.add_argument('--adv_guard_cons_bw', type=float, default=0,
         help='consensus bandwidth of each adversarial guard to add')
     simulate_parser.add_argument('--adv_exit_cons_bw', type=float, default=0,
@@ -1642,6 +1645,9 @@ consensuses')
     simulate_parser.add_argument('--guard_expiration', type=int, default=60,
         help='indicates time in days until one-month period during which guard\
 may expire, with 0 indicating no guard expiration')
+    simulate_parser.add_argument('--loglevel', choices=['DEBUG', 'INFO',
+        'WARNING', 'ERROR', 'CRITICAL'],
+        help='set level of log messages to send to stdout, DEBUG produces testing output, quiet at all other levels', default='INFO')
         
     pathalg_subparsers = simulate_parser.add_subparsers(help='simulate\
 commands', dest='pathalg_subparser')
@@ -1683,7 +1689,8 @@ pathsim, and pickle it. The pickled object is input to the simulate command')
 
     args = parser.parse_args()
 
-#    logging.basicConfig(stream=sys.stdout, level=getattr(logging, args.loglevel))    
+    logging.basicConfig(stream=sys.stdout, level=getattr(logging,
+        args.loglevel))    
 
     if (args.subparser == 'process'):
         in_dirs = []
@@ -1711,8 +1718,11 @@ pathsim, and pickle it. The pickled object is input to the simulate command')
         process_consensuses.process_consensuses(in_dirs, args.slim,
             args.filtered)
     elif (args.subparser == 'simulate'):
-        # get lists of consensuses and the related processed-descriptor files 
-        _testing = True if (args.format == 'testing') else False
+        if (logger.getEffectiveLevel() == logging.DEBUG):
+            logger.debug('DEBUG level detected')
+            _testing = True
+        else:
+            _testing = False
 
         if (args.guard_expiration > 0):
             guard_expiration_min = args.guard_expiration*24*60*60
@@ -1794,8 +1804,13 @@ pathsim, and pickle it. The pickled object is input to the simulate command')
         pdelmodel = PropagationDelayModel(pdelfilename)            
 
         # set up simulation output and produce header
-        callbacks = event_callbacks.PrintStreamAssignments(args.format,
-            file=sys.stdout)
+        # dynamically import module and obtain reference to class
+        output_class_components = args.output_class.split('.')
+        output_modulename = '.'.join(output_class_components[0:-1])
+        output_classname = output_class_components[-1]
+        output_module = importlib.import_module(output_modulename)
+        output_class = getattr(output_module, output_classname)
+        callbacks = output_class(args.format, file=sys.stdout)
         callbacks.print_header()
 
         # simulate circuit creation and stream assignment

@@ -11,3 +11,4 @@
 # - When processing descriptors, missing consensuses shouldn't result in a missing network state file. Hibernations may still occur during that time, and so it may be better to have a dummy file that just repeats the most recent consensus.
 # - consider moving guard expiration out of period_update into timed_update - is guard expiration actually done on an hourly basis or more often? (doesn't matter that much - guard expiration is on order of months)
 # - Change the way actual adversarial bandwidth is turned into a consensus bandwidth. Total consensus weight fluctuates a surprising amount, and so we should normalize the adversarial consensus weight on a per-consensus basis.
+# - move to using logging module for all debug output
