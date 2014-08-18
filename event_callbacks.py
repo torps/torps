@@ -104,6 +104,8 @@ class PrintStreamAssignmentsAdvRelays(object):
         with open(adv_relays_filename, 'r') as f:
             for line in f:
                 self.adv_relays.add(line.strip())
+        if self.testing:
+            print('Found {} adversary relays'.format(len(self.adv_relays)))
 
     def print_header(self):
         """Prints log header for stream lines."""
