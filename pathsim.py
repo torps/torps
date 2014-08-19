@@ -1560,13 +1560,12 @@ def create_circuits(network_states, streams, num_samples, congmodel,
 def get_user_model(start_time, end_time, tracefilename=None, session='simple=6'):
     streams = []
     if (re.match('simple', session)):
-        # simple user that makes a port 80 request /resolve every x / y seconds
+        # simple user that makes a port 80 request every x seconds
         match = re.match('simple=([0-9]+)', session)
         if (match):
-            num_requests = int(match.group(1))
+            http_request_wait = int(match.group(1))
         else:
-            num_requests = 6
-        http_request_wait = int(60 / num_requests) * 60
+            http_request_wait = 600
         str_ip = '74.125.131.105' # www.google.com
         for t in xrange(start_time, end_time, http_request_wait):
             streams.append({'time':t,'type':'connect','ip':str_ip,'port':80})
@@ -1619,10 +1618,10 @@ ServerDescriptor) instead of the analagous stem classes')
         help='number of simulations to execute')
     simulate_parser.add_argument('--trace_file', default='traces.pickle',
         help='name of files containing the user traces')
-    simulate_parser.add_argument('--user_model', default='simple=6',
+    simulate_parser.add_argument('--user_model', default='simple=600',
         help='user model to build out of traces, with standard trace file one \
 of "facebook", "gmailgchat", "gcalgdocs", "websearch", "irc", "bittorrent", \
-"typical", "best", "worst", "simple=[reqs/hour]"')
+"typical", "best", "worst", "simple=[seconds/request]"')
     simulate_parser.add_argument('--output_class',
         default='event_callbacks.PrintStreamAssignments',
         help='class implementing callbacks on circuit and stream creation, e.g. for producing simulation output')
