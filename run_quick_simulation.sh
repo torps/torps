@@ -4,7 +4,7 @@ DATE_RANGE=$2
 NSF_DIR=$BASE_DIR/out/network-state/slim/ns-$DATE_RANGE
 NUM_SAMPLES=1
 TRACEFILE=$BASE_DIR/in/users2-processed.traces.pickle
-USERMODEL="simple=1"
+USERMODEL="simple=3600"
 FORMAT="normal"
 ADV_GUARD_BW=0
 ADV_EXIT_BW=0

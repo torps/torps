@@ -1557,7 +1557,8 @@ def create_circuits(network_states, streams, num_samples, congmodel,
             cur_time += time_step
 
 
-def get_user_model(start_time, end_time, tracefilename=None, session='simple=6'):
+def get_user_model(start_time, end_time, tracefilename=None,
+    session='simple=600'):
     streams = []
     if (re.match('simple', session)):
         # simple user that makes a port 80 request every x seconds
