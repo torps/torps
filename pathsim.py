@@ -1690,9 +1690,6 @@ pathsim, and pickle it. The pickled object is input to the simulate command')
 
     args = parser.parse_args()
 
-    logging.basicConfig(stream=sys.stdout, level=getattr(logging,
-        args.loglevel))    
-
     if (args.subparser == 'process'):
         in_dirs = []
         month = args.start_month
@@ -1719,6 +1716,8 @@ pathsim, and pickle it. The pickled object is input to the simulate command')
         process_consensuses.process_consensuses(in_dirs, args.slim,
             args.filtered)
     elif (args.subparser == 'simulate'):
+        logging.basicConfig(stream=sys.stdout, level=getattr(logging,
+            args.loglevel))    
         if (logger.getEffectiveLevel() == logging.DEBUG):
             logger.debug('DEBUG level detected')
             _testing = True
