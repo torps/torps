@@ -1592,13 +1592,13 @@ each consensus with the most-recently-seen descriptors. Also store changes in \
 hibernation status that occur during the consensus period as revealed by \
 multiple published descriptors. The consensus, matched descriptors, and \
 hibernating statuses are pickled and written to disk.')
-    process_parser.add_argument('--start_year',
+    process_parser.add_argument('--start_year', type=int,
         help='year in which to begin processing')
-    process_parser.add_argument('--start_month',
+    process_parser.add_argument('--start_month', type=int,
         help='month in which to begin processing')
-    process_parser.add_argument('--end_year',
+    process_parser.add_argument('--end_year', type=int,
         help='year in which to end processing')
-    process_parser.add_argument('--end_month',
+    process_parser.add_argument('--end_month', type=int,
         help='month in which to end processing')
     process_parser.add_argument('--in_dir',
         help='directory in which input consensus and descriptor\
