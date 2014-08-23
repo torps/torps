@@ -1618,7 +1618,7 @@ ServerDescriptor) instead of the analagous stem classes')
         help='stores the network state files to use')
     simulate_parser.add_argument('--num_samples', type=int, default=1,
         help='number of simulations to execute')
-    simulate_parser.add_argument('--trace_file', default='traces.pickle',
+    simulate_parser.add_argument('--trace_file', default=None,
         help='name of files containing the user traces')
     simulate_parser.add_argument('--user_model', default='simple=600',
         help='user model to build out of traces, with standard trace file one \
@@ -1636,9 +1636,9 @@ of "facebook", "gmailgchat", "gcalgdocs", "websearch", "irc", "bittorrent", \
     simulate_parser.add_argument('--adv_time', type=int, default=0,
         help='indicates timestamp after which to add adversarial relays to \
 consensuses')
-    simulate_parser.add_argument('--num_adv_guards', type=int, default=1,
+    simulate_parser.add_argument('--num_adv_guards', type=int, default=0,
         help='indicates the number of adversarial guards to add')
-    simulate_parser.add_argument('--num_adv_exits', type=int, default=1,
+    simulate_parser.add_argument('--num_adv_exits', type=int, default=0,
         help='indicates the number of adversarial exits to add')
     simulate_parser.add_argument('--other_network_modifier', default=None,
         help='class to modify network, argument syntax: module.class-argstring')
