@@ -7,7 +7,7 @@ import os.path
 import cPickle as pickle
 
 
-def read_descriptors(descriptors, descriptor_dir):
+def read_descriptors(descriptors, descriptor_dir, skip_listener):
 	"""Add to descriptors contents of descriptor archive in descriptor_dir."""
 
         num_descriptors = 0    
@@ -30,7 +30,7 @@ def read_descriptors(descriptors, descriptor_dir):
             format(num_descriptors,num_relays)) 
 
 
-def process_consensuses(in_dirs, slim, initial_descriptor_dir, skip_listener):
+def process_consensuses(in_dirs, slim, initial_descriptor_dir):
     """For every input consensus, finds the descriptors published most recently before the descriptor times listed for the relays in that consensus, records state changes indicated by descriptors published during the consensus fresh period, and writes out pickled consensus and descriptor objects with the relevant information.
         Inputs:
             in_dirs: list of (consensus in dir, descriptor in dir,
@@ -47,11 +47,11 @@ def process_consensuses(in_dirs, slim, initial_descriptor_dir, skip_listener):
         
     # initialize descriptors
     if (initial_descriptor_dir is not None):
-    	read_descriptors(descriptors, initial_descriptor_dir)
+    	read_descriptors(descriptors, initial_descriptor_dir, skip_listener)
         
     for in_consensuses_dir, in_descriptors, desc_out_dir in in_dirs:
 		# read all descriptors into memory        
-    	read_descriptors(descriptors, in_descriptors)
+    	read_descriptors(descriptors, in_descriptors, skip_listener)
 
         # output pickled consensuses, dict of most recent descriptors, and 
         # list of hibernation status changes
