@@ -6,30 +6,14 @@ import os
 import os.path
 import cPickle as pickle
 
-def process_consensuses(in_dirs, slim, filtered):
-    """For every input consensus, finds the descriptors published most recently before the descriptor times listed for the relays in that consensus, records state changes indicated by descriptors published during the consensus fresh period, and writes out pickled consensus and descriptor objects with the relevant information.
-        Inputs:
-            in_dirs: list of (consensus in dir, descriptor in dir, \
-                processed descriptor out dir) triples *in order*
-            slim: Whether to use custom slim classes or Stem classes.
-            filtered: Whether to exclude relays without Running & Fast flags
-    """
-    descriptors = {}
-    def skip_listener(path, exception):
-        print('ERROR [{0}]: {1}'.format(path.encode('ascii', 'ignore'), exception.__unicode__().encode('ascii','ignore')))
-        
-    if slim:
-        print('Outputting slim classes.')
-    if filtered:
-        print('Filtering relays for FAST and RUNNING.')
-        
-    # read all descriptors into memory        
-    for in_consensuses_dir, in_descriptors, desc_out_dir in in_dirs:
+
+def read_descriptors(descriptors, descriptor_dir):
+	"""Add to descriptors contents of descriptor archive in descriptor_dir."""
+
         num_descriptors = 0    
         num_relays = 0
-
-        print('Reading descriptors from: {0}'.format(in_descriptors))
-        reader = stem.descriptor.reader.DescriptorReader(in_descriptors,
+        print('Reading descriptors from: {0}'.format(descriptor_dir))
+        reader = stem.descriptor.reader.DescriptorReader(descriptor_dir,
             validate=True)
         reader.register_skip_listener(skip_listener)        
         with reader:
@@ -44,6 +28,30 @@ def process_consensuses(in_dirs, slim, filtered):
                     [pathsim.timestamp(desc.published)] = desc
         print('#descriptors: {0}; #relays:{1}'.\
             format(num_descriptors,num_relays)) 
+
+
+def process_consensuses(in_dirs, slim, initial_descriptor_dir, skip_listener):
+    """For every input consensus, finds the descriptors published most recently before the descriptor times listed for the relays in that consensus, records state changes indicated by descriptors published during the consensus fresh period, and writes out pickled consensus and descriptor objects with the relevant information.
+        Inputs:
+            in_dirs: list of (consensus in dir, descriptor in dir,
+                processed descriptor out dir) triples *in order*
+            slim: Whether to use custom slim classes or Stem classes.
+            initial_descriptor_dir: Contains descriptors to initialize processing.
+    """
+    descriptors = {}
+    def skip_listener(path, exception):
+        print('ERROR [{0}]: {1}'.format(path.encode('ascii', 'ignore'), exception.__unicode__().encode('ascii','ignore')))
+        
+    if slim:
+        print('Outputting slim classes.')
+        
+    # initialize descriptors
+    if (initial_descriptor_dir is not None):
+    	read_descriptors(descriptors, initial_descriptor_dir)
+        
+    for in_consensuses_dir, in_descriptors, desc_out_dir in in_dirs:
+		# read all descriptors into memory        
+    	read_descriptors(descriptors, in_descriptors)
 
         # output pickled consensuses, dict of most recent descriptors, and 
         # list of hibernation status changes
@@ -72,14 +80,7 @@ def process_consensuses(in_dirs, slim, filtered):
                 consensus = None
             num_not_found = 0
             num_found = 0
-            for r_stat in stem.descriptor.parse_file(cons_f, validate=True):
-                # skip relays not running and not fast for faster simulation
-                # as our current experiments use an all-FAST policy
-                if filtered and (\
-                    (stem.Flag.FAST not in r_stat.flags) or\
-                    (stem.Flag.RUNNING not in r_stat.flags)):
-                    continue
-                    
+            for r_stat in stem.descriptor.parse_file(cons_f, validate=True):                    
                 if (cons_valid_after == None):
                     cons_valid_after = r_stat.document.valid_after
                     # compute timestamp version once here

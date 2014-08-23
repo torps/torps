@@ -1608,8 +1608,9 @@ directories are located')
     process_parser.add_argument('--slim', action='store_true',
         help='Output the slimmer TorPS classes (e.g. NetworkStatusDocument and \
 ServerDescriptor) instead of the analagous stem classes')
-    process_parser.add_argument('--filtered', action='store_true',
-        help='filter relays without FAST and RUNNING flags out of consensuses')
+    process_parser.add_argument('--initial_descriptor_dir', default=None,
+        help='Directory containing descriptors to initialize consensus processing. Needed to provide first consensuses in a month with descriptors only contained in archive from previous month. If omitted, first 24 hours of network state files will likely omit relays due to missing descriptors.')
+
 
     simulate_parser = subparsers.add_parser('simulate',
         help='Do simulated path selections.')
@@ -1714,7 +1715,7 @@ pathsim, and pickle it. The pickled object is input to the simulate command')
                 month += 1
             month = 1
         process_consensuses.process_consensuses(in_dirs, args.slim,
-            args.filtered)
+            args.initial_descriptor_dir)
     elif (args.subparser == 'simulate'):
         logging.basicConfig(stream=sys.stdout, level=getattr(logging,
             args.loglevel))    
