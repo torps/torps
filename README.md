@@ -100,11 +100,11 @@ Basic path simulation can be done entirely with pathsim.py. It requires Stem
   <pre><code>python pathsim.py simulate --nsf_dir out/ns-2013-08--2014-07 --num_samples 5000 
   --user_model simple=600 --format normal tor
   </pre></code>
-  Following is another example of the simulate command. The example executes a simulation in which
+  Following is another example of the simulate command. This example executes a simulation in which
   the user has "typical"
   behavior as given in the included trace file, a malicious guard relay is added with consensus
   bandwidth 15000, a malicious exit relay is added with consensus bandwidth 10000, the output
-  just indicates when a malicious guard and/or exit is selected, the number of 
+  indicates only if a malicious guard and/or exit is selected, the number of 
   client guards is adjusted to 1, and guard expiration occurs randomly between 270 and 300 days 
   after initial selection:
   <pre><code>python pathsim.py simulate --nsf_dir out/ns-2013-08--2014-07 --num_samples 5000
@@ -112,14 +112,14 @@ Basic path simulation can be done entirely with pathsim.py. It requires Stem
   --adv_guard_cons_bw 15000 --adv_exit_cons_bw 10000 --adv_time 0 --num_adv_guards 1
   --num_adv_exits 1 --num_guards 1 --guard_expiration 270 --loglevel INFO tor
   </pre></code>  
-
-The included trace file (in/users2-processed.traces.pickle) includes six 20-minute traces recorded 
-from a volunteer using Tor for the following activities: Facebook, Gmail / Google Chat (now 
-Hangouts), Google Calendar / Google Docs, Web search, IRC, and BitTorrent. These are repeated on a
-weekly schedule to create user models that fill the simulated time period. Also, a "typical" model
-is created including all of  the first four (i.e. Facebook, Gmail/GChat, GCal/GDocs, Web search) in
-the schedule, and "best" and "worst" models are created by replacing the TCP ports in the typical
-model with port 443 and 6523, respectively. See the paper "Users Get Routed: Traffic Correlation on Tor by Realistic Adversaries" cited above for details on these traces and models.
+  The included trace file (in/users2-processed.traces.pickle) includes six 20-minute traces recorded 
+  from a volunteer using Tor for the following activities: Facebook, Gmail / Google Chat (now 
+  Hangouts), Google Calendar / Google Docs, Web search, IRC, and BitTorrent. These are repeated on a
+  weekly schedule to create user models that fill the simulated time period. Also, a "typical" model
+  is created including all of  the first four (i.e. Facebook, Gmail/GChat, GCal/GDocs, Web search)
+  in the schedule, and "best" and "worst" models are created by replacing the TCP ports in the
+  typical model with port 443 and 6523, respectively. See the paper "Users Get Routed: Traffic
+  Correlation on Tor by Realistic Adversaries" cited above for details on these traces and models.
 	    
 ### Plotting Simulation Data
 TorPS includes some basic functions to quickly analyze and view the results of your
