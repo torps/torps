@@ -43,7 +43,8 @@ Basic path simulation can be done entirely with pathsim.py. It requires Stem
   <pre><code>python pathsim.py process [args]
   </pre></code>
   Replace [args] with "-h" for argument details. An example of this command is:
-  <pre><code>python pathsim.py process --start_year 2013 --start_month 8 --end_year 2014 --end_month 7 --in_dir in --out_dir out --slim --initial_descriptor_dir in/server-descriptors-2013-07
+  <pre><code>python pathsim.py process --start_year 2013 --start_month 8 --end_year 2014
+  --end_month 7 --in_dir in --out_dir out --slim --initial_descriptor_dir in/server-descriptors-2013-07
   </pre></code>
     TorPS expects to find all consensuses and descriptors for a given month in the format
   and organization of the metrics.torproject.org consensus archives. Extract the
@@ -94,7 +95,8 @@ Basic path simulation can be done entirely with pathsim.py. It requires Stem
   <pre><code>python pathsim.py simulate [args]
   </pre></code>
   Replace [args] with "-h" for argument details. An example of the command for a 5000-sample simulation in which the client makes a connection to Google (74.125.131.105) every 10 minutes is:
-  <pre><code>python pathsim.py simulate --nsf_dir out/ns-2013-08--2014-07 --num_samples 5000 --user_model simple=600 --format normal tor
+  <pre><code>python pathsim.py simulate --nsf_dir out/ns-2013-08--2014-07 --num_samples 5000 
+  --user_model simple=600 --format normal tor
   </pre></code>
   Following is another example of the command that executes a simulation in which user has "typical"
   behavior as given in the included trace file, a malicious guard relay is added with consensus
@@ -102,7 +104,10 @@ Basic path simulation can be done entirely with pathsim.py. It requires Stem
   just indicates when a malicious guard and/or exit is selected, the number of 
   client guards is adjusted to 1, and guard expiration occurs randomly between 270 and 300 days 
   after initial selection:
-  <pre><code>python pathsim.py simulate --nsf_dir out/ns-2013-08--2014-07 --num_samples 5000 --trace_file in/users2-processed.traces.pickle --user_model typical --format relay-adv --adv_guard_cons_bw 15000 --adv_exit_cons_bw 10000 --adv_time 0 --num_adv_guards 1 --num_adv_exits 1 --num_guards 1 --guard_expiration 270 --loglevel INFO tor
+  <pre><code>python pathsim.py simulate --nsf_dir out/ns-2013-08--2014-07 --num_samples 5000
+  --trace_file in/users2-processed.traces.pickle --user_model typical --format relay-adv
+  --adv_guard_cons_bw 15000 --adv_exit_cons_bw 10000 --adv_time 0 --num_adv_guards 1
+  --num_adv_exits 1 --num_guards 1 --guard_expiration 270 --loglevel INFO tor
   </pre></code>  
 
 The included trace file (in/users2-processed.traces.pickle) includes six 20-minute traces recorded 
