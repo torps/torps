@@ -59,7 +59,7 @@ Basic path simulation can be done entirely with pathsim.py. It requires Stem
   be created if it doesn't exist.
   
     If --slim is provided (recommended), then the network state files will not use the stem
-  classes and will be smaller and faster to process later.
+  classes and will be smaller and faster to process during simulation.
   
     If the consensuses being processed start at the very beginning of a
   month, which is true assuming you just extract some monthly consensus archives as
