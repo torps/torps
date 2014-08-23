@@ -81,8 +81,8 @@ Basic path simulation can be done entirely with pathsim.py. It requires Stem
   Notice in this example that nearly all relays are missing descriptors here (and thus
   would not exist in the network state file), which occurred in this case because the
   consensuses to process started 2013-09-01-00-00-00 and --initial_descriptor_dir was omitted.
-  Output from the second day of this examples shows that indeed there are no missing descriptors by
-  the second day:
+  Output from the second day of this example shows that indeed there are no missing descriptors
+  after at most 24 hours of consensuses:
   <pre><code>Processing consensus file 2013-09-02-00-00-00-consensus
   ...
   Wrote descriptors for 4261 relays.
@@ -94,11 +94,14 @@ Basic path simulation can be done entirely with pathsim.py. It requires Stem
   2. Run simulations over a given period. This is done with the following command:
   <pre><code>python pathsim.py simulate [args]
   </pre></code>
-  Replace [args] with "-h" for argument details. An example of the command for a 5000-sample simulation in which the client makes a connection to Google (74.125.131.105) every 10 minutes is:
+  Replace [args] with "-h" for argument details. An example of the command for a 5000-sample
+  simulation in which the client makes a connection to Google (74.125.131.105) every 10 minutes
+  (i.e. 600 seconds) is:
   <pre><code>python pathsim.py simulate --nsf_dir out/ns-2013-08--2014-07 --num_samples 5000 
   --user_model simple=600 --format normal tor
   </pre></code>
-  Following is another example of the command that executes a simulation in which user has "typical"
+  Following is another example of the simulate command. The example executes a simulation in which
+  the user has "typical"
   behavior as given in the included trace file, a malicious guard relay is added with consensus
   bandwidth 15000, a malicious exit relay is added with consensus bandwidth 10000, the output
   just indicates when a malicious guard and/or exit is selected, the number of 
