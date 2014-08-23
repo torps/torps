@@ -70,7 +70,7 @@ Basic path simulation can be done entirely with pathsim.py. It requires Stem
   actually existed in the Tor network at that time. This is
   because a relay is only included if its descriptor has been found in a descriptor archive,
   but a relay only publishes a new descriptor after ~18 hours. Thus the for the
-  initial hours, the needed descriptors are in the descriptor archive of the month *before*
+  initial hours, the needed descriptors are in the descriptor archive of the month before
   the period being processed. You can see how many relays are included in each network
   state file by looking at the output lines of the process command. For example, the
   relevant lines should look something like:
