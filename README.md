@@ -43,8 +43,8 @@ Basic path simulation can be done entirely with pathsim.py. It requires Stem
   <pre><code>python pathsim.py process [args]
   </pre></code>
   Replace [args] with "-h" for argument details. An example of this command is:
-  <pre><code>python pathsim.py process --start_year 2013 --start_month 8 --end_year 2014
-  --end_month 7 --in_dir in --out_dir out --slim --initial_descriptor_dir in/server-descriptors-2013-07
+  <pre><code>python pathsim.py process --start_year 2013 --start_month 8 --end_year 2014 --end_month 7
+  --in_dir in --out_dir out --slim --initial_descriptor_dir in/server-descriptors-2013-07
   </pre></code>
     TorPS expects to find all consensuses and descriptors for a given month in the format
   and organization of the metrics.torproject.org consensus archives. Extract the
