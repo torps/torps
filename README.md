@@ -116,9 +116,9 @@ Basic path simulation can be done entirely with pathsim.py. It requires Stem
   from a volunteer using Tor for the following activities: Facebook, Gmail / Google Chat (now 
   Hangouts), Google Calendar / Google Docs, Web search, IRC, and BitTorrent. These are repeated on a
   weekly schedule to create user models that fill the simulated time period. Also, a "typical" model
-  is created including all of  the first four (i.e. Facebook, Gmail/GChat, GCal/GDocs, Web search)
-  in the schedule, and "best" and "worst" models are created by replacing the TCP ports in the
-  typical model with port 443 and 6523, respectively. See the paper "Users Get Routed: Traffic
+  is provided including all of  the first four traces (i.e. Facebook, Gmail/GChat, GCal/GDocs, Web
+  search) in the schedule, and "best" and "worst" models are provided by replacing the TCP ports in
+  the typical model with ports 443 and 6523, respectively. See the paper "Users Get Routed: Traffic
   Correlation on Tor by Realistic Adversaries" cited above for details on these traces and models.
 	    
 ### Plotting Simulation Data
@@ -137,6 +137,6 @@ compromise time and rate for the guard/exit/guard&exit of user circuits. See the
 output for command options.
 
 ### Versions
-The latest version of TorPS (tag "tor-0.2.4.23") simulation path selection as performed by
+The latest version of TorPS (tag "tor-0.2.4.23") simulates path selection as performed by
 Tor stable release 0.2.4.23. The TorPS version at tag "tor-0.2.3.25" simulates path selection
 as performed by Tor stable release 0.2.3.25.
