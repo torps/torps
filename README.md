@@ -80,9 +80,9 @@ Basic path simulation can be done entirely with pathsim.py. It requires Stem
   </pre></code>
   Notice in this example that nearly all relays are missing descriptors here (and thus
   would not exist in the network state file), which occurred in this case because the
-  consensuses to process started 2013-09-01-00-00-00 and <nobr>--initial_descriptor_dir</nobr> was
-  omitted. Output from the second day of this examples shows that indeed there are no missing
-  descriptors by the second day:
+  consensuses to process started 2013-09-01-00-00-00 and --initial_descriptor_dir was omitted.
+  Output from the second day of this examples shows that indeed there are no missing descriptors by
+  the second day:
   <pre><code>Processing consensus file 2013-09-02-00-00-00-consensus
   ...
   Wrote descriptors for 4261 relays.
