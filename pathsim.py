@@ -302,7 +302,7 @@ def filter_exits(cons_rel_stats, descriptors, fast, stable, internal, ip,\
     for fprint in cons_rel_stats:
         if exit_filter(fprint, cons_rel_stats, descriptors, fast, stable,\
             internal, ip, port, False):
-                exits.append(fprint)
+            exits.append(fprint)
     return exits
     
 
@@ -313,7 +313,7 @@ def filter_exits_loose(cons_rel_stats, descriptors, fast, stable, internal,\
     for fprint in cons_rel_stats:
         if exit_filter(fprint, cons_rel_stats, descriptors, fast, stable,\
             internal, ip, port, True):
-                exits.append(fprint)
+            exits.append(fprint)
     return exits
 
     
