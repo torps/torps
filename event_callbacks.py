@@ -47,8 +47,6 @@ class PrintStreamAssignments(object):
         fingerprints in path of stream."""
         
         if (circuit is None):
-            self.file.write('Stream to {}:{} not assigned to circuit'.format(\
-                stream['ip'], stream['port']))
             return
         
         guard_ip = self.descriptors[circuit['path'][0]].address
@@ -132,6 +130,10 @@ class PrintStreamAssignmentsAdvRelays(object):
     def stream_assignment(self, stream, circuit):
         """Writes log line to file showing client, time and compromise codes:
         0 if guard & exit good, 1 if guard bad only, 2 if exit bad only, 3 if guard and exit bad."""
+
+
+        if (circuit is None):
+            return
 
         if self.testing:
             return
