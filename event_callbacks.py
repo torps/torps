@@ -46,6 +46,11 @@ class PrintStreamAssignments(object):
         """Writes log line to file (default stdout) showing client, time, IPs, and
         fingerprints in path of stream."""
         
+        if (circuit is None):
+            self.file.write('Stream to {}:{} not assigned to circuit'.format(\
+                stream['ip'], stream['port']))
+            return
+        
         guard_ip = self.descriptors[circuit['path'][0]].address
         middle_ip = self.descriptors[circuit['path'][1]].address
         exit_ip = self.descriptors[circuit['path'][2]].address
