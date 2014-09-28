@@ -45,53 +45,57 @@ class PrintStreamAssignments(object):
     def stream_assignment(self, stream, circuit):
         """Writes log line to file (default stdout) showing client, time, IPs, and
         fingerprints in path of stream."""
-        
-        if (circuit is None):
-            return
-        
-        guard_ip = self.descriptors[circuit['path'][0]].address
-        middle_ip = self.descriptors[circuit['path'][1]].address
-        exit_ip = self.descriptors[circuit['path'][2]].address
-        if (stream['type'] == 'connect'):
-            dest_ip = stream['ip']
-        elif (stream['type'] == 'resolve'):
-            dest_ip = 0
-        else:
-            raise ValueError('ERROR: Unrecognized stream in stream_assignment(): {0}'.\
-                format(stream['type']))
 
         if self.testing:
-            return                
-        if (self.format == 'testing'):
-            pass
-        elif (self.format == 'relay-adv'):
-             # as in network_modifiers.AdversaryInsertion.add_adv_guards()
-            guard_prefix = '000000000000000000000000000000'
-            # as in network_modifiers.AdversaryInsertion.add_adv_exits()
-            exit_prefix = 'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFF'
-            guard_bad = False
-            exit_bad = False
-            if (circuit['path'][0][0:30] == guard_prefix) or\
-                (circuit['path'][0][0:30] == exit_prefix):
-                guard_bad = True
-            if (circuit['path'][2][0:30] == guard_prefix) or\
-                (circuit['path'][2][0:30] == exit_prefix):
-                exit_bad = True
-            compromise_code = 0
-            if (guard_bad and exit_bad):
-                compromise_code = 3
-            elif guard_bad:
-                compromise_code = 1
-            elif exit_bad:
-                compromise_code = 2
-            self.file.write('{0}\t{1}\t{2}\n'.format(self.sample_id, stream['time'],
-                compromise_code))
-        elif (self.format == 'network-adv'):
-            self.file.write('{0}\t{1}\t{2}\t{3}\t{4}\n'.format(self.sample_id, stream['time'],
-                guard_ip, exit_ip, dest_ip))
+            return
+
+        if (circuit is None):
+            if (self.format == 'testing'):
+                pass
+            else:
+                self.file.write('{0}\t{1}\n'.format(self.sample_id, stream['time']))
         else:
-            self.file.write('{0}\t{1}\t{2}\t{3}\t{4}\t{5}\n'.format(self.sample_id,
-                stream['time'], guard_ip, middle_ip, exit_ip, dest_ip))
+            guard_ip = self.descriptors[circuit['path'][0]].address
+            middle_ip = self.descriptors[circuit['path'][1]].address
+            exit_ip = self.descriptors[circuit['path'][2]].address
+            if (stream['type'] == 'connect'):
+                dest_ip = stream['ip']
+            elif (stream['type'] == 'resolve'):
+                dest_ip = 0
+            else:
+                raise ValueError('ERROR: Unrecognized stream in stream_assignment(): {0}'.\
+                    format(stream['type']))
+
+            if (self.format == 'testing'):
+                pass
+            elif (self.format == 'relay-adv'):
+                # as in network_modifiers.AdversaryInsertion.add_adv_guards()
+                guard_prefix = '000000000000000000000000000000'
+                # as in network_modifiers.AdversaryInsertion.add_adv_exits()
+                exit_prefix = 'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFF'
+                guard_bad = False
+                exit_bad = False
+                if (circuit['path'][0][0:30] == guard_prefix) or\
+                    (circuit['path'][0][0:30] == exit_prefix):
+                    guard_bad = True
+                if (circuit['path'][2][0:30] == guard_prefix) or\
+                    (circuit['path'][2][0:30] == exit_prefix):
+                    exit_bad = True
+                compromise_code = 0
+                if (guard_bad and exit_bad):
+                    compromise_code = 3
+                elif guard_bad:
+                    compromise_code = 1
+                elif exit_bad:
+                    compromise_code = 2
+                self.file.write('{0}\t{1}\t{2}\n'.format(self.sample_id, stream['time'],
+                    compromise_code))
+            elif (self.format == 'network-adv'):
+                self.file.write('{0}\t{1}\t{2}\t{3}\t{4}\n'.format(self.sample_id, stream['time'],
+                    guard_ip, exit_ip, dest_ip))
+            else:
+                self.file.write('{0}\t{1}\t{2}\t{3}\t{4}\t{5}\n'.format(self.sample_id,
+                    stream['time'], guard_ip, middle_ip, exit_ip, dest_ip))
 ######
 
 ### Print relay compromised codes of stream assignments, compromise from input adv relays. ###
