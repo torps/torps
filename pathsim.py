@@ -1601,7 +1601,7 @@ hibernating statuses are pickled and written to disk.')
     process_parser.add_argument('--end_month', type=int,
         help='month in which to end processing')
     process_parser.add_argument('--in_dir',
-        help='directory in which input consensus and descriptor\
+        help='directory in which input consensus and descriptor \
 directories are located')
     process_parser.add_argument('--out_dir',
         help='directory in which to locate output network state files')
