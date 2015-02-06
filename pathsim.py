@@ -123,6 +123,35 @@ class ServerDescriptor:
         self.address = address
         self.exit_policy = exit_policy
         self.ntor_onion_key = ntor_onion_key
+
+
+    def __getstate__(self):
+        """Used for headache-free pickling. Turns ExitPolicy into its string
+        representation, rather than using the repeatedly problematic object."""
+
+        state = dict()
+        state['fingerprint'] = self.fingerprint
+        state['hibernating'] = self.hibernating
+        state['nickname'] = self.nickname
+        state['family'] = self.family
+        state['address'] = self.address
+        state['exit_policy'] = str(self.exit_policy)
+        state['ntor_onion_key'] = self.ntor_onion_key
+        
+        return state
+
+
+    def __setstate__(self, state):
+        """Used for headache-free unpickling. Creates ExitPolicy from string
+        representation."""
+
+        self.fingerprint = state['fingerprint']
+        self.hibernating = state['hibernating']
+        self.nickname = state['nickname']
+        self.family = state['family']
+        self.address = state['address']
+        self.exit_policy = ExitPolicy(*state['exit_policy'].split(', '))
+        self.ntor_onion_key = state['ntor_onion_key']
     
 
 def timestamp(t):
