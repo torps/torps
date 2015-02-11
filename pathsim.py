@@ -1290,8 +1290,8 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,
                 if (not guards[guard_node]['made_contact']):
                     del guards[guard_node]
                     if _testing:
-                        print('[Time {0}]: Removed new hibernating guard: {}.'.\
-                            format(circ_time,
+                        print('[Time {0}]: Removed new hibernating guard: {1}.'\
+                            .format(circ_time,
                                 cons_rel_stats[guard_node].nickname))
                 elif (guards[guard_node]['unreachable_since'] != None):
                     guards[guard_node]['last_attempted'] = circ_time
