@@ -152,7 +152,7 @@ def process_consensuses(in_dirs, slim, initial_descriptor_dir):
                                 desc.family, desc.address, \
                                 desc.exit_policy, desc.ntor_onion_key)
                     else:
-                        descriptors_out[r_stat.fingerprint] = desc
+                        descriptors_out[r_stat.fingerprint] = str(desc)
                      
                     # store hibernating statuses
                     if (desc_time_fresh == None):
