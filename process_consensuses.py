@@ -102,9 +102,9 @@ def process_consensuses(in_dirs, slim, initial_descriptor_dir):
                         r_stat.flags, r_stat.bandwidth)
                 else:
                     if (consensus == None):
-                        consensus = r_stat.document
-                        consensus.routers = {} # should be empty - ensure
-                    consensus.routers[r_stat.fingerprint] = r_stat
+                        consensus = str(r_stat.document)
+#                        consensus.routers = {} # should be empty - ensure
+#                    consensus.routers[r_stat.fingerprint] = r_stat
 
                 # find most recent unexpired descriptor published before
                 # the publication time in the consensus
