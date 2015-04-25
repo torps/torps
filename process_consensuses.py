@@ -83,7 +83,13 @@ def process_consensuses(in_dirs, slim, initial_descriptor_dir):
             
             print('Processing consensus file {0}'.format(filename))
             cons_f = open(pathname, 'rb')
-            descriptors_out = {}
+
+            # store metrics type annotation line
+            initial_position = cons_f.tell()
+            type_annotation = cons_f.readline()
+            cons_f.seek(initial_position)
+
+            descriptors_out = dict()
             hibernating_statuses = [] # (time, fprint, hibernating)
             cons_valid_after = None
             cons_fresh_until = None
@@ -91,39 +97,41 @@ def process_consensuses(in_dirs, slim, initial_descriptor_dir):
                 cons_bw_weights = None
                 cons_bwweightscale = None
                 relays = {}
-            else:
-                consensus = None
             num_not_found = 0
             num_found = 0
-            for r_stat in stem.descriptor.parse_file(cons_f, validate=True):                    
+            # read in consensus document
+            i = 0
+            for document in stem.descriptor.parse_file(cons_f, validate=True,
+                document_handler='DOCUMENT'):
+                if (i > 0):
+                    raise ValueError('Unexpectedly found more than one consensus in file: {}'.\
+                        format(pathname))
                 if (cons_valid_after == None):
-                    cons_valid_after = r_stat.document.valid_after
+                    cons_valid_after = document.valid_after
                     # compute timestamp version once here
                     valid_after_ts = pathsim.timestamp(cons_valid_after)
                 if (cons_fresh_until == None):
-                    cons_fresh_until = r_stat.document.fresh_until
+                    cons_fresh_until = document.fresh_until
                     # compute timestamp version once here
                     fresh_until_ts = pathsim.timestamp(cons_fresh_until)
                 if slim:
                     if (cons_bw_weights == None):
-                        cons_bw_weights = r_stat.document.bandwidth_weights
+                        cons_bw_weights = document.bandwidth_weights
                     if (cons_bwweightscale == None) and \
-                        ('bwweightscale' in r_stat.document.params):
-                        cons_bwweightscale = r_stat.document.params[\
+                        ('bwweightscale' in document.params):
+                        cons_bwweightscale = document.params[\
                                 'bwweightscale']
-                if slim:
-                    relays[r_stat.fingerprint] = pathsim.RouterStatusEntry(\
-                        r_stat.fingerprint, r_stat.nickname, \
-                        r_stat.flags, r_stat.bandwidth)
-                else:
-                    if (consensus == None):
-                        consensus = str(r_stat.document)
-#                        consensus.routers = {} # should be empty - ensure
-#                    consensus.routers[r_stat.fingerprint] = r_stat
+                    for r_stat in document.routers:
+                        relays[r_stat.fingerprint] = pathsim.RouterStatusEntry(\
+                            r_stat.fingerprint, r_stat.nickname, r_stat.flags, r_stat.bandwidth)
+                consensus = document
+                i += 1
+                            
 
-                # find most recent unexpired descriptor published before
-                # the publication time in the consensus
-                # and status changes in fresh period (i.e. hibernation)
+            # find relays' most recent unexpired descriptor published
+            # before the publication time in the consensus
+            # and status changes in fresh period (i.e. hibernation)
+            for r_stat in consensus.routers:
                 pub_time = pathsim.timestamp(r_stat.published)
                 desc_time = 0
                 descs_while_fresh = []
@@ -167,7 +175,7 @@ def process_consensuses(in_dirs, slim, initial_descriptor_dir):
                                 desc.family, desc.address, \
                                 desc.exit_policy, desc.ntor_onion_key)
                     else:
-                        descriptors_out[r_stat.fingerprint] = str(desc)
+                        descriptors_out[r_stat.fingerprint] = desc.type_annotation + str(desc)
                      
                     # store hibernating statuses
                     if (desc_time_fresh == None):
@@ -202,16 +210,18 @@ def process_consensuses(in_dirs, slim, initial_descriptor_dir):
             if (cons_valid_after != None) and\
                 (cons_fresh_until != None):
                 if slim:
-                    consensus = pathsim.NetworkStatusDocument(\
+                    consensus_out = pathsim.NetworkStatusDocument(\
                         cons_valid_after, cons_fresh_until, cons_bw_weights,\
                         cons_bwweightscale, relays)
+                else:
+                    consensus_out = type_annotation + str(consensus)
                 hibernating_statuses.sort(key = lambda x: x[0],\
                     reverse=True)
                 outpath = os.path.join(desc_out_dir,\
                     cons_valid_after.strftime(\
                         '%Y-%m-%d-%H-%M-%S-network_state'))
                 f = open(outpath, 'wb')
-                pickle.dump(consensus, f, pickle.HIGHEST_PROTOCOL)
+                pickle.dump(consensus_out, f, pickle.HIGHEST_PROTOCOL)
                 pickle.dump(descriptors_out,f,pickle.HIGHEST_PROTOCOL)
                 pickle.dump(hibernating_statuses,f,pickle.HIGHEST_PROTOCOL)
                 f.close()
