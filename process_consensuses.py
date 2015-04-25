@@ -38,7 +38,7 @@ def read_descriptors(descriptors, descriptor_dir, skip_listener):
                     descriptors[desc.fingerprint] = {}
                     num_relays += 1
                     # stuff type annotation into stem object
-                    desc.type_annotation = cur_type_annotation
+                desc.type_annotation = cur_type_annotation
                 descriptors[desc.fingerprint]\
                     [pathsim.timestamp(desc.published)] = desc
         print('#descriptors: {0}; #relays:{1}'.\
