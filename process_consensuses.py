@@ -17,7 +17,7 @@ def read_descriptors(descriptors, descriptor_dir, skip_listener):
             validate=True)
         reader.register_skip_listener(skip_listener)
         # use read listener to store metrics type annotation, which is otherwise discarded
-        cur_type_annotation = None
+        cur_type_annotation = [None]
         def read_listener(path):
             f = open(path)
             # store initial metrics type annotation
@@ -25,9 +25,9 @@ def read_descriptors(descriptors, descriptor_dir, skip_listener):
             first_line = f.readline()
             f.seek(initial_position)
             if (first_line[0:5] == '@type'):
-                cur_type_annotation = first_line
+                cur_type_annotation[0] = first_line
             else:
-                cur_type_annotation = None
+                cur_type_annotation[0] = None
         reader.register_read_listener(read_listener)
         with reader:
             for desc in reader:
@@ -38,7 +38,7 @@ def read_descriptors(descriptors, descriptor_dir, skip_listener):
                     descriptors[desc.fingerprint] = {}
                     num_relays += 1
                     # stuff type annotation into stem object
-                desc.type_annotation = cur_type_annotation
+                desc.type_annotation = cur_type_annotation[0]
                 descriptors[desc.fingerprint]\
                     [pathsim.timestamp(desc.published)] = desc
         print('#descriptors: {0}; #relays:{1}'.\
