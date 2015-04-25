@@ -15,7 +15,20 @@ def read_descriptors(descriptors, descriptor_dir, skip_listener):
         print('Reading descriptors from: {0}'.format(descriptor_dir))
         reader = stem.descriptor.reader.DescriptorReader(descriptor_dir,
             validate=True)
-        reader.register_skip_listener(skip_listener)        
+        reader.register_skip_listener(skip_listener)
+        # use read listener to store metrics type annotation, which is otherwise discarded
+        cur_type_annotation = None
+        def read_listener(path):
+			f = open(path)
+			# store initial metrics type annotation
+			initial_position = f.tell()
+			first_line = f.readline()
+			f.seek(initial_position)
+			if (first_line[0:5] == '@type'):
+				cur_type_annotation = first_line
+			else:
+				cur_type_annotation = None
+		reader.register_read_listener(read_listener)
         with reader:
             for desc in reader:
                 if (num_descriptors % 10000 == 0):
@@ -24,6 +37,8 @@ def read_descriptors(descriptors, descriptor_dir, skip_listener):
                 if (desc.fingerprint not in descriptors):
                     descriptors[desc.fingerprint] = {}
                     num_relays += 1
+                    # stuff type annotation into stem object
+                    desc.type_annotation = cur_type_annotation
                 descriptors[desc.fingerprint]\
                     [pathsim.timestamp(desc.published)] = desc
         print('#descriptors: {0}; #relays:{1}'.\
