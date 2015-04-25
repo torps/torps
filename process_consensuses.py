@@ -19,16 +19,16 @@ def read_descriptors(descriptors, descriptor_dir, skip_listener):
         # use read listener to store metrics type annotation, which is otherwise discarded
         cur_type_annotation = None
         def read_listener(path):
-			f = open(path)
-			# store initial metrics type annotation
-			initial_position = f.tell()
-			first_line = f.readline()
-			f.seek(initial_position)
-			if (first_line[0:5] == '@type'):
-				cur_type_annotation = first_line
-			else:
-				cur_type_annotation = None
-		reader.register_read_listener(read_listener)
+            f = open(path)
+            # store initial metrics type annotation
+            initial_position = f.tell()
+            first_line = f.readline()
+            f.seek(initial_position)
+            if (first_line[0:5] == '@type'):
+                cur_type_annotation = first_line
+            else:
+                cur_type_annotation = None
+        reader.register_read_listener(read_listener)
         with reader:
             for desc in reader:
                 if (num_descriptors % 10000 == 0):
