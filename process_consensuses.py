@@ -86,7 +86,11 @@ def process_consensuses(in_dirs, slim, initial_descriptor_dir):
 
             # store metrics type annotation line
             initial_position = cons_f.tell()
-            type_annotation = cons_f.readline()
+            first_line = cons_f.readline()
+            if (first_line[0:5] == '@type'):
+                type_annotation = first_line
+            else:
+                type_annotation = None
             cons_f.seek(initial_position)
 
             descriptors_out = dict()
@@ -175,7 +179,10 @@ def process_consensuses(in_dirs, slim, initial_descriptor_dir):
                                 desc.family, desc.address, \
                                 desc.exit_policy, desc.ntor_onion_key)
                     else:
-                        descriptors_out[r_stat.fingerprint] = desc.type_annotation + str(desc)
+                        if (desc.type_annotation is not None):
+                            descriptors_out[r_stat.fingerprint] = desc.type_annotation + str(desc)
+                        else:
+                            descriptors_out[r_stat.fingerprint] = str(desc)
                      
                     # store hibernating statuses
                     if (desc_time_fresh == None):
@@ -214,7 +221,10 @@ def process_consensuses(in_dirs, slim, initial_descriptor_dir):
                         cons_valid_after, cons_fresh_until, cons_bw_weights,\
                         cons_bwweightscale, relays)
                 else:
-                    consensus_out = type_annotation + str(consensus)
+                    if (type_annotation is not None):
+                        consensus_out = type_annotation + str(consensus)
+                    else:
+                        consensus_out = str(consensus)
                 hibernating_statuses.sort(key = lambda x: x[0],\
                     reverse=True)
                 outpath = os.path.join(desc_out_dir,\
