@@ -131,7 +131,7 @@ def process_consensuses(in_dirs, slim, initial_descriptor_dir):
             # find relays' most recent unexpired descriptor published
             # before the publication time in the consensus
             # and status changes in fresh period (i.e. hibernation)
-            for r_stat in consensus.routers:
+            for fprint, r_stat in consensus.routers.iteritems():
                 pub_time = pathsim.timestamp(r_stat.published)
                 desc_time = 0
                 descs_while_fresh = []
