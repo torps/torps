@@ -105,9 +105,43 @@ class AdversaryInsertion(object):
         T = G+M+E+D
         return (G, M, E, D, T)
 
-    def check_weights_errors(Wgg, Wgd, Wmg, Wme, Wmd, Wee, weighscale, G,
+    def check_weights_errors(self, Wgg, Wgd, Wmg, Wme, Wmd, Wee, weightscale, G,
             M, E, D, T, margin, do_balance):
-        pass
+
+        """Verify that our weights satify the formulas from dir-spec.txt"""
+
+        def check_eq(a, b, margin):
+            return (a - b) <= margin if (a - b) >= 0 else (b - a) <= margin
+        def check_range(a, b, c, d, e, f, g, mx):
+            return (a >= 0 and a <= mx and b >= 0 and b <= mx and\
+                    c >= 0 and c <= mx and d >= 0 and d <= mx and\
+                    e >= 0 and e <= mx and f >= 0 and f <= mx and\
+                    g >= 0 and g <= mx)
+
+        # Wed + Wmd + Wgd == weighscale
+        if (not check_eq(Wed+Wmd+Wgd, weightscale, margin)):
+            return self.bww_errors.SUMD_ERROR
+        # Wmg + Wgg == weightscale
+        if (not check_eq(Wmg+Wgg, weightscale, margin)):
+            return self.bww_errors.SUMG_ERROR
+        # Wme + Wee == 1
+        if (not check_eq(Wme+Wee, weightscale, margin)):
+            return self.bww_errors.SUME_ERROR
+        # Verify weights within range 0 -> weightscale
+        if (not check_range(Wgg, Wgd, Wmg, Wme, Wmd, Wed, Wee, weightscale)):
+            return self.bww_errors.RANGE_ERROR
+        if (do_balance):
+            #Wgg*G + Wgd*D == Wee*E + Wed*D
+            if (not check_eq(Wgg*G+Wgd*D, Wee*E+Wed*D, (margin*T)/3)):
+                return self.bww_errors.BALANCE_EG_ERROR
+            #Wgg*G+Wgd*D == M*weighscale + Wmd*D + Wme * E + Wmg*G
+            if (not check_eq(Wgg*G+Wgd*D, M*weightscale+Wmd*D+Wme*E+Wmg*G,\
+                    (margin*T)/3)):
+                return self.bww_errors.BALANCE_MID_ERROR
+
+
+        return self.bwweights.NO_ERROR
+
 
     def __init__(self, args, testing):
         self.adv_time = args.adv_time
@@ -119,7 +153,8 @@ class AdversaryInsertion(object):
         self.testing = testing
         self.first_modification = True
         self.bww_errors = Enum(("NO_ERROR","SUMG_ERROR", "SUME_ERROR",\
-                "SUMD_ERROR","BALANCE_MID_ERROR", "BALANCE_EG_ERROR"))
+                "SUMD_ERROR","BALANCE_MID_ERROR", "BALANCE_EG_ERROR",\
+                "RANGE_ERROR"))
 
         
     def modify_network_state(self, network_state):
@@ -166,7 +201,8 @@ class AdversaryInsertion(object):
         """Detects in which network case load we are according to section 3.8.3
         of dir-spec.txt from Tor' specifications and recompute bandwidth weights
         """
-        (G, M, E, D, T) = compute_tot_bandwidths(network_case.cons_rel_stats)
+        (G, M, E, D, T) = compute_tot_bandwidths(network_case.cons_rel_stat,\
+                network_state.descriptors)
         weightscale = network_state.cons_bwweightscale
         if (3*E >= T and 3*G >= T):
             #Case 1: Neither are scarce
