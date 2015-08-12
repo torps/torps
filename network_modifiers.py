@@ -58,7 +58,7 @@ class AdversaryInsertion(object):
                 hibernating, nickname, family, address, exit_policy,
                 ntor_onion_key)
 
-    def compute_tot_bandwidths(self, cons_rel_stats):
+    def compute_tot_bandwidths(self, cons_rel_stats, descriptors):
         """ Compute 
         G the total bandwidth for Guard-flagged nodes
         M the total bandwidth for non-flagged nodes
@@ -66,7 +66,44 @@ class AdversaryInsertion(object):
         D the total bandwidth for Guard+Exit-flagged nodes
         T = G+M+E+D
         """
-        pass
+        
+        def filter_flags(cons_rel_stats, descriptors, flags, no_flags):
+            nodes  = []
+            for fprint in cons_rel_stats:
+                rel_stat = cons_rel_stats[fprint]
+                i = 0
+                j = 0
+                for flag in no_flags:
+                    if flag in rel_stat.flags:
+                        j+=1
+                for flag in flags:
+                    if flag in rel_stat.flags:
+                        i+=1
+                if i == len(flags) and j==0 and fprint in descriptors:
+                    nodes.append(fprint)
+            return nodes
+
+        guards = filter_flags(cons_rel_stats, descriptors,\
+                    [Flag.RUNNING, Flag.VALID, Flag.GUARD], [Flag.EXIT])
+        exits = filter_flags(cons_rel_stats, descriptors,\
+                    [Flag.RUNNING, Flag.VALID, Flag.EXIT], [Flag.GUARD])
+        middles = filter_flags(cons_rel_stats, descriptors,\
+                    [Flag.RUNNING, Flag.VALID], [Flag.GUARD, Flag.EXIT])
+        guards_exits = filter_flags(cons_rel_stats, descriptors,\
+                        [Flag.RUNNING, Flag.VALID, Flag.GUARD, Flag.EXIT], [])
+        G = M = E = D = T = 0
+        
+        for fprint in guards:
+            G += cons_rel_stats[fprint].bandwith
+        for fprint in middles:
+            M += cons_rel_stats[fprint].bandwidth
+        for fprint in exits:
+            E += cons_rel_stats[fprint].bandwidth
+        for fprint in guards_exits:
+            D += cons_rel_stats[fprint].bandwidth
+
+        T = G+M+E+D
+        return (G, M, E, D, T)
 
     def check_weights_errors(Wgg, Wgd, Wmg, Wme, Wmd, Wee, weighscale, G,
             M, E, D, T, margin, do_balance):
