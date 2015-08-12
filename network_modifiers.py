@@ -4,8 +4,6 @@ from stem import Flag
 from stem.exit_policy import ExitPolicy
 import pathsim
 
-
-
 class Enum(tuple): __getattr__ = tuple.index
 
 ### Class inserting adversary relays ###
@@ -94,7 +92,7 @@ class AdversaryInsertion(object):
         G = M = E = D = T = 0
         
         for fprint in guards:
-            G += cons_rel_stats[fprint].bandwith
+            G += cons_rel_stats[fprint].bandwidth
         for fprint in middles:
             M += cons_rel_stats[fprint].bandwidth
         for fprint in exits:
@@ -103,10 +101,10 @@ class AdversaryInsertion(object):
             D += cons_rel_stats[fprint].bandwidth
 
         T = G+M+E+D
-        return (G, M, E, D, T)
+        return (int(G), int(M), int(E), int(D), int(T))
 
-    def check_weights_errors(self, Wgg, Wgd, Wmg, Wme, Wmd, Wee, weightscale, G,
-            M, E, D, T, margin, do_balance):
+    def check_weights_errors(self, Wgg, Wgd, Wmg, Wme, Wmd, Wee, Wed,
+            weightscale, G, M, E, D, T, margin, do_balance):
 
         """Verify that our weights satify the formulas from dir-spec.txt"""
 
@@ -118,7 +116,7 @@ class AdversaryInsertion(object):
                     e >= 0 and e <= mx and f >= 0 and f <= mx and\
                     g >= 0 and g <= mx)
 
-        # Wed + Wmd + Wgd == weighscale
+        # Wed + Wmd + Wgd == weightscale
         if (not check_eq(Wed+Wmd+Wgd, weightscale, margin)):
             return self.bww_errors.SUMD_ERROR
         # Wmg + Wgg == weightscale
@@ -134,13 +132,13 @@ class AdversaryInsertion(object):
             #Wgg*G + Wgd*D == Wee*E + Wed*D
             if (not check_eq(Wgg*G+Wgd*D, Wee*E+Wed*D, (margin*T)/3)):
                 return self.bww_errors.BALANCE_EG_ERROR
-            #Wgg*G+Wgd*D == M*weighscale + Wmd*D + Wme * E + Wmg*G
+            #Wgg*G+Wgd*D == M*weightscale + Wmd*D + Wme * E + Wmg*G
             if (not check_eq(Wgg*G+Wgd*D, M*weightscale+Wmd*D+Wme*E+Wmg*G,\
                     (margin*T)/3)):
                 return self.bww_errors.BALANCE_MID_ERROR
 
 
-        return self.bwweights.NO_ERROR
+        return self.bww_errors.NO_ERROR
 
 
     def __init__(self, args, testing):
@@ -187,6 +185,16 @@ class AdversaryInsertion(object):
             (casename, Wgg, Wgd, Wee, Wed, Wmg, Wme, Wmd) =\
                     self.recompute_bwweights(network_state)
             bwweights = network_state.cons_bw_weights
+            if self.testing: 
+                print("""New computation of bwweights, network load case
+                       is {0} with weights Wgg={1}, Wgd={2}, Wee={3},
+                       Wed={4}, Wmg={5}, Wme={6}, Wmd={7}.\n
+                       The weights received from the consensus are Wgg=
+                       {8}, Wgd={9}, Wee={10}, Wed={11}, Wmg={12}, Wme=
+                       {13}, Wmd={14} """.format(casename, Wgg, Wgd, Wee,\
+                       Wed, Wmg, Wme, Wmd, bwweights['Wgg'], bwweights['Wgd'],\
+                       bwweights['Wee'], bwweights['Wed'], bwweights['Wmg'],\
+                       bwweights['Wme'], bwweights['Wmd']))
             bwweights['Wgg'] = Wgg
             bwweights['Wgd'] = Wgd
             bwweights['Wee'] = Wee
@@ -195,13 +203,11 @@ class AdversaryInsertion(object):
             bwweights['Wme'] = Wme
             bwweights['Wmd'] = Wmd
 
-
-
-    def recompute_bwweights(self, network_case):
+    def recompute_bwweights(self, network_state):
         """Detects in which network case load we are according to section 3.8.3
         of dir-spec.txt from Tor' specifications and recompute bandwidth weights
         """
-        (G, M, E, D, T) = compute_tot_bandwidths(network_case.cons_rel_stat,\
+        (G, M, E, D, T) = self.compute_tot_bandwidths(network_state.cons_rel_stats,\
                 network_state.descriptors)
         weightscale = network_state.cons_bwweightscale
         if (3*E >= T and 3*G >= T):
@@ -209,11 +215,12 @@ class AdversaryInsertion(object):
             casename = "Case 1 (Wgd=Wmd=Wed)"
             Wgd = Wed = Wmd = weightscale/3
             Wee = (weightscale*(E+G+M))/(3*E)
+            Wme = weightscale - Wee
             Wmg = (weightscale*(2*G-E-M))/(3*G)
             Wgg = weightscale - Wmg
             
-            check = check_weights_errors(Wgg, Wgd, Wmg, Wme, Wmd, Wee,\
-                    weighscale, G, M, E, D, T, 10, True)
+            check = self.check_weights_errors(Wgg, Wgd, Wmg, Wme, Wmd, Wee, Wed,\
+                    weightscale, G, M, E, D, T, 10, True)
             if (check):
                 raise ValueError(\
                         'ERROR: {0}  Wgd={1}, Wed={2}, Wmd={3}, Wee={4},\
@@ -249,22 +256,22 @@ class AdversaryInsertion(object):
                 Wgg = weightscale
                 Wmd = Wgd = (weightscal-Wed)/2
                 
-                check = check_weights_errors(Wgg, Wgd, Wmg, Wme, Wmd, Wee,\
-                    weighscale, G, M, E, D, T, 10, True)
+                check = self.check_weights_errors(Wgg, Wgd, Wmg, Wme, Wmd,\
+                        Wee, Wed, weightscale, G, M, E, D, T, 10, True)
                 if (check):
                     casename = 'Case 2b2 (Wgg=1, Wee=1)'
-                    Wgg = Wee = weighscale
-                    Wed = (weighscale*(D-2*E+G+M))/(3*D)
-                    Wmd = (weighscale*(D-2*M+G+E))/(3*D)
+                    Wgg = Wee = weightscale
+                    Wed = (weightscale*(D-2*E+G+M))/(3*D)
+                    Wmd = (weightscale*(D-2*M+G+E))/(3*D)
                     Wme = Wmg = 0
                     if (Wmd < 0):
                         #Too much bandwidth at middle position
                         casename = 'case 2b3 (Wmd=0)'
                         Wmd = 0
-                    Wgd = weighscale - Wed - Wmd
+                    Wgd = weightscale - Wed - Wmd
                     
-                    check = check_weights_errors(Wgg, Wgd, Wmg, Wme, Wmd,\
-                            Wee, weighscale, G, M, E, D, T, 10, True)
+                    check = self.check_weights_errors(Wgg, Wgd, Wmg, Wme, Wmd,\
+                            Wee, Wed, weightscale, G, M, E, D, T, 10, True)
                 if (check != self.bww_errors.NO_ERROR and check !=\
                         self.bww_errors.BALANCE_MID_ERROR):
                     raise ValueError(\
@@ -284,48 +291,50 @@ class AdversaryInsertion(object):
                 #subcasea: S+D < T/3
                 if (G < E):
                     casename = 'Case 3a (G scarce)'
-                    Wgg = Wgd = weighscale
+                    Wgg = Wgd = weightscale
                     Wmd = Wed = Wmg = 0
                     
                     if (E < M): Wme = 0
-                    else: Wme = (weighscale*(E-M))/(2*E)
-                    Wee = weighscale - Wme
+                    else: Wme = (weightscale*(E-M))/(2*E)
+                    Wee = weightscale - Wme
                 else:
                     # G >= E
                     casename = "Case 3a (E scarce)"
-                    Wee = Wed = weighscale
+                    Wee = Wed = weightscale
                     Wmd = Wgd = Wme = 0
                     if (G < M): Wmg = 0
-                    else: Wmg = (weighscale*(G-M))/(2*G)
-                    Wgg = weighscale - Wmg
+                    else: Wmg = (weightscale*(G-M))/(2*G)
+                    Wgg = weightscale - Wmg
             else:
                 #subcase S+D >= T/3
                 if (G < E):
-                    casename = "Case 3bg (G scarce, Wgg=weighscale,\
-                                Wmd == Wed"
-                    Wgg = weighscale
-                    Wgd = (weighscale*(D-2*G+E+M))/(3*D)
+                    casename = """Case 3bg (G scarce, Wgg=weightscale,
+                                Wmd == Wed"""
+                    Wgg = weightscale
+                    Wgd = (weightscale*(D-2*G+E+M))/(3*D)
                     Wmg = 0
-                    Wee = (weighscale*(E+M))/(2*E)
-                    Wme = weighscale - Wee
-                    Wmd = Wed = (weighscale-Wgd)/2
+                    Wee = (weightscale*(E+M))/(2*E)
+                    Wme = weightscale - Wee
+                    Wmd = Wed = (weightscale-Wgd)/2
 
-                    check = check_weights_errors(Wgg, Wgd, Wmg, Wme, Wmd,\
-                            Wee, weighscale, G, M, E, D, T, 10, True)
+                    check = self.check_weights_errors(Wgg, Wgd, Wmg, Wme,\
+                            Wmd, Wee, Wed, weightscale, G, M, E, D, T, 10,\
+                            True)
                 else:
                     # G >= E
-                    casename = "Case 3be (E scarce, Wee=weighscale,\
-                                Wmd == Wgd"
+                    casename = """Case 3be (E scarce, Wee=weightscale,
+                                Wmd == Wgd"""
 
-                    Wee = weighscale
-                    Wed = (weighscale*(D-2*E+G+M))/(3*D)
+                    Wee = weightscale
+                    Wed = (weightscale*(D-2*E+G+M))/(3*D)
                     Wme = 0
-                    Wgg = (weighscale*(G+M))/(2*G)
-                    Wmg = weighscale - Wgg
-                    Wmd = Wgd = (weighscale-Wed)/2
+                    Wgg = (weightscale*(G+M))/(2*G)
+                    Wmg = weightscale - Wgg
+                    Wmd = Wgd = (weightscale-Wed)/2
 
-                    check = check_weights_errors(Wgg, Wgd, Wmg, Wme, Wmd,\
-                            Wee, weighscale, G, M, E, D, T, 10, True)
+                    check = self.check_weights_errors(Wgg, Wgd, Wmg, Wme,\
+                            Wmd, Wee, Wed,  weightscale, G, M, E, D, T, 10,\
+                            True)
 
 
                 if (check):
