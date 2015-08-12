@@ -254,7 +254,7 @@ class AdversaryInsertion(object):
                 Wme = (weightscale*(G-M))/E
                 Wmg = 0
                 Wgg = weightscale
-                Wmd = Wgd = (weightscal-Wed)/2
+                Wmd = Wgd = (weightscale-Wed)/2
                 
                 check = self.check_weights_errors(Wgg, Wgd, Wmg, Wme, Wmd,\
                         Wee, Wed, weightscale, G, M, E, D, T, 10, True)
