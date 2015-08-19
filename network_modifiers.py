@@ -66,6 +66,7 @@ class AdversaryInsertion(object):
         """
         
         def filter_flags(cons_rel_stats, descriptors, flags, no_flags):
+            #What about moving this function in pathsim.py ?
             nodes  = []
             for fprint in cons_rel_stats:
                 rel_stat = cons_rel_stats[fprint]

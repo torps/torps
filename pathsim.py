@@ -17,7 +17,7 @@ import network_modifiers
 import event_callbacks
 import importlib
 import logging
-
+import pdb
 logger = logging.getLogger(__name__)
 _testing = False#True
 
@@ -29,8 +29,8 @@ class TorOptions:
     
     num_guards = 3
     min_num_guards = 2
-    guard_expiration_min = 60*24*3600 # min time until guard removed from list
-    guard_expiration_max = 90*24*3600 # max time until guard removed from list 
+    guard_expiration_min = 30*24*3600 # min time until guard removed from list
+    guard_expiration_max = 60*24*3600 # max time until guard removed from list 
     default_bwweightscale = 10000   
     
     # max age of a dirty circuit to which new streams can be assigned
@@ -1336,8 +1336,8 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,
                 cons_rel_stats[middle_node].fingerprint))
                 
         # ensure one member of the circuit supports the ntor handshake
-        ntor_supported = circuit_supports_ntor(guard_node, middle_node,
-            exit_node, descriptors)
+        ntor_supported = True#circuit_supports_ntor(guard_node, middle_node,
+            #exit_node, descriptors)
         num_attempts += 1
     if _testing:
         if ntor_supported:
@@ -1420,7 +1420,7 @@ def create_circuits(network_states, streams, num_samples, congmodel,
             cons_rel_stats = network_state.cons_rel_stats
             hibernating_statuses = network_state.hibernating_statuses
             new_descriptors = network_state.descriptors
-
+            #pdb.set_trace()
             # clear hibernating status to ensure updates come from ns_file
             hibernating_status = {}
                         
