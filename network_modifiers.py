@@ -77,8 +77,7 @@ class AdversaryInsertion(object):
                 for flag in flags:
                     if flag in rel_stat.flags:
                         i+=1
-                if i == len(flags) and j==0 and (fprint in descriptors\
-                        or fprint in self.adv_descriptors):
+                if i == len(flags) and j==0 and fprint in descriptors:
                     nodes.append(fprint)
             return nodes
 
