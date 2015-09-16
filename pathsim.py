@@ -1673,7 +1673,7 @@ consensuses')
         help='class to modify network, argument syntax: module.class-argstring')
     simulate_parser.add_argument('--num_guards', type=int, default=3,
         help='indicates size of client guard list')
-    simulate_parser.add_argument('--guard_expiration', type=int, default=60,
+    simulate_parser.add_argument('--guard_expiration', type=int, default=30,
         help='indicates time in days until one-month period during which guard\
 may expire, with 0 indicating no guard expiration')
     simulate_parser.add_argument('--loglevel', choices=['DEBUG', 'INFO',

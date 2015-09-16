@@ -3,6 +3,7 @@
 from stem import Flag
 from stem.exit_policy import ExitPolicy
 import pathsim
+import pdb
 
 class Enum(tuple): __getattr__ = tuple.index
 
@@ -78,7 +79,8 @@ class AdversaryInsertion(object):
                 for flag in flags:
                     if flag in rel_stat.flags:
                         i+=1
-                if i == len(flags) and j==0 and fprint in descriptors:
+                if i == len(flags) and j==0 and (fprint in descriptors\
+                        or fprint in self.adv_descriptors):
                     nodes.append(fprint)
             return nodes
 
@@ -210,6 +212,7 @@ class AdversaryInsertion(object):
         """
         (G, M, E, D, T) = self.compute_tot_bandwidths(network_state.cons_rel_stats,\
                 network_state.descriptors)
+        pdb.set_trace()
         weightscale = network_state.cons_bwweightscale
         if (3*E >= T and 3*G >= T):
             #Case 1: Neither are scarce
