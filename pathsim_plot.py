@@ -494,6 +494,6 @@ assumed that input filenames are of form x.y.z, and output files will use x for 
     
     if (plot_type == 'set'):
         # plot data from compromised-set adversary
-        compromised_set_plot([pathnames], ["typical"], out_dir, out_name)
+        compromised_set_plot(pathnames, None, out_dir, out_name)
     elif (plot_type == 'top'):
         compromised_top_relays_plot(pathnames, out_dir)
