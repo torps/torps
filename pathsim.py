@@ -27,8 +27,8 @@ class TorOptions:
     # given by #define ROUTER_MAX_AGE (60*60*48) in or.h    
     router_max_age = 60*60*48    
     
-    num_guards = 3
-    min_num_guards = 2
+    num_guards = 1
+    min_num_guards = 1
     guard_expiration_min = 60*24*3600 # min time until guard removed from list
     guard_expiration_max = 90*24*3600 # max time until guard removed from list 
     default_bwweightscale = 10000   
@@ -1671,7 +1671,7 @@ consensuses')
         help='indicates the number of adversarial exits to add')
     simulate_parser.add_argument('--other_network_modifier', default=None,
         help='class to modify network, argument syntax: module.class-argstring')
-    simulate_parser.add_argument('--num_guards', type=int, default=3,
+    simulate_parser.add_argument('--num_guards', type=int, default=1,
         help='indicates size of client guard list')
     simulate_parser.add_argument('--guard_expiration', type=int, default=60,
         help='indicates time in days until one-month period during which guard\
