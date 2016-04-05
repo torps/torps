@@ -1647,7 +1647,7 @@ ServerDescriptor) instead of the analagous stem classes')
         help='stores the network state files to use')
     simulate_parser.add_argument('--num_samples', type=int, default=1,
         help='number of simulations to execute')
-    simulate_parser.add_argument('--trace_file', default=None,
+    simulate_parser.add_argument('--trace_file', default="in/users2-processed.traces.pickle",
         help='name of files containing the user traces')
     simulate_parser.add_argument('--user_model', default='simple=600',
         help='user model to build out of traces, with standard trace file one \
