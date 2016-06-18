@@ -1,4 +1,5 @@
 ### Classes that provide callback interface:
+#     start(): called at start of simulation, before any other callback
 #     set_network_state(cons_valid_after, cons_fresh_until, cons_bw_weights,
 #         cons_bwweightscale, cons_rel_stats, descriptors): called every simulation period on new
 #         consensus and descriptor data
@@ -19,7 +20,7 @@ class PrintStreamAssignments(object):
         self.descriptors = None
         self.sample_id = None
 
-    def print_header(self):
+    def start(self):
         """Prints log header for stream lines."""
         if self.testing:
             return
@@ -114,7 +115,7 @@ class PrintStreamAssignmentsAdvRelays(object):
         if self.testing:
             print('Found {} adversary relays'.format(len(self.adv_relays)))
 
-    def print_header(self):
+    def start(self):
         """Prints log header for stream lines."""
         
         if self.testing:

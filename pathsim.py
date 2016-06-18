@@ -1841,7 +1841,7 @@ pathsim, and pickle it. The pickled object is input to the simulate command')
         output_module = importlib.import_module(output_modulename)
         output_class = getattr(output_module, output_classname)
         callbacks = output_class(args.format, _testing, file=sys.stdout)
-        callbacks.print_header()
+        callbacks.start()
 
         # simulate circuit creation and stream assignment
         create_circuits(network_states, streams, args.num_samples, congmodel,
