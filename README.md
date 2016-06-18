@@ -104,12 +104,12 @@ Basic path simulation can be done entirely with pathsim.py. It requires Stem
   behavior as given in the included trace file, a malicious guard relay is added with consensus
   bandwidth 15000, a malicious exit relay is added with consensus bandwidth 10000, the output
   indicates only if a malicious guard and/or exit is selected, the number of 
-  client guards is adjusted to 1, and guard expiration occurs randomly between 270 and 300 days 
+  client guards is adjusted to 2, and guard expiration occurs randomly between 270 and 300 days 
   after initial selection:
   <pre><code>python pathsim.py simulate --nsf_dir out/ns-2013-08--2014-07 --num_samples 5000
   --trace_file in/users2-processed.traces.pickle --user_model typical --format relay-adv
   --adv_guard_cons_bw 15000 --adv_exit_cons_bw 10000 --adv_time 0 --num_adv_guards 1
-  --num_adv_exits 1 --num_guards 1 --guard_expiration 270 --loglevel INFO tor
+  --num_adv_exits 1 --num_guards 2 --guard_expiration 270 --loglevel INFO tor
   </pre></code>  
   The included trace file (in/users2-processed.traces.pickle) includes six 20-minute traces recorded 
   from a volunteer using Tor for the following activities: Facebook, Gmail / Google Chat (now 
