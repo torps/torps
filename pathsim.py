@@ -1634,9 +1634,8 @@ hibernating statuses are pickled and written to disk.')
 directories are located')
     process_parser.add_argument('--out_dir',
         help='directory in which to locate output network state files')
-    process_parser.add_argument('--slim', action='store_true',
-        help='Output the slimmer TorPS classes (e.g. NetworkStatusDocument and \
-ServerDescriptor) instead of the analagous stem classes')
+    process_parser.add_argument('--fat', action='store_true',
+        help='Output the "fat" representation instead of TorPS classes, which TorPS cannot use for simulation')
     process_parser.add_argument('--initial_descriptor_dir', default=None,
         help='Directory containing descriptors to initialize consensus processing. Needed to provide first consensuses in a month with descriptors only contained in archive from previous month. If omitted, first 24 hours of network state files will likely omit relays due to missing descriptors.')
 
@@ -1743,7 +1742,7 @@ pathsim, and pickle it. The pickled object is input to the simulate command')
                 in_dirs.append((cons_dir, desc_dir, desc_out_dir))
                 month += 1
             month = 1
-        process_consensuses.process_consensuses(in_dirs, args.slim,
+        process_consensuses.process_consensuses(in_dirs, args.fat,
             args.initial_descriptor_dir)
     elif (args.subparser == 'simulate'):
         logging.basicConfig(stream=sys.stdout, level=getattr(logging,

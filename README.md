@@ -44,7 +44,7 @@ Basic path simulation can be done entirely with pathsim.py. It requires Stem
   </pre></code>
   Replace [args] with "-h" for argument details. An example of this command is:
   <pre><code>python pathsim.py process --start_year 2013 --start_month 8 --end_year 2014 --end_month 7
-  --in_dir in --out_dir out --slim --initial_descriptor_dir in/server-descriptors-2013-07
+  --in_dir in --out_dir out --initial_descriptor_dir in/server-descriptors-2013-07
   </pre></code>
     TorPS expects to find all consensuses and descriptors for a given month in the format
   and organization of the metrics.torproject.org consensus archives. Extract the
@@ -58,8 +58,7 @@ Basic path simulation can be done entirely with pathsim.py. It requires Stem
   a given month into the directory "[out_dir]/network-state-[year]-[month]", which will
   be created if it doesn't exist.
   
-    If --slim is provided (recommended), then the network state files will not use the stem
-  classes and will be smaller and faster to process during simulation.
+    If --fat is provided (not recommended), then the network state files will contain all consensus and descriptor information but cannot be used for simulation. This is useful to inspect the network states of a simulation more fully.
   
     If the consensuses being processed start at the very beginning of a
   month, which is true assuming you just extract some monthly consensus archives as

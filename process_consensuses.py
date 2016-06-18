@@ -45,20 +45,20 @@ def read_descriptors(descriptors, descriptor_dir, skip_listener):
             format(num_descriptors,num_relays)) 
 
 
-def process_consensuses(in_dirs, slim, initial_descriptor_dir):
+def process_consensuses(in_dirs, fat, initial_descriptor_dir):
     """For every input consensus, finds the descriptors published most recently before the descriptor times listed for the relays in that consensus, records state changes indicated by descriptors published during the consensus fresh period, and writes out pickled consensus and descriptor objects with the relevant information.
         Inputs:
             in_dirs: list of (consensus in dir, descriptor in dir,
                 processed descriptor out dir) triples *in order*
-            slim: Whether to use custom slim classes or Stem classes.
+            fat: Whether to use "fat" (aka full) representation or custom slim classes
             initial_descriptor_dir: Contains descriptors to initialize processing.
     """
     descriptors = {}
     def skip_listener(path, exception):
         print('ERROR [{0}]: {1}'.format(path.encode('ascii', 'ignore'), exception.__unicode__().encode('ascii','ignore')))
         
-    if slim:
-        print('Outputting slim classes.')
+    if fat:
+        print('Outputting fat classes.')
         
     # initialize descriptors
     if (initial_descriptor_dir is not None):
@@ -97,7 +97,7 @@ def process_consensuses(in_dirs, slim, initial_descriptor_dir):
             hibernating_statuses = [] # (time, fprint, hibernating)
             cons_valid_after = None
             cons_fresh_until = None
-            if slim:
+            if not fat:
                 cons_bw_weights = None
                 cons_bwweightscale = None
                 relays = {}
@@ -118,7 +118,7 @@ def process_consensuses(in_dirs, slim, initial_descriptor_dir):
                     cons_fresh_until = document.fresh_until
                     # compute timestamp version once here
                     fresh_until_ts = pathsim.timestamp(cons_fresh_until)
-                if slim:
+                if not fat:
                     if (cons_bw_weights == None):
                         cons_bw_weights = document.bandwidth_weights
                     if (cons_bwweightscale == None) and \
@@ -172,7 +172,7 @@ def process_consensuses(in_dirs, slim, initial_descriptor_dir):
                     num_found += 1
                     # store discovered recent descriptor
                     desc = descriptors[r_stat.fingerprint][desc_time]
-                    if slim:
+                    if not fat:
                         descriptors_out[r_stat.fingerprint] = \
                             pathsim.ServerDescriptor(desc.fingerprint, \
                                 desc.hibernating, desc.nickname, \
@@ -216,7 +216,7 @@ def process_consensuses(in_dirs, slim, initial_descriptor_dir):
             # hibernating status changes
             if (cons_valid_after != None) and\
                 (cons_fresh_until != None):
-                if slim:
+                if not fat:
                     consensus_out = pathsim.NetworkStatusDocument(\
                         cons_valid_after, cons_fresh_until, cons_bw_weights,\
                         cons_bwweightscale, relays)
