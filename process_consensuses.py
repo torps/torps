@@ -125,9 +125,9 @@ def process_consensuses(in_dirs, slim, initial_descriptor_dir):
                         ('bwweightscale' in document.params):
                         cons_bwweightscale = document.params[\
                                 'bwweightscale']
-                    for r_stat in document.routers:
-                        relays[r_stat.fingerprint] = pathsim.RouterStatusEntry(\
-                            r_stat.fingerprint, r_stat.nickname, r_stat.flags, r_stat.bandwidth)
+                    for fprint, r_stat in document.routers.iteritems():
+                        relays[fprint] = pathsim.RouterStatusEntry(fprint, r_stat.nickname,
+                            r_stat.flags, r_stat.bandwidth)
                 consensus = document
                 i += 1
                             
