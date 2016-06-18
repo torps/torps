@@ -58,7 +58,7 @@ Basic path simulation can be done entirely with pathsim.py. It requires Stem
   a given month into the directory "[out_dir]/network-state-[year]-[month]", which will
   be created if it doesn't exist.
   
-    If --fat is provided (not recommended), then the network state files will contain all consensus and descriptor information but cannot be used for simulation. This is useful to inspect the network states of a simulation more fully.
+    If --fat is provided, then the network state files will contain all data from the Tor consensuses and descriptors. However, the resulting "fat" network state files *cannot* be used by TorPS for simulation. They may be useful to inspect more fully the network states of a given simulation.
   
     If the consensuses being processed start at the very beginning of a
   month, which is true assuming you just extract some monthly consensus archives as
