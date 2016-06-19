@@ -56,6 +56,7 @@ class AdversaryInsertion(object):
                 hibernating, nickname, family, address, exit_policy,
                 ntor_onion_key)
 
+
     def compute_tot_bandwidths(self, cons_rel_stats, descriptors):
         """ Compute 
         G the total bandwidth for Guard-flagged nodes
@@ -82,13 +83,13 @@ class AdversaryInsertion(object):
                     nodes.append(fprint)
             return nodes
 
-        guards = filter_flags(cons_rel_stats, descriptors,\
+        guards = filter_flags(cons_rel_stats, descriptors,
                     [Flag.RUNNING, Flag.VALID, Flag.GUARD], [Flag.EXIT])
-        exits = filter_flags(cons_rel_stats, descriptors,\
+        exits = filter_flags(cons_rel_stats, descriptors,
                     [Flag.RUNNING, Flag.VALID, Flag.EXIT], [Flag.GUARD])
-        middles = filter_flags(cons_rel_stats, descriptors,\
+        middles = filter_flags(cons_rel_stats, descriptors,
                     [Flag.RUNNING, Flag.VALID], [Flag.GUARD, Flag.EXIT])
-        guards_exits = filter_flags(cons_rel_stats, descriptors,\
+        guards_exits = filter_flags(cons_rel_stats, descriptors,
                         [Flag.RUNNING, Flag.VALID, Flag.GUARD, Flag.EXIT], [])
         G = M = E = D = T = 0
         
@@ -103,6 +104,7 @@ class AdversaryInsertion(object):
 
         T = G+M+E+D
         return (int(G), int(M), int(E), int(D), int(T))
+
 
     def check_weights_errors(self, Wgg, Wgd, Wmg, Wme, Wmd, Wee, Wed,
             weightscale, G, M, E, D, T, margin, do_balance):
@@ -134,7 +136,7 @@ class AdversaryInsertion(object):
             if (not check_eq(Wgg*G+Wgd*D, Wee*E+Wed*D, (margin*T)/3)):
                 return self.bww_errors.BALANCE_EG_ERROR
             #Wgg*G+Wgd*D == M*weightscale + Wmd*D + Wme * E + Wmg*G
-            if (not check_eq(Wgg*G+Wgd*D, M*weightscale+Wmd*D+Wme*E+Wmg*G,\
+            if (not check_eq(Wgg*G+Wgd*D, M*weightscale+Wmd*D+Wme*E+Wmg*G,
                     (margin*T)/3)):
                 return self.bww_errors.BALANCE_MID_ERROR
 
@@ -151,8 +153,8 @@ class AdversaryInsertion(object):
             args.adv_exit_cons_bw)
         self.testing = testing
         self.first_modification = True
-        self.bww_errors = Enum(("NO_ERROR","SUMG_ERROR", "SUME_ERROR",\
-                "SUMD_ERROR","BALANCE_MID_ERROR", "BALANCE_EG_ERROR",\
+        self.bww_errors = Enum(("NO_ERROR","SUMG_ERROR", "SUME_ERROR",
+                "SUMD_ERROR","BALANCE_MID_ERROR", "BALANCE_EG_ERROR",
                 "RANGE_ERROR"))
 
         
@@ -192,9 +194,9 @@ class AdversaryInsertion(object):
                        Wed={4}, Wmg={5}, Wme={6}, Wmd={7}.\n
                        The weights received from the consensus are Wgg=
                        {8}, Wgd={9}, Wee={10}, Wed={11}, Wmg={12}, Wme=
-                       {13}, Wmd={14} """.format(casename, Wgg, Wgd, Wee,\
-                       Wed, Wmg, Wme, Wmd, bwweights['Wgg'], bwweights['Wgd'],\
-                       bwweights['Wee'], bwweights['Wed'], bwweights['Wmg'],\
+                       {13}, Wmd={14} """.format(casename, Wgg, Wgd, Wee,
+                       Wed, Wmg, Wme, Wmd, bwweights['Wgg'], bwweights['Wgd'],
+                       bwweights['Wee'], bwweights['Wed'], bwweights['Wmg'],
                        bwweights['Wme'], bwweights['Wmd']))
             bwweights['Wgg'] = Wgg
             bwweights['Wgd'] = Wgd
@@ -208,7 +210,7 @@ class AdversaryInsertion(object):
         """Detects in which network case load we are according to section 3.8.3
         of dir-spec.txt from Tor' specifications and recompute bandwidth weights
         """
-        (G, M, E, D, T) = self.compute_tot_bandwidths(network_state.cons_rel_stats,\
+        (G, M, E, D, T) = self.compute_tot_bandwidths(network_state.cons_rel_stats,
                 network_state.descriptors)
         weightscale = network_state.cons_bwweightscale
         if (3*E >= T and 3*G >= T):
@@ -220,12 +222,12 @@ class AdversaryInsertion(object):
             Wmg = (weightscale*(2*G-E-M))/(3*G)
             Wgg = weightscale - Wmg
             
-            check = self.check_weights_errors(Wgg, Wgd, Wmg, Wme, Wmd, Wee, Wed,\
+            check = self.check_weights_errors(Wgg, Wgd, Wmg, Wme, Wmd, Wee, Wed,
                     weightscale, G, M, E, D, T, 10, True)
             if (check):
                 raise ValueError(\
                         'ERROR: {0}  Wgd={1}, Wed={2}, Wmd={3}, Wee={4},\
-                         Wmd={4}, Wgg={6}'.format(self.bww_errors[check],\
+                         Wmd={4}, Wgg={6}'.format(self.bww_errors[check],
                          Wgd, Wed, Wmd, Wee, Wmg, Wgg))
         elif (3*E < T and 3*G < T):
             #Case 2: Both Guards and Exits are scarce
@@ -257,7 +259,7 @@ class AdversaryInsertion(object):
                 Wgg = weightscale
                 Wmd = Wgd = (weightscale-Wed)/2
                 
-                check = self.check_weights_errors(Wgg, Wgd, Wmg, Wme, Wmd,\
+                check = self.check_weights_errors(Wgg, Wgd, Wmg, Wme, Wmd,
                         Wee, Wed, weightscale, G, M, E, D, T, 10, True)
                 if (check):
                     casename = 'Case 2b2 (Wgg=1, Wee=1)'
@@ -271,13 +273,13 @@ class AdversaryInsertion(object):
                         Wmd = 0
                     Wgd = weightscale - Wed - Wmd
                     
-                    check = self.check_weights_errors(Wgg, Wgd, Wmg, Wme, Wmd,\
+                    check = self.check_weights_errors(Wgg, Wgd, Wmg, Wme, Wmd,
                             Wee, Wed, weightscale, G, M, E, D, T, 10, True)
                 if (check != self.bww_errors.NO_ERROR and check !=\
                         self.bww_errors.BALANCE_MID_ERROR):
                     raise ValueError(\
                         'ERROR: {0}  Wgd={1}, Wed={2}, Wmd={3}, Wee={4},\
-                         Wmd={4}, Wgg={6}'.format(self.bww_errors[check],\
+                         Wmd={4}, Wgg={6}'.format(self.bww_errors[check],
                          Wgd, Wed, Wmd, Wee, Wmg, Wgg))
         else: # if (E < T/3 or G < T/3)
             #Case 3: Guard or Exit is scarce
@@ -318,8 +320,8 @@ class AdversaryInsertion(object):
                     Wme = weightscale - Wee
                     Wmd = Wed = (weightscale-Wgd)/2
 
-                    check = self.check_weights_errors(Wgg, Wgd, Wmg, Wme,\
-                            Wmd, Wee, Wed, weightscale, G, M, E, D, T, 10,\
+                    check = self.check_weights_errors(Wgg, Wgd, Wmg, Wme,
+                            Wmd, Wee, Wed, weightscale, G, M, E, D, T, 10,
                             True)
                 else:
                     # G >= E
@@ -333,15 +335,14 @@ class AdversaryInsertion(object):
                     Wmg = weightscale - Wgg
                     Wmd = Wgd = (weightscale-Wed)/2
 
-                    check = self.check_weights_errors(Wgg, Wgd, Wmg, Wme,\
-                            Wmd, Wee, Wed,  weightscale, G, M, E, D, T, 10,\
+                    check = self.check_weights_errors(Wgg, Wgd, Wmg, Wme,
+                            Wmd, Wee, Wed,  weightscale, G, M, E, D, T, 10,
                             True)
-
 
                 if (check):
                     raise ValueError(\
                         'ERROR: {0}  Wgd={1}, Wed={2}, Wmd={3}, Wee={4},\
-                         Wmd={4}, Wgg={6}'.format(self.bww_errors[check],\
+                         Wmd={4}, Wgg={6}'.format(self.bww_errors[check],
                          Wgd, Wed, Wmd, Wee, Wmg, Wgg))
 
         return (casename, Wgg, Wgd, Wee, Wed, Wmg, Wme, Wmd)
