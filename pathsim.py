@@ -27,8 +27,8 @@ class TorOptions:
     # given by #define ROUTER_MAX_AGE (60*60*48) in or.h    
     router_max_age = 60*60*48    
     
-    num_guards = 3
-    min_num_guards = 2
+    num_guards = 1
+    min_num_guards = 1
     guard_expiration_min = 60*24*3600 # min time until guard removed from list
     guard_expiration_max = 90*24*3600 # max time until guard removed from list 
     default_bwweightscale = 10000   
@@ -123,6 +123,35 @@ class ServerDescriptor:
         self.address = address
         self.exit_policy = exit_policy
         self.ntor_onion_key = ntor_onion_key
+
+
+    def __getstate__(self):
+        """Used for headache-free pickling. Turns ExitPolicy into its string
+        representation, rather than using the repeatedly problematic object."""
+
+        state = dict()
+        state['fingerprint'] = self.fingerprint
+        state['hibernating'] = self.hibernating
+        state['nickname'] = self.nickname
+        state['family'] = self.family
+        state['address'] = self.address
+        state['exit_policy'] = str(self.exit_policy)
+        state['ntor_onion_key'] = self.ntor_onion_key
+        
+        return state
+
+
+    def __setstate__(self, state):
+        """Used for headache-free unpickling. Creates ExitPolicy from string
+        representation."""
+
+        self.fingerprint = state['fingerprint']
+        self.hibernating = state['hibernating']
+        self.nickname = state['nickname']
+        self.family = state['family']
+        self.address = state['address']
+        self.exit_policy = ExitPolicy(*state['exit_policy'].split(', '))
+        self.ntor_onion_key = state['ntor_onion_key']
     
 
 def timestamp(t):
@@ -302,7 +331,7 @@ def filter_exits(cons_rel_stats, descriptors, fast, stable, internal, ip,\
     for fprint in cons_rel_stats:
         if exit_filter(fprint, cons_rel_stats, descriptors, fast, stable,\
             internal, ip, port, False):
-                exits.append(fprint)
+            exits.append(fprint)
     return exits
     
 
@@ -313,7 +342,7 @@ def filter_exits_loose(cons_rel_stats, descriptors, fast, stable, internal,\
     for fprint in cons_rel_stats:
         if exit_filter(fprint, cons_rel_stats, descriptors, fast, stable,\
             internal, ip, port, True):
-                exits.append(fprint)
+            exits.append(fprint)
     return exits
 
     
@@ -1261,8 +1290,8 @@ def create_circuit(cons_rel_stats, cons_valid_after, cons_fresh_until,
                 if (not guards[guard_node]['made_contact']):
                     del guards[guard_node]
                     if _testing:
-                        print('[Time {0}]: Removed new hibernating guard: {}.'.\
-                            format(circ_time,
+                        print('[Time {0}]: Removed new hibernating guard: {1}.'\
+                            .format(circ_time,
                                 cons_rel_stats[guard_node].nickname))
                 elif (guards[guard_node]['unreachable_since'] != None):
                     guards[guard_node]['last_attempted'] = circ_time
@@ -1601,13 +1630,12 @@ hibernating statuses are pickled and written to disk.')
     process_parser.add_argument('--end_month', type=int,
         help='month in which to end processing')
     process_parser.add_argument('--in_dir',
-        help='directory in which input consensus and descriptor\
+        help='directory in which input consensus and descriptor \
 directories are located')
     process_parser.add_argument('--out_dir',
         help='directory in which to locate output network state files')
-    process_parser.add_argument('--slim', action='store_true',
-        help='Output the slimmer TorPS classes (e.g. NetworkStatusDocument and \
-ServerDescriptor) instead of the analagous stem classes')
+    process_parser.add_argument('--fat', action='store_true',
+        help='Output the "fat" representation instead of TorPS classes, which TorPS cannot use for simulation')
     process_parser.add_argument('--initial_descriptor_dir', default=None,
         help='Directory containing descriptors to initialize consensus processing. Needed to provide first consensuses in a month with descriptors only contained in archive from previous month. If omitted, first 24 hours of network state files will likely omit relays due to missing descriptors.')
 
@@ -1618,7 +1646,7 @@ ServerDescriptor) instead of the analagous stem classes')
         help='stores the network state files to use')
     simulate_parser.add_argument('--num_samples', type=int, default=1,
         help='number of simulations to execute')
-    simulate_parser.add_argument('--trace_file', default=None,
+    simulate_parser.add_argument('--trace_file', default="in/users2-processed.traces.pickle",
         help='name of files containing the user traces')
     simulate_parser.add_argument('--user_model', default='simple=600',
         help='user model to build out of traces, with standard trace file one \
@@ -1642,7 +1670,7 @@ consensuses')
         help='indicates the number of adversarial exits to add')
     simulate_parser.add_argument('--other_network_modifier', default=None,
         help='class to modify network, argument syntax: module.class-argstring')
-    simulate_parser.add_argument('--num_guards', type=int, default=3,
+    simulate_parser.add_argument('--num_guards', type=int, default=1,
         help='indicates size of client guard list')
     simulate_parser.add_argument('--guard_expiration', type=int, default=60,
         help='indicates time in days until one-month period during which guard\
@@ -1714,7 +1742,7 @@ pathsim, and pickle it. The pickled object is input to the simulate command')
                 in_dirs.append((cons_dir, desc_dir, desc_out_dir))
                 month += 1
             month = 1
-        process_consensuses.process_consensuses(in_dirs, args.slim,
+        process_consensuses.process_consensuses(in_dirs, args.fat,
             args.initial_descriptor_dir)
     elif (args.subparser == 'simulate'):
         logging.basicConfig(stream=sys.stdout, level=getattr(logging,
@@ -1812,7 +1840,7 @@ pathsim, and pickle it. The pickled object is input to the simulate command')
         output_module = importlib.import_module(output_modulename)
         output_class = getattr(output_module, output_classname)
         callbacks = output_class(args.format, _testing, file=sys.stdout)
-        callbacks.print_header()
+        callbacks.start()
 
         # simulate circuit creation and stream assignment
         create_circuits(network_states, streams, args.num_samples, congmodel,

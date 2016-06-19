@@ -43,7 +43,8 @@ Basic path simulation can be done entirely with pathsim.py. It requires Stem
   <pre><code>python pathsim.py process [args]
   </pre></code>
   Replace [args] with "-h" for argument details. An example of this command is:
-  <pre><code>python pathsim.py process --start_year 2013 --start_month 8 --end_year 2014 --end_month 7 --in_dir in --out_dir out --slim --initial_descriptor_dir in/server-descriptors-2013-07
+  <pre><code>python pathsim.py process --start_year 2013 --start_month 8 --end_year 2014 --end_month 7
+  --in_dir in --out_dir out --initial_descriptor_dir in/server-descriptors-2013-07
   </pre></code>
     TorPS expects to find all consensuses and descriptors for a given month in the format
   and organization of the metrics.torproject.org consensus archives. Extract the
@@ -57,8 +58,7 @@ Basic path simulation can be done entirely with pathsim.py. It requires Stem
   a given month into the directory "[out_dir]/network-state-[year]-[month]", which will
   be created if it doesn't exist.
   
-    If --slim is provided (recommended), then the network state files will not use the stem
-  classes and will be smaller and faster to process later.
+    If --fat is provided, then the network state files will contain all data from the Tor consensuses and descriptors. However, the resulting "fat" network state files *cannot* be used by TorPS for simulation. They may be useful to inspect more fully the network states of a given simulation.
   
     If the consensuses being processed start at the very beginning of a
   month, which is true assuming you just extract some monthly consensus archives as
@@ -69,7 +69,7 @@ Basic path simulation can be done entirely with pathsim.py. It requires Stem
   actually existed in the Tor network at that time. This is
   because a relay is only included if its descriptor has been found in a descriptor archive,
   but a relay only publishes a new descriptor after ~18 hours. Thus the for the
-  initial hours, the needed descriptors are in the descriptor archive of the month *before*
+  initial hours, the needed descriptors are in the descriptor archive of the month before
   the period being processed. You can see how many relays are included in each network
   state file by looking at the output lines of the process command. For example, the
   relevant lines should look something like:
@@ -80,8 +80,8 @@ Basic path simulation can be done entirely with pathsim.py. It requires Stem
   Notice in this example that nearly all relays are missing descriptors here (and thus
   would not exist in the network state file), which occurred in this case because the
   consensuses to process started 2013-09-01-00-00-00 and --initial_descriptor_dir was omitted.
-  Output from the second day of this examples shows that indeed there are no missing descriptors by
-  the second day:
+  Output from the second day of this example shows that indeed there are no missing descriptors
+  after at most 24 hours of consensuses:
   <pre><code>Processing consensus file 2013-09-02-00-00-00-consensus
   ...
   Wrote descriptors for 4261 relays.
@@ -93,25 +93,32 @@ Basic path simulation can be done entirely with pathsim.py. It requires Stem
   2. Run simulations over a given period. This is done with the following command:
   <pre><code>python pathsim.py simulate [args]
   </pre></code>
-  Replace [args] with "-h" for argument details. An example of the command for a 5000-sample simulation in which the client makes a connection to Google (74.125.131.105) every 10 minutes is:
-  <pre><code>python pathsim.py simulate --nsf_dir out/ns-2013-08--2014-07 --num_samples 5000 --user_model simple=600 --format normal tor
+  Replace [args] with "-h" for argument details. An example of the command for a 5000-sample
+  simulation in which the client makes a connection to Google (74.125.131.105) every 10 minutes
+  (i.e. 600 seconds) is:
+  <pre><code>python pathsim.py simulate --nsf_dir out/ns-2013-08--2014-07 --num_samples 5000 
+  --user_model simple=600 --format normal tor
   </pre></code>
-  Following is another example of the command that executes a simulation in which user has "typical"
+  Following is another example of the simulate command. This example executes a simulation in which
+  the user has "typical"
   behavior as given in the included trace file, a malicious guard relay is added with consensus
   bandwidth 15000, a malicious exit relay is added with consensus bandwidth 10000, the output
-  just indicates when a malicious guard and/or exit is selected, the number of 
-  client guards is adjusted to 1, and guard expiration occurs randomly between 270 and 300 days 
+  indicates only if a malicious guard and/or exit is selected, the number of 
+  client guards is adjusted to 2, and guard expiration occurs randomly between 270 and 300 days 
   after initial selection:
-  <pre><code>python pathsim.py simulate --nsf_dir out/ns-2013-08--2014-07 --num_samples 5000 --trace_file in/users2-processed.traces.pickle --user_model typical --format relay-adv --adv_guard_cons_bw 15000 --adv_exit_cons_bw 10000 --adv_time 0 --num_adv_guards 1 --num_adv_exits 1 --num_guards 1 --guard_expiration 270 --loglevel INFO tor
+  <pre><code>python pathsim.py simulate --nsf_dir out/ns-2013-08--2014-07 --num_samples 5000
+  --trace_file in/users2-processed.traces.pickle --user_model typical --format relay-adv
+  --adv_guard_cons_bw 15000 --adv_exit_cons_bw 10000 --adv_time 0 --num_adv_guards 1
+  --num_adv_exits 1 --num_guards 2 --guard_expiration 270 --loglevel INFO tor
   </pre></code>  
-
-The included trace file (in/users2-processed.traces.pickle) includes six 20-minute traces recorded 
-from a volunteer using Tor for the following activities: Facebook, Gmail / Google Chat (now 
-Hangouts), Google Calendar / Google Docs, Web search, IRC, and BitTorrent. These are repeated on a
-weekly schedule to create user models that fill the simulated time period. Also, a "typical" model
-is created including all of  the first four (i.e. Facebook, Gmail/GChat, GCal/GDocs, Web search) in
-the schedule, and "best" and "worst" models are created by replacing the TCP ports in the typical
-model with port 443 and 6523, respectively. See the paper "Users Get Routed: Traffic Correlation on Tor by Realistic Adversaries" cited above for details on these traces and models.
+  The included trace file (in/users2-processed.traces.pickle) includes six 20-minute traces recorded 
+  from a volunteer using Tor for the following activities: Facebook, Gmail / Google Chat (now 
+  Hangouts), Google Calendar / Google Docs, Web search, IRC, and BitTorrent. These are repeated on a
+  weekly schedule to create user models that fill the simulated time period. Also, a "typical" model
+  is provided including all of  the first four traces (i.e. Facebook, Gmail/GChat, GCal/GDocs, Web
+  search) in the schedule, and "best" and "worst" models are provided by replacing the TCP ports in
+  the typical model with ports 443 and 6523, respectively. See the paper "Users Get Routed: Traffic
+  Correlation on Tor by Realistic Adversaries" cited above for details on these traces and models.
 	    
 ### Plotting Simulation Data
 TorPS includes some basic functions to quickly analyze and view the results of your
@@ -129,6 +136,6 @@ compromise time and rate for the guard/exit/guard&exit of user circuits. See the
 output for command options.
 
 ### Versions
-The latest version of TorPS (tag "tor-0.2.4.23") simulation path selection as performed by
+The latest version of TorPS (tag "tor-0.2.4.23") simulates path selection as performed by
 Tor stable release 0.2.4.23. The TorPS version at tag "tor-0.2.3.25" simulates path selection
 as performed by Tor stable release 0.2.3.25.

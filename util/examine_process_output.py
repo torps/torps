@@ -163,8 +163,8 @@ if __name__ == '__main__':
                 if (month != start_month) or (day != 1):
                     num_missing_descriptors_after_first_day.append(nmd)
                 continue
-    print('descriptors in desc archive: {0}'.format(num_descriptors))
-    print('relays in desc archive: {0}'.format(num_relays))
+    print('descriptors in each desc archive: {0}'.format(num_descriptors))
+    print('relays with first observed descriptor in each desc archive: {0}'.format(num_relays))
     print('consensuses in month: {0}'.format(num_cons))
     if num_was_hibern:
         print('max "was hibernating": {0}'.format(max(num_was_hibern)))

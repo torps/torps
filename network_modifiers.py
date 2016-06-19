@@ -69,7 +69,7 @@ class AdversaryInsertion(object):
         descriptors dicts."""
 
         # add adversarial descriptors to nsf descriptors
-        # only add once because descriptors variable is assumed persistant
+        # only add once because descriptors variable is assumed persistent
         if (self.first_modification == True):
             network_state.descriptors.update(self.adv_descriptors)
             self.first_modification = False

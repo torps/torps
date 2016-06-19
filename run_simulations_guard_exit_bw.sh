@@ -2,12 +2,12 @@
 
 #bandwidth allocation experiments
 
-### coefficients from guard relays on 1/1/13, cf network_analysis.py
+### coefficients from guard relays on 1/1/13, obtained via linear regression
 ### a = 299.45192815560563
 ### b = 1104612.6683457776
 ### r_squared = 0.74124917207592156
 
-### coefficients from exit relays 1/13-3/13, cf network_analysis.py
+### coefficients from exit relays 1/13-3/13, obtained via linear regression
 ### a = 215.85762129136413
 ### b = 1010231.1684564484
 ### r_squared = 0.68600871839386535
@@ -20,12 +20,12 @@
 #50:1    102801568       2056031         339610               4845
 
 
-### coefficients from guard relays 10/12-3/13, cf network_analysis.py
+### coefficients from guard relays 10/12-3/13, obtained via linear regression
 # exit_a = 200.49050736264786
 # exit_b = 1029509.7491675143
 # exit_r_squared = 0.69361698646482162
 
-### coefficients  from exit relays 10/12-3/13, cf network_analysis.py
+### coefficients  from exit relays 10/12-3/13, obtained via linear regression
 # guard_a = 191.94548955003913
 # guard_b = 1368281.674385923
 # guard_r_squared = 0.70610513990802581
