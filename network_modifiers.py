@@ -263,13 +263,13 @@ class AdversaryInsertion(object):
         return (casename, Wgg, Wgd, Wee, Wed, Wmg, Wme, Wmd)
 
 
-    def __init__(self, args, testing):
-        self.adv_time = args.adv_time
+    def __init__(self, adv_time, num_adv_guards, adv_guard_cons_bw, num_adv_exits, adv_exit_cons_bw,
+        testing):
+        self.adv_time = adv_time
         self.adv_relays = {}
         self.adv_descriptors = {}
-        self.add_adv_guards(args.num_adv_guards, args.adv_guard_cons_bw)
-        self.add_adv_exits(args.num_adv_guards, args.num_adv_exits,
-            args.adv_exit_cons_bw)
+        self.add_adv_guards(num_adv_guards, adv_guard_cons_bw)
+        self.add_adv_exits(num_adv_guards, num_adv_exits, adv_exit_cons_bw)
         self.testing = testing
         self.first_modification = True
         self.bww_errors = Enum(("NO_ERROR","SUMG_ERROR", "SUME_ERROR",
