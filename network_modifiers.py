@@ -57,7 +57,7 @@ class AdversaryInsertion(object):
                 ntor_onion_key)
 
 
-    def compute_tot_bandwidths(self, cons_rel_stats, descriptors):
+    def compute_tot_bandwidths(self, cons_rel_stats):
         """ Compute 
         G the total bandwidth for Guard-flagged nodes
         M the total bandwidth for non-flagged nodes
@@ -65,45 +65,27 @@ class AdversaryInsertion(object):
         D the total bandwidth for Guard+Exit-flagged nodes
         T = G+M+E+D
         """
-        
-        def filter_flags(cons_rel_stats, descriptors, flags, no_flags):
-            nodes  = []
-            for fprint in cons_rel_stats:
-                rel_stat = cons_rel_stats[fprint]
-                i = 0
-                j = 0
-                for flag in no_flags:
-                    if flag in rel_stat.flags:
-                        j+=1
-                for flag in flags:
-                    if flag in rel_stat.flags:
-                        i+=1
-                if i == len(flags) and j==0 and (fprint in descriptors\
-                        or fprint in self.adv_descriptors):
-                    nodes.append(fprint)
-            return nodes
 
-        guards = filter_flags(cons_rel_stats, descriptors,
-                    [Flag.RUNNING, Flag.VALID, Flag.GUARD], [Flag.EXIT])
-        exits = filter_flags(cons_rel_stats, descriptors,
-                    [Flag.RUNNING, Flag.VALID, Flag.EXIT], [Flag.GUARD])
-        middles = filter_flags(cons_rel_stats, descriptors,
-                    [Flag.RUNNING, Flag.VALID], [Flag.GUARD, Flag.EXIT])
-        guards_exits = filter_flags(cons_rel_stats, descriptors,
-                        [Flag.RUNNING, Flag.VALID, Flag.GUARD, Flag.EXIT], [])
+        # Set total weights based on flags. Note that the valid is not considered for weights
+        # (cf. dirvote.c:networkstatus_compute_consensus())
         G = M = E = D = T = 0
-        
-        for fprint in guards:
-            G += cons_rel_stats[fprint].bandwidth
-        for fprint in middles:
-            M += cons_rel_stats[fprint].bandwidth
-        for fprint in exits:
-            E += cons_rel_stats[fprint].bandwidth
-        for fprint in guards_exits:
-            D += cons_rel_stats[fprint].bandwidth
+        for fprint, rel_stat in cons_rel_stats.iteritems():
+            if (Flag.RUNNING not in rel_stat.flags):
+                continue
+            is_guard = Flag.GUARD in rel_stat.flags
+            is_exit = (Flag.EXIT in rel_stat.flags) and (Flag.BADEXIT not in rel_stat.flags)
 
-        T = G+M+E+D
-        return (int(G), int(M), int(E), int(D), int(T))
+            T += rel_stat.bandwidth            
+            if (is_guard and not is_exit):
+                G += rel_stat.bandwidth
+            elif (is_exit and not is_guard):
+                E += rel_stat.bandwidth
+            elif (is_guard and is_exit):
+                D += rel_stat.bandwidth
+            else:
+                M += rel_stat.bandwidth            
+
+        return (G, M, E, D, T)
 
 
     def check_weights_errors(self, Wgg, Wgd, Wmg, Wme, Wmd, Wee, Wed,
@@ -210,8 +192,7 @@ class AdversaryInsertion(object):
         """Detects in which network case load we are according to section 3.8.3
         of dir-spec.txt from Tor' specifications and recompute bandwidth weights
         """
-        (G, M, E, D, T) = self.compute_tot_bandwidths(network_state.cons_rel_stats,
-                network_state.descriptors)
+        (G, M, E, D, T) = self.compute_tot_bandwidths(network_state.cons_rel_stats)
         weightscale = network_state.cons_bwweightscale
         if (3*E >= T and 3*G >= T):
             #Case 1: Neither are scarce
@@ -224,11 +205,11 @@ class AdversaryInsertion(object):
             
             check = self.check_weights_errors(Wgg, Wgd, Wmg, Wme, Wmd, Wee, Wed,
                     weightscale, G, M, E, D, T, 10, True)
-            if (check):
+            if (check != self.bww_errors.NO_ERROR):
                 raise ValueError(\
                         'ERROR: {0}  Wgd={1}, Wed={2}, Wmd={3}, Wee={4},\
-                         Wmd={4}, Wgg={6}'.format(self.bww_errors[check],
-                         Wgd, Wed, Wmd, Wee, Wmg, Wgg))
+                         Wme={5}, Wmg={6}, Wgg={7}'.format(self.bww_errors[check],
+                         Wgd, Wed, Wmd, Wee, Wme, Wmg, Wgg))
         elif (3*E < T and 3*G < T):
             #Case 2: Both Guards and Exits are scarce
             #Balance D between E and G, depending upon D capacity and
@@ -261,8 +242,8 @@ class AdversaryInsertion(object):
                 
                 check = self.check_weights_errors(Wgg, Wgd, Wmg, Wme, Wmd,
                         Wee, Wed, weightscale, G, M, E, D, T, 10, True)
-                if (check):
-                    casename = 'Case 2b2 (Wgg=1, Wee=1)'
+                if (check != self.bww_errors.NO_ERROR):
+                    casename = 'Case 2b2 (Wgg=weightscale, Wee=weightscale)'
                     Wgg = Wee = weightscale
                     Wed = (weightscale*(D-2*E+G+M))/(3*D)
                     Wmd = (weightscale*(D-2*M+G+E))/(3*D)
@@ -278,17 +259,17 @@ class AdversaryInsertion(object):
                 if (check != self.bww_errors.NO_ERROR and check !=\
                         self.bww_errors.BALANCE_MID_ERROR):
                     raise ValueError(\
-                        'ERROR: {0}  Wgd={1}, Wed={2}, Wmd={3}, Wee={4},\
-                         Wmd={4}, Wgg={6}'.format(self.bww_errors[check],
-                         Wgd, Wed, Wmd, Wee, Wmg, Wgg))
+                            'ERROR: {0}  Wgd={1}, Wed={2}, Wmd={3}, Wee={4},\
+                             Wme={5}, Wmg={6}, Wgg={7}'.format(self.bww_errors[check],
+                             Wgd, Wed, Wmd, Wee, Wme, Wmg, Wgg))
         else: # if (E < T/3 or G < T/3)
             #Case 3: Guard or Exit is scarce
             S = min(E, G)
 
             if (not (3*E < T or  3*G < T) or not (3*G >= T or 3*E >= T)):
                 raise ValueError(\
-                        'ERROR: Bandwidths have inconsistants values \
-                        M={0}, E={1}, D={2}, T={3}'.format(M,E,D,T))
+                        'ERROR: Bandwidths have inconsistent values \
+                        G={0}, M={1}, E={2}, D={3}, T={4}'.format(G,M,E,D,T))
 
             if (3*(S+D) < T):
                 #subcasea: S+D < T/3
@@ -327,7 +308,6 @@ class AdversaryInsertion(object):
                     # G >= E
                     casename = """Case 3be (E scarce, Wee=weightscale,
                                 Wmd == Wgd"""
-
                     Wee = weightscale
                     Wed = (weightscale*(D-2*E+G+M))/(3*D)
                     Wme = 0
@@ -341,9 +321,9 @@ class AdversaryInsertion(object):
 
                 if (check):
                     raise ValueError(\
-                        'ERROR: {0}  Wgd={1}, Wed={2}, Wmd={3}, Wee={4},\
-                         Wmd={4}, Wgg={6}'.format(self.bww_errors[check],
-                         Wgd, Wed, Wmd, Wee, Wmg, Wgg))
+                            'ERROR: {0}  Wgd={1}, Wed={2}, Wmd={3}, Wee={4},\
+                             Wme={5}, Wmg={6}, Wgg={7}'.format(self.bww_errors[check],
+                             Wgd, Wed, Wmd, Wee, Wme, Wmg, Wgg))
 
         return (casename, Wgg, Wgd, Wee, Wed, Wmg, Wme, Wmd)
 
