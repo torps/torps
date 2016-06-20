@@ -9,7 +9,6 @@ class Enum(tuple): __getattr__ = tuple.index
 ### Class inserting adversary relays ###
 class AdversaryInsertion(object):
 
-
     def add_adv_guards(self, num_adv_guards, bandwidth):
         """"Adds adv guards into self.add_relays and self.add_descriptors."""
         #, adv_relays, adv_descriptors
@@ -90,7 +89,6 @@ class AdversaryInsertion(object):
 
     def check_weights_errors(self, Wgg, Wgd, Wmg, Wme, Wmd, Wee, Wed,
             weightscale, G, M, E, D, T, margin, do_balance):
-
         """Verify that our weights satify the formulas from dir-spec.txt"""
 
         def check_eq(a, b, margin):
@@ -122,71 +120,8 @@ class AdversaryInsertion(object):
                     (margin*T)/3)):
                 return self.bww_errors.BALANCE_MID_ERROR
 
-
         return self.bww_errors.NO_ERROR
 
-
-    def __init__(self, args, testing):
-        self.adv_time = args.adv_time
-        self.adv_relays = {}
-        self.adv_descriptors = {}
-        self.add_adv_guards(args.num_adv_guards, args.adv_guard_cons_bw)
-        self.add_adv_exits(args.num_adv_guards, args.num_adv_exits,
-            args.adv_exit_cons_bw)
-        self.testing = testing
-        self.first_modification = True
-        self.bww_errors = Enum(("NO_ERROR","SUMG_ERROR", "SUME_ERROR",
-                "SUMD_ERROR","BALANCE_MID_ERROR", "BALANCE_EG_ERROR",
-                "RANGE_ERROR"))
-
-        
-    def modify_network_state(self, network_state):
-        """Adds adversarial guards and exits to cons_rel_stats and
-        descriptors dicts."""
-
-        # add adversarial descriptors to nsf descriptors
-        # only add once because descriptors variable is assumed persistent
-        if (self.first_modification == True):
-            network_state.descriptors.update(self.adv_descriptors)
-            self.first_modification = False
-
-        # if insertion time has been reached, add adversarial relays into
-        # consensus and hibernating status list
-        if (self.adv_time <= network_state.cons_valid_after):
-            # include additional relays in consensus
-            if self.testing:
-                print('Adding {0} relays to consensus.'.format(\
-                    len(self.adv_relays)))
-            for fprint, relay in self.adv_relays.iteritems():
-                if fprint in network_state.cons_rel_stats:
-                    raise ValueError(\
-                        'Added relay exists in consensus: {0}:{1}'.\
-                            format(relay.nickname, fprint))
-                network_state.cons_rel_stats[fprint] = relay
-            # include hibernating statuses for added relays
-            network_state.hibernating_statuses.extend([(0, fp, False) \
-                for fp in self.adv_relays])
-            # recompute bwweights taking into account the new nodes added
-            (casename, Wgg, Wgd, Wee, Wed, Wmg, Wme, Wmd) =\
-                    self.recompute_bwweights(network_state)
-            bwweights = network_state.cons_bw_weights
-            if self.testing: 
-                print("""New computation of bwweights, network load case
-                       is {0} with weights Wgg={1}, Wgd={2}, Wee={3},
-                       Wed={4}, Wmg={5}, Wme={6}, Wmd={7}.\n
-                       The weights received from the consensus are Wgg=
-                       {8}, Wgd={9}, Wee={10}, Wed={11}, Wmg={12}, Wme=
-                       {13}, Wmd={14} """.format(casename, Wgg, Wgd, Wee,
-                       Wed, Wmg, Wme, Wmd, bwweights['Wgg'], bwweights['Wgd'],
-                       bwweights['Wee'], bwweights['Wed'], bwweights['Wmg'],
-                       bwweights['Wme'], bwweights['Wmd']))
-            bwweights['Wgg'] = Wgg
-            bwweights['Wgd'] = Wgd
-            bwweights['Wee'] = Wee
-            bwweights['Wed'] = Wed
-            bwweights['Wmg'] = Wmg
-            bwweights['Wme'] = Wme
-            bwweights['Wmd'] = Wmd
 
     def recompute_bwweights(self, network_state):
         """Detects in which network case load we are according to section 3.8.3
@@ -328,6 +263,67 @@ class AdversaryInsertion(object):
         return (casename, Wgg, Wgd, Wee, Wed, Wmg, Wme, Wmd)
 
 
+    def __init__(self, args, testing):
+        self.adv_time = args.adv_time
+        self.adv_relays = {}
+        self.adv_descriptors = {}
+        self.add_adv_guards(args.num_adv_guards, args.adv_guard_cons_bw)
+        self.add_adv_exits(args.num_adv_guards, args.num_adv_exits,
+            args.adv_exit_cons_bw)
+        self.testing = testing
+        self.first_modification = True
+        self.bww_errors = Enum(("NO_ERROR","SUMG_ERROR", "SUME_ERROR",
+                "SUMD_ERROR","BALANCE_MID_ERROR", "BALANCE_EG_ERROR",
+                "RANGE_ERROR"))
+
+        
+    def modify_network_state(self, network_state):
+        """Adds adversarial guards and exits to cons_rel_stats and
+        descriptors dicts."""
+
+        # add adversarial descriptors to nsf descriptors
+        # only add once because descriptors variable is assumed persistent
+        if (self.first_modification == True):
+            network_state.descriptors.update(self.adv_descriptors)
+            self.first_modification = False
+
+        # if insertion time has been reached, add adversarial relays into
+        # consensus and hibernating status list
+        if (self.adv_time <= network_state.cons_valid_after):
+            # include additional relays in consensus
+            if self.testing:
+                print('Adding {0} relays to consensus.'.format(\
+                    len(self.adv_relays)))
+            for fprint, relay in self.adv_relays.iteritems():
+                if fprint in network_state.cons_rel_stats:
+                    raise ValueError(\
+                        'Added relay exists in consensus: {0}:{1}'.\
+                            format(relay.nickname, fprint))
+                network_state.cons_rel_stats[fprint] = relay
+            # include hibernating statuses for added relays
+            network_state.hibernating_statuses.extend([(0, fp, False) \
+                for fp in self.adv_relays])
+            # recompute bwweights taking into account the new nodes added
+            (casename, Wgg, Wgd, Wee, Wed, Wmg, Wme, Wmd) =\
+                    self.recompute_bwweights(network_state)
+            bwweights = network_state.cons_bw_weights
+            if self.testing: 
+                print("""New computation of bwweights, network load case
+                       is {0} with weights Wgg={1}, Wgd={2}, Wee={3},
+                       Wed={4}, Wmg={5}, Wme={6}, Wmd={7}.\n
+                       The weights received from the consensus are Wgg=
+                       {8}, Wgd={9}, Wee={10}, Wed={11}, Wmg={12}, Wme=
+                       {13}, Wmd={14} """.format(casename, Wgg, Wgd, Wee,
+                       Wed, Wmg, Wme, Wmd, bwweights['Wgg'], bwweights['Wgd'],
+                       bwweights['Wee'], bwweights['Wed'], bwweights['Wmg'],
+                       bwweights['Wme'], bwweights['Wmd']))
+            bwweights['Wgg'] = Wgg
+            bwweights['Wgd'] = Wgd
+            bwweights['Wee'] = Wee
+            bwweights['Wed'] = Wed
+            bwweights['Wmg'] = Wmg
+            bwweights['Wme'] = Wme
+            bwweights['Wmd'] = Wmd
 ######
 
 ### Class adjusting Guard flags ###
