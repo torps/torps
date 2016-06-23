@@ -227,8 +227,7 @@ class AdversaryInsertion(object):
             else:
                 #subcase S+D >= T/3
                 if (G < E):
-                    casename = """Case 3bg (G scarce, Wgg=weightscale,
-                                Wmd == Wed"""
+                    casename = 'Case 3bg (G scarce, Wgg=weightscale, Wmd == Wed'
                     Wgg = weightscale
                     Wgd = (weightscale*(D-2*G+E+M))/(3*D)
                     Wmg = 0
@@ -241,8 +240,7 @@ class AdversaryInsertion(object):
                             True)
                 else:
                     # G >= E
-                    casename = """Case 3be (E scarce, Wee=weightscale,
-                                Wmd == Wgd"""
+                    casename = 'Case 3be (E scarce, Wee=weightscale, Wmd == Wgd'
                     Wee = weightscale
                     Wed = (weightscale*(D-2*E+G+M))/(3*D)
                     Wme = 0
@@ -308,15 +306,10 @@ class AdversaryInsertion(object):
                     self.recompute_bwweights(network_state)
             bwweights = network_state.cons_bw_weights
             if self.testing: 
-                print("""New computation of bwweights, network load case
-                       is {0} with weights Wgg={1}, Wgd={2}, Wee={3},
-                       Wed={4}, Wmg={5}, Wme={6}, Wmd={7}.\n
-                       The weights received from the consensus are Wgg=
-                       {8}, Wgd={9}, Wee={10}, Wed={11}, Wmg={12}, Wme=
-                       {13}, Wmd={14} """.format(casename, Wgg, Wgd, Wee,
-                       Wed, Wmg, Wme, Wmd, bwweights['Wgg'], bwweights['Wgd'],
-                       bwweights['Wee'], bwweights['Wed'], bwweights['Wmg'],
-                       bwweights['Wme'], bwweights['Wmd']))
+                print('New computation of bwweights, network load case is {0}.\nRecomputed weights are Wgg={1}, Wgd={2}, Wee={3}, Wed={4}, Wmg={5}, Wme={6}, Wmd={7}.\nThe weights from the consensus are Wgg={8}, Wgd={9}, Wee={10}, Wed={11}, Wmg={12}, Wme={13}, Wmd={14}'.format(\
+                    casename, Wgg, Wgd, Wee, Wed, Wmg, Wme, Wmd, bwweights['Wgg'],
+                    bwweights['Wgd'], bwweights['Wee'], bwweights['Wed'],
+                    bwweights['Wmg'], bwweights['Wme'], bwweights['Wmd']))
             bwweights['Wgg'] = Wgg
             bwweights['Wgd'] = Wgd
             bwweights['Wee'] = Wee
