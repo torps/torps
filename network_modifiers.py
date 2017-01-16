@@ -317,6 +317,8 @@ class AdversaryInsertion(object):
             bwweights['Wmg'] = Wmg
             bwweights['Wme'] = Wme
             bwweights['Wmd'] = Wmd
+            # note that Wmm is always set to the weight scale (i.e. cons_bwweightscale) by Tor
+            # and thus need not be updated
 ######
 
 ### Class adjusting Guard flags ###

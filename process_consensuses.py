@@ -28,6 +28,7 @@ def read_descriptors(descriptors, descriptor_dir, skip_listener):
                 cur_type_annotation[0] = first_line
             else:
                 cur_type_annotation[0] = None
+            f.close()
         reader.register_read_listener(read_listener)
         with reader:
             for desc in reader:
